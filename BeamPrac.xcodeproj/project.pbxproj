@@ -12,7 +12,6 @@
 		0FC873942C8FFE3F00D809E9 /* BeamPracUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873932C8FFE3F00D809E9 /* BeamPracUITests.swift */; };
 		0FC873962C8FFE3F00D809E9 /* BeamPracUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873952C8FFE3F00D809E9 /* BeamPracUITestsLaunchTests.swift */; };
 		0FC873AB2C8FFF8000D809E9 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 0FC873AA2C8FFF8000D809E9 /* ComposableArchitecture */; };
-		0FC873CA2C9002B700D809E9 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873C92C9002B600D809E9 /* Item.swift */; };
 		0FC873E22C9006C800D809E9 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873E12C9006C800D809E9 /* NetworkManager.swift */; };
 		0FC873E52C9006EC00D809E9 /* Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873E42C9006EC00D809E9 /* Home.swift */; };
 		0FC873E72C90070C00D809E9 /* AppReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873E62C90070C00D809E9 /* AppReducer.swift */; };
@@ -52,7 +51,6 @@
 		0FC8738F2C8FFE3F00D809E9 /* BeamPracUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeamPracUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC873932C8FFE3F00D809E9 /* BeamPracUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracUITests.swift; sourceTree = "<group>"; };
 		0FC873952C8FFE3F00D809E9 /* BeamPracUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracUITestsLaunchTests.swift; sourceTree = "<group>"; };
-		0FC873C92C9002B600D809E9 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		0FC873E12C9006C800D809E9 /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
 		0FC873E42C9006EC00D809E9 /* Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Home.swift; sourceTree = "<group>"; };
 		0FC873E62C90070C00D809E9 /* AppReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReducer.swift; sourceTree = "<group>"; };
@@ -64,6 +62,7 @@
 		0FC873F62C90083C00D809E9 /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
 		0FC873F92C90086700D809E9 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		0FC873FB2C900D6300D809E9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0FC874002C901B7A00D809E9 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,13 +114,13 @@
 		0FC873742C8FFE3D00D809E9 /* BeamPrac */ = {
 			isa = PBXGroup;
 			children = (
+				0FC873FE2C901B6800D809E9 /* Database */,
 				0FC873F82C90085700D809E9 /* Security */,
 				0FC873F32C90081400D809E9 /* Extensions */,
 				0FC873EA2C90079300D809E9 /* DesignSystem */,
 				0FC873E32C9006E300D809E9 /* App */,
 				0FC873E02C9006BC00D809E9 /* Network */,
 				0FC873D92C90061800D809E9 /* DataFlow */,
-				0FC873C72C9002B100D809E9 /* Database */,
 				0FC8737D2C8FFE3E00D809E9 /* BeamPrac.entitlements */,
 				0FC8737E2C8FFE3E00D809E9 /* Preview Content */,
 			);
@@ -151,15 +150,6 @@
 				0FC873952C8FFE3F00D809E9 /* BeamPracUITestsLaunchTests.swift */,
 			);
 			path = BeamPracUITests;
-			sourceTree = "<group>";
-		};
-		0FC873C72C9002B100D809E9 /* Database */ = {
-			isa = PBXGroup;
-			children = (
-				0FC873C92C9002B600D809E9 /* Item.swift */,
-			);
-			name = Database;
-			path = ../../AIAudioPlayer22App/Database;
 			sourceTree = "<group>";
 		};
 		0FC873D92C90061800D809E9 /* DataFlow */ = {
@@ -229,6 +219,14 @@
 				0FC873F92C90086700D809E9 /* KeychainManager.swift */,
 			);
 			path = Security;
+			sourceTree = "<group>";
+		};
+		0FC873FE2C901B6800D809E9 /* Database */ = {
+			isa = PBXGroup;
+			children = (
+				0FC874002C901B7A00D809E9 /* Item.swift */,
+			);
+			path = Database;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -375,7 +373,6 @@
 				0FC873E92C90071800D809E9 /* TabBarView.swift in Sources */,
 				0FC873F52C90082500D809E9 /* Color+Extensions.swift in Sources */,
 				0FC873F72C90083C00D809E9 /* String+Extensions.swift in Sources */,
-				0FC873CA2C9002B700D809E9 /* Item.swift in Sources */,
 				0FC873F22C9007D000D809E9 /* TextStyles.swift in Sources */,
 				0FC873E52C9006EC00D809E9 /* Home.swift in Sources */,
 			);
