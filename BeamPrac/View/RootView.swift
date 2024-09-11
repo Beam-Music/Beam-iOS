@@ -15,7 +15,11 @@ struct RootView: View {
         WithViewStore(store, observe: { $0 }) { viewStore in
             ZStack {
                 if viewStore.databaseState == .idle {
-                    TabBarView(store: store)
+                    if viewStore.isLoggedIn {
+                        TabBarView(store: store)
+                    } else {
+                        LoginView(store: store)
+                    }
                 } else {
                     MigrationView(
                         databaseState: viewStore.binding(
@@ -26,6 +30,7 @@ struct RootView: View {
                 }
             }
             .animation(.default, value: viewStore.databaseState)
+            .animation(.default, value: viewStore.isLoggedIn)
         }
     }
 }

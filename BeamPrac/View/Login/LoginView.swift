@@ -6,13 +6,14 @@
 //
 
 import SwiftUI
+import ComposableArchitecture
 
 struct LoginView: View {
     @State private var username: String = ""
     @State private var password: String = ""
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
-    @Binding var isLoggedIn: Bool
+    let store: StoreOf<AppReducer>
 
     var body: some View {
         VStack {
@@ -44,10 +45,9 @@ struct LoginView: View {
         isLoading = true
         errorMessage = nil
         
-        // Simulating network request
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             if self.username == "user" && self.password == "password" {
-                self.isLoggedIn = true
+                store.send(.login(username: username, password: password))
             } else {
                 self.errorMessage = "Invalid username or password"
             }
@@ -56,8 +56,8 @@ struct LoginView: View {
     }
 }
 
-struct LoginView_Previews: PreviewProvider {
-    static var previews: some View {
-        LoginView(isLoggedIn: .constant(false))
-    }
-}
+//struct LoginView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        LoginView(isLoggedIn: .constant(false))
+//    }
+//}

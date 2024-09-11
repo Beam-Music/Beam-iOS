@@ -18,6 +18,7 @@
 		0FB328152C90392900F5675B /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328142C90392900F5675B /* AppState.swift */; };
 		0FB328172C903AAF00F5675B /* BeamPracApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328162C903AAF00F5675B /* BeamPracApp.swift */; };
 		0FB3281A2C903E0300F5675B /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328192C903E0300F5675B /* PlayerView.swift */; };
+		0FB328232C918A0D00F5675B /* AudioProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328222C918A0D00F5675B /* AudioProcessing.swift */; };
 		0FC873802C8FFE3E00D809E9 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */; };
 		0FC8738A2C8FFE3E00D809E9 /* BeamPracTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873892C8FFE3E00D809E9 /* BeamPracTests.swift */; };
 		0FC873942C8FFE3F00D809E9 /* BeamPracUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873932C8FFE3F00D809E9 /* BeamPracUITests.swift */; };
@@ -62,6 +63,7 @@
 		0FB328142C90392900F5675B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		0FB328162C903AAF00F5675B /* BeamPracApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracApp.swift; sourceTree = "<group>"; };
 		0FB328192C903E0300F5675B /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		0FB328222C918A0D00F5675B /* AudioProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessing.swift; sourceTree = "<group>"; };
 		0FC873722C8FFE3D00D809E9 /* BeamPrac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeamPrac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC8737D2C8FFE3E00D809E9 /* BeamPrac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeamPrac.entitlements; sourceTree = "<group>"; };
 		0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -163,6 +165,22 @@
 			path = Player;
 			sourceTree = "<group>";
 		};
+		0FB3281B2C91339400F5675B /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				0FC873F32C90081400D809E9 /* Extensions */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		0FB328212C91841800F5675B /* AudioProcessing */ = {
+			isa = PBXGroup;
+			children = (
+				0FB328222C918A0D00F5675B /* AudioProcessing.swift */,
+			);
+			path = AudioProcessing;
+			sourceTree = "<group>";
+		};
 		0FC873692C8FFE3D00D809E9 = {
 			isa = PBXGroup;
 			children = (
@@ -186,11 +204,11 @@
 		0FC873742C8FFE3D00D809E9 /* BeamPrac */ = {
 			isa = PBXGroup;
 			children = (
+				0FB328212C91841800F5675B /* AudioProcessing */,
 				0FB328022C9030E100F5675B /* View */,
 				0FB327FE2C902E5B00F5675B /* DataFlow */,
 				0FC873FE2C901B6800D809E9 /* Database */,
 				0FC873F82C90085700D809E9 /* Security */,
-				0FC873F32C90081400D809E9 /* Extensions */,
 				0FC873EA2C90079300D809E9 /* DesignSystem */,
 				0FC873E32C9006E300D809E9 /* App */,
 				0FC873E02C9006BC00D809E9 /* Network */,
@@ -236,6 +254,7 @@
 		0FC873E32C9006E300D809E9 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				0FB3281B2C91339400F5675B /* Tools */,
 				0FC873FB2C900D6300D809E9 /* Assets.xcassets */,
 				0FB328162C903AAF00F5675B /* BeamPracApp.swift */,
 			);
@@ -435,6 +454,7 @@
 				0FB3280B2C9031BF00F5675B /* LoginRouter.swift in Sources */,
 				0FB328002C902E8500F5675B /* AppReducer.swift in Sources */,
 				0FC873EF2C9007B700D809E9 /* PrimaryButton.swift in Sources */,
+				0FB328232C918A0D00F5675B /* AudioProcessing.swift in Sources */,
 				0FC873E22C9006C800D809E9 /* NetworkManager.swift in Sources */,
 				0FC873ED2C9007A800D809E9 /* CustomNavigationBar.swift in Sources */,
 				0FC873F52C90082500D809E9 /* Color+Extensions.swift in Sources */,

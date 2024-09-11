@@ -22,6 +22,7 @@ struct AppReducer: Reducer {
         case setDatabaseState(DatabaseState)
         case setSelectedTab(Tab)
         case setLoggedIn(Bool)
+        case login(username: String, password: String)
     }
     
     enum Tab: Equatable {
@@ -44,9 +45,18 @@ struct AppReducer: Reducer {
             return .none
         case .tabBar:
             return .none
+        case .login(let username, let password):
+            return .run { send in
+                            try await Task.sleep(nanoseconds: 1_000_000_000) // 1초 딜레이
+                            
+                            if username == "user" && password == "password" {
+                                await send(.setLoggedIn(true))  // 로그인 성공
+                }
+              }
+            }
         }
     }
-}
+
 
 
 
