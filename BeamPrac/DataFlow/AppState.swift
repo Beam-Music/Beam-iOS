@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import ComposableArchitecture
 
 class AppState: ObservableObject {
     @Published var databaseState: DatabaseState = .migrating
@@ -40,4 +41,24 @@ enum DatabaseState: Equatable {
 
 enum TabSelection: Equatable {
     case home, player, generator
+}
+
+// MigrationReducer 정의
+// todo: migrationView필요한지 체크
+struct MigrationReducer: Reducer {
+    struct State: Equatable {
+        var progress: Double = 0
+    }
+    
+    enum Action: Equatable {
+        case updateProgress(Double)
+    }
+    
+    func reduce(into state: inout State, action: Action) -> Effect<Action> {
+        switch action {
+        case let .updateProgress(progress):
+            state.progress = progress
+            return .none
+        }
+    }
 }
