@@ -5,7 +5,6 @@
 //  Created by freed on 9/10/24.
 //
 
-import SwiftUI
 import ComposableArchitecture
 
 @Reducer
@@ -65,29 +64,6 @@ struct LoginReducer {
                 return .none
             }
         }
-    }
-}
-
-// Mock AuthClient for demonstration purposes
-struct AuthClient {
-    var login: (String, String) async throws -> Bool
-}
-
-extension AuthClient: DependencyKey {
-    static let liveValue = AuthClient(
-        login: { username, password in
-            // Simulate network delay
-            try await Task.sleep(for: .seconds(1))
-            // Simulate login logic
-            return username == "user" && password == "password"
-        }
-    )
-}
-
-extension DependencyValues {
-    var authClient: AuthClient {
-        get { self[AuthClient.self] }
-        set { self[AuthClient.self] = newValue }
     }
 }
 

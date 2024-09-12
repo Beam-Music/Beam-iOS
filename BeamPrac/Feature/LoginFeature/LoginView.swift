@@ -58,6 +58,6 @@ struct LoginView: View {
 
 //struct LoginView_Previews: PreviewProvider {
 //    static var previews: some View {
-//        LoginView(isLoggedIn: .constant(false))
+//        LoginView(store: .constant(false))
 //    }
 //}

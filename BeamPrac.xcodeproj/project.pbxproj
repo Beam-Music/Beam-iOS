@@ -10,15 +10,19 @@
 		0FB328002C902E8500F5675B /* AppReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB327FF2C902E8500F5675B /* AppReducer.swift */; };
 		0FB328072C90316200F5675B /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328062C90316200F5675B /* TabBarView.swift */; };
 		0FB328092C9031B300F5675B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328082C9031B300F5675B /* LoginView.swift */; };
-		0FB3280B2C9031BF00F5675B /* LoginRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280A2C9031BF00F5675B /* LoginRouter.swift */; };
+		0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280A2C9031BF00F5675B /* LoginReducer.swift */; };
 		0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280C2C9031CD00F5675B /* HomeView.swift */; };
-		0FB3280F2C9031D500F5675B /* HomeRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280E2C9031D500F5675B /* HomeRouter.swift */; };
+		0FB3280F2C9031D500F5675B /* HomeReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280E2C9031D500F5675B /* HomeReducer.swift */; };
 		0FB328112C90330300F5675B /* MigrationVIew.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328102C90330300F5675B /* MigrationVIew.swift */; };
 		0FB328132C90331200F5675B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328122C90331200F5675B /* RootView.swift */; };
 		0FB328152C90392900F5675B /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328142C90392900F5675B /* AppState.swift */; };
 		0FB328172C903AAF00F5675B /* BeamPracApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328162C903AAF00F5675B /* BeamPracApp.swift */; };
 		0FB3281A2C903E0300F5675B /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328192C903E0300F5675B /* PlayerView.swift */; };
 		0FB328232C918A0D00F5675B /* AudioProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328222C918A0D00F5675B /* AudioProcessing.swift */; };
+		0FB328252C92777800F5675B /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328242C92777800F5675B /* AuthService.swift */; };
+		0FB328272C927B7D00F5675B /* AuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328262C927B7D00F5675B /* AuthClient.swift */; };
+		0FB328292C927BFB00F5675B /* LoginAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328282C927BFB00F5675B /* LoginAction.swift */; };
+		0FB3282B2C92843600F5675B /* HomeAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3282A2C92843600F5675B /* HomeAction.swift */; };
 		0FC873802C8FFE3E00D809E9 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */; };
 		0FC8738A2C8FFE3E00D809E9 /* BeamPracTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873892C8FFE3E00D809E9 /* BeamPracTests.swift */; };
 		0FC873942C8FFE3F00D809E9 /* BeamPracUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873932C8FFE3F00D809E9 /* BeamPracUITests.swift */; };
@@ -55,15 +59,19 @@
 		0FB327FF2C902E8500F5675B /* AppReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReducer.swift; sourceTree = "<group>"; };
 		0FB328062C90316200F5675B /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TabBarView.swift; path = BeamPrac/DataFlow/TabBarView.swift; sourceTree = SOURCE_ROOT; };
 		0FB328082C9031B300F5675B /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		0FB3280A2C9031BF00F5675B /* LoginRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginRouter.swift; sourceTree = "<group>"; };
+		0FB3280A2C9031BF00F5675B /* LoginReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginReducer.swift; sourceTree = "<group>"; };
 		0FB3280C2C9031CD00F5675B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		0FB3280E2C9031D500F5675B /* HomeRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRouter.swift; sourceTree = "<group>"; };
+		0FB3280E2C9031D500F5675B /* HomeReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeReducer.swift; sourceTree = "<group>"; };
 		0FB328102C90330300F5675B /* MigrationVIew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationVIew.swift; sourceTree = "<group>"; };
 		0FB328122C90331200F5675B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		0FB328142C90392900F5675B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		0FB328162C903AAF00F5675B /* BeamPracApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracApp.swift; sourceTree = "<group>"; };
 		0FB328192C903E0300F5675B /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
 		0FB328222C918A0D00F5675B /* AudioProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessing.swift; sourceTree = "<group>"; };
+		0FB328242C92777800F5675B /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		0FB328262C927B7D00F5675B /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
+		0FB328282C927BFB00F5675B /* LoginAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginAction.swift; sourceTree = "<group>"; };
+		0FB3282A2C92843600F5675B /* HomeAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAction.swift; sourceTree = "<group>"; };
 		0FC873722C8FFE3D00D809E9 /* BeamPrac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeamPrac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC8737D2C8FFE3E00D809E9 /* BeamPrac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeamPrac.entitlements; sourceTree = "<group>"; };
 		0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -118,35 +126,39 @@
 			path = DataFlow;
 			sourceTree = "<group>";
 		};
-		0FB328022C9030E100F5675B /* View */ = {
+		0FB328022C9030E100F5675B /* Feature */ = {
 			isa = PBXGroup;
 			children = (
 				0FB328182C903DF400F5675B /* Player */,
 				0FB328052C90314800F5675B /* Tab */,
-				0FB328042C90314100F5675B /* Login */,
+				0FB328042C90314100F5675B /* LoginFeature */,
 				0FB328032C90313A00F5675B /* Home */,
 				0FB328102C90330300F5675B /* MigrationVIew.swift */,
 				0FB328122C90331200F5675B /* RootView.swift */,
 			);
-			path = View;
+			path = Feature;
 			sourceTree = "<group>";
 		};
 		0FB328032C90313A00F5675B /* Home */ = {
 			isa = PBXGroup;
 			children = (
 				0FB3280C2C9031CD00F5675B /* HomeView.swift */,
-				0FB3280E2C9031D500F5675B /* HomeRouter.swift */,
+				0FB3280E2C9031D500F5675B /* HomeReducer.swift */,
+				0FB3282A2C92843600F5675B /* HomeAction.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
 		};
-		0FB328042C90314100F5675B /* Login */ = {
+		0FB328042C90314100F5675B /* LoginFeature */ = {
 			isa = PBXGroup;
 			children = (
+				0FB328242C92777800F5675B /* AuthService.swift */,
 				0FB328082C9031B300F5675B /* LoginView.swift */,
-				0FB3280A2C9031BF00F5675B /* LoginRouter.swift */,
+				0FB3280A2C9031BF00F5675B /* LoginReducer.swift */,
+				0FB328262C927B7D00F5675B /* AuthClient.swift */,
+				0FB328282C927BFB00F5675B /* LoginAction.swift */,
 			);
-			path = Login;
+			path = LoginFeature;
 			sourceTree = "<group>";
 		};
 		0FB328052C90314800F5675B /* Tab */ = {
@@ -205,7 +217,7 @@
 			isa = PBXGroup;
 			children = (
 				0FB328212C91841800F5675B /* AudioProcessing */,
-				0FB328022C9030E100F5675B /* View */,
+				0FB328022C9030E100F5675B /* Feature */,
 				0FB327FE2C902E5B00F5675B /* DataFlow */,
 				0FC873FE2C901B6800D809E9 /* Database */,
 				0FC873F82C90085700D809E9 /* Security */,
@@ -451,15 +463,19 @@
 				0FC873FA2C90086700D809E9 /* KeychainManager.swift in Sources */,
 				0FB328072C90316200F5675B /* TabBarView.swift in Sources */,
 				0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */,
-				0FB3280B2C9031BF00F5675B /* LoginRouter.swift in Sources */,
+				0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */,
 				0FB328002C902E8500F5675B /* AppReducer.swift in Sources */,
 				0FC873EF2C9007B700D809E9 /* PrimaryButton.swift in Sources */,
+				0FB3282B2C92843600F5675B /* HomeAction.swift in Sources */,
 				0FB328232C918A0D00F5675B /* AudioProcessing.swift in Sources */,
+				0FB328272C927B7D00F5675B /* AuthClient.swift in Sources */,
+				0FB328252C92777800F5675B /* AuthService.swift in Sources */,
+				0FB328292C927BFB00F5675B /* LoginAction.swift in Sources */,
 				0FC873E22C9006C800D809E9 /* NetworkManager.swift in Sources */,
 				0FC873ED2C9007A800D809E9 /* CustomNavigationBar.swift in Sources */,
 				0FC873F52C90082500D809E9 /* Color+Extensions.swift in Sources */,
 				0FB3281A2C903E0300F5675B /* PlayerView.swift in Sources */,
-				0FB3280F2C9031D500F5675B /* HomeRouter.swift in Sources */,
+				0FB3280F2C9031D500F5675B /* HomeReducer.swift in Sources */,
 				0FB328172C903AAF00F5675B /* BeamPracApp.swift in Sources */,
 				0FC873F72C90083C00D809E9 /* String+Extensions.swift in Sources */,
 				0FB328152C90392900F5675B /* AppState.swift in Sources */,
