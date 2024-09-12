@@ -104,29 +104,6 @@ struct MigrationReducer: Reducer {
     }
 }
 
-// TabBarReducer 정의
-// todo : tabbarreducer, action 이동
-struct TabBarReducer: Reducer {
-    struct State: Equatable {
-        var playerState = PlayerReducer.State()
-        var generatorState = GeneratorReducer.State()
-    }
-    
-    enum Action: Equatable {
-        case player(PlayerReducer.Action)
-        case generator(GeneratorReducer.Action)
-    }
-    
-    var body: some ReducerOf<Self> {
-        Scope(state: \.playerState, action: /Action.player) {
-            PlayerReducer()
-        }
-        Scope(state: \.generatorState, action: /Action.generator) {
-            GeneratorReducer()
-        }
-    }
-}
-
 // PlayerReducer 정의
 struct PlayerReducer: Reducer {
     struct State: Equatable {}
