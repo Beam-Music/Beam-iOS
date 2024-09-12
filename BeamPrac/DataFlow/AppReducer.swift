@@ -12,6 +12,7 @@ struct AppReducer: Reducer {
         var databaseState: DatabaseState = .idle
         var migrationState = MigrationReducer.State()
         var tabBarState = TabBarReducer.State()
+        var homeState = HomeReducer.State()
         var selectedTab: Tab = .home
         var isLoggedIn: Bool = false
     }
@@ -22,6 +23,7 @@ struct AppReducer: Reducer {
         case setDatabaseState(DatabaseState)
         case setSelectedTab(Tab)
         case setLoggedIn(Bool)
+        case home(HomeAction)
         case login(username: String, password: String)
     }
     
@@ -46,6 +48,16 @@ struct AppReducer: Reducer {
             state.isLoggedIn = isLoggedIn
             return .none
 
+        case .home(let homeAction):
+            switch homeAction {
+        case .logOutButtonTapped:
+            state.isLoggedIn = false
+            return .none
+        default:
+            return .none
+            }
+
+            
         case .migration:
             return .none
 
@@ -58,11 +70,22 @@ struct AppReducer: Reducer {
                 await send(.setLoggedIn(isSuccess))
             }
             .cancellable(id: CancelID.login, cancelInFlight: true)
+            
         }
     }
+    var body: some ReducerOf<Self> {
+            Scope(state: \.homeState, action: /Action.home) {
+                //todo: 필요한지 체크
+//                HomeReducer()
+            }
+            Scope(state: \.tabBarState, action: /Action.tabBar) {
+                TabBarReducer()  // TabBarReducer와 Scope로 연결
+            }
+        }
 }
 
 // MigrationReducer 정의
+// todo: migrationView필요한지 체크
 struct MigrationReducer: Reducer {
     struct State: Equatable {
         var progress: Double = 0
@@ -82,6 +105,7 @@ struct MigrationReducer: Reducer {
 }
 
 // TabBarReducer 정의
+// todo : tabbarreducer, action 이동
 struct TabBarReducer: Reducer {
     struct State: Equatable {
         var playerState = PlayerReducer.State()
