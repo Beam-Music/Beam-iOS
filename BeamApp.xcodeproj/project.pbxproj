@@ -76,12 +76,12 @@
 		0FB3282A2C92843600F5675B /* HomeAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAction.swift; sourceTree = "<group>"; };
 		0FB3282C2C929F4000F5675B /* TabBarReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarReducer.swift; sourceTree = "<group>"; };
 		0FB3282E2C929FB700F5675B /* PlayerReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerReducer.swift; sourceTree = "<group>"; };
-		0FC873722C8FFE3D00D809E9 /* BeamPrac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeamPrac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FC873722C8FFE3D00D809E9 /* BeamApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeamApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC8737D2C8FFE3E00D809E9 /* BeamPrac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeamPrac.entitlements; sourceTree = "<group>"; };
 		0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		0FC873852C8FFE3E00D809E9 /* BeamPracTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeamPracTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FC873852C8FFE3E00D809E9 /* BeamAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeamAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC873892C8FFE3E00D809E9 /* BeamPracTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracTests.swift; sourceTree = "<group>"; };
-		0FC8738F2C8FFE3F00D809E9 /* BeamPracUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeamPracUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FC8738F2C8FFE3F00D809E9 /* BeamAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeamAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC873932C8FFE3F00D809E9 /* BeamPracUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracUITests.swift; sourceTree = "<group>"; };
 		0FC873952C8FFE3F00D809E9 /* BeamPracUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		0FC873E12C9006C800D809E9 /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
@@ -212,9 +212,9 @@
 		0FC873732C8FFE3D00D809E9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0FC873722C8FFE3D00D809E9 /* BeamPrac.app */,
-				0FC873852C8FFE3E00D809E9 /* BeamPracTests.xctest */,
-				0FC8738F2C8FFE3F00D809E9 /* BeamPracUITests.xctest */,
+				0FC873722C8FFE3D00D809E9 /* BeamApp.app */,
+				0FC873852C8FFE3E00D809E9 /* BeamAppTests.xctest */,
+				0FC8738F2C8FFE3F00D809E9 /* BeamAppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -333,9 +333,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		0FC873712C8FFE3D00D809E9 /* BeamPrac */ = {
+		0FC873712C8FFE3D00D809E9 /* BeamApp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0FC873992C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamPrac" */;
+			buildConfigurationList = 0FC873992C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamApp" */;
 			buildPhases = (
 				0FC8736E2C8FFE3D00D809E9 /* Sources */,
 				0FC8736F2C8FFE3D00D809E9 /* Frameworks */,
@@ -345,17 +345,17 @@
 			);
 			dependencies = (
 			);
-			name = BeamPrac;
+			name = BeamApp;
 			packageProductDependencies = (
 				0FC873AA2C8FFF8000D809E9 /* ComposableArchitecture */,
 			);
 			productName = BeamPrac;
-			productReference = 0FC873722C8FFE3D00D809E9 /* BeamPrac.app */;
+			productReference = 0FC873722C8FFE3D00D809E9 /* BeamApp.app */;
 			productType = "com.apple.product-type.application";
 		};
-		0FC873842C8FFE3E00D809E9 /* BeamPracTests */ = {
+		0FC873842C8FFE3E00D809E9 /* BeamAppTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0FC8739C2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamPracTests" */;
+			buildConfigurationList = 0FC8739C2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamAppTests" */;
 			buildPhases = (
 				0FC873812C8FFE3E00D809E9 /* Sources */,
 				0FC873822C8FFE3E00D809E9 /* Frameworks */,
@@ -366,14 +366,14 @@
 			dependencies = (
 				0FC873872C8FFE3E00D809E9 /* PBXTargetDependency */,
 			);
-			name = BeamPracTests;
+			name = BeamAppTests;
 			productName = BeamPracTests;
-			productReference = 0FC873852C8FFE3E00D809E9 /* BeamPracTests.xctest */;
+			productReference = 0FC873852C8FFE3E00D809E9 /* BeamAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		0FC8738E2C8FFE3F00D809E9 /* BeamPracUITests */ = {
+		0FC8738E2C8FFE3F00D809E9 /* BeamAppUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0FC8739F2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamPracUITests" */;
+			buildConfigurationList = 0FC8739F2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamAppUITests" */;
 			buildPhases = (
 				0FC8738B2C8FFE3F00D809E9 /* Sources */,
 				0FC8738C2C8FFE3F00D809E9 /* Frameworks */,
@@ -384,9 +384,9 @@
 			dependencies = (
 				0FC873912C8FFE3F00D809E9 /* PBXTargetDependency */,
 			);
-			name = BeamPracUITests;
+			name = BeamAppUITests;
 			productName = BeamPracUITests;
-			productReference = 0FC8738F2C8FFE3F00D809E9 /* BeamPracUITests.xctest */;
+			productReference = 0FC8738F2C8FFE3F00D809E9 /* BeamAppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -412,7 +412,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 0FC8736D2C8FFE3D00D809E9 /* Build configuration list for PBXProject "BeamPrac" */;
+			buildConfigurationList = 0FC8736D2C8FFE3D00D809E9 /* Build configuration list for PBXProject "BeamApp" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -428,9 +428,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				0FC873712C8FFE3D00D809E9 /* BeamPrac */,
-				0FC873842C8FFE3E00D809E9 /* BeamPracTests */,
-				0FC8738E2C8FFE3F00D809E9 /* BeamPracUITests */,
+				0FC873712C8FFE3D00D809E9 /* BeamApp */,
+				0FC873842C8FFE3E00D809E9 /* BeamAppTests */,
+				0FC8738E2C8FFE3F00D809E9 /* BeamAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -516,12 +516,12 @@
 /* Begin PBXTargetDependency section */
 		0FC873872C8FFE3E00D809E9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 0FC873712C8FFE3D00D809E9 /* BeamPrac */;
+			target = 0FC873712C8FFE3D00D809E9 /* BeamApp */;
 			targetProxy = 0FC873862C8FFE3E00D809E9 /* PBXContainerItemProxy */;
 		};
 		0FC873912C8FFE3F00D809E9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 0FC873712C8FFE3D00D809E9 /* BeamPrac */;
+			target = 0FC873712C8FFE3D00D809E9 /* BeamApp */;
 			targetProxy = 0FC873902C8FFE3F00D809E9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -736,7 +736,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BeamPrac.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeamPrac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BeamApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeamApp";
 			};
 			name = Debug;
 		};
@@ -759,7 +759,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BeamPrac.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeamPrac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BeamApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeamApp";
 			};
 			name = Release;
 		};
@@ -810,7 +810,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		0FC8736D2C8FFE3D00D809E9 /* Build configuration list for PBXProject "BeamPrac" */ = {
+		0FC8736D2C8FFE3D00D809E9 /* Build configuration list for PBXProject "BeamApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0FC873972C8FFE3F00D809E9 /* Debug */,
@@ -819,7 +819,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0FC873992C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamPrac" */ = {
+		0FC873992C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0FC8739A2C8FFE3F00D809E9 /* Debug */,
@@ -828,7 +828,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0FC8739C2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamPracTests" */ = {
+		0FC8739C2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamAppTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0FC8739D2C8FFE3F00D809E9 /* Debug */,
@@ -837,7 +837,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0FC8739F2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamPracUITests" */ = {
+		0FC8739F2C8FFE3F00D809E9 /* Build configuration list for PBXNativeTarget "BeamAppUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0FC873A02C8FFE3F00D809E9 /* Debug */,
