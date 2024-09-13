@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0FB15EE72C9436C8003718C3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EE62C9436C8003718C3 /* TabBarView.swift */; };
 		0FB328002C902E8500F5675B /* AppReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB327FF2C902E8500F5675B /* AppReducer.swift */; };
-		0FB328072C90316200F5675B /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328062C90316200F5675B /* TabBarView.swift */; };
 		0FB328092C9031B300F5675B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328082C9031B300F5675B /* LoginView.swift */; };
 		0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280A2C9031BF00F5675B /* LoginReducer.swift */; };
 		0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280C2C9031CD00F5675B /* HomeView.swift */; };
@@ -58,8 +58,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0FB15EE62C9436C8003718C3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		0FB327FF2C902E8500F5675B /* AppReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReducer.swift; sourceTree = "<group>"; };
-		0FB328062C90316200F5675B /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TabBarView.swift; path = BeamPrac/DataFlow/TabBarView.swift; sourceTree = SOURCE_ROOT; };
 		0FB328082C9031B300F5675B /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		0FB3280A2C9031BF00F5675B /* LoginReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginReducer.swift; sourceTree = "<group>"; };
 		0FB3280C2C9031CD00F5675B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -77,7 +77,7 @@
 		0FB3282C2C929F4000F5675B /* TabBarReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarReducer.swift; sourceTree = "<group>"; };
 		0FB3282E2C929FB700F5675B /* PlayerReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerReducer.swift; sourceTree = "<group>"; };
 		0FC873722C8FFE3D00D809E9 /* BeamApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeamApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		0FC8737D2C8FFE3E00D809E9 /* BeamPrac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeamPrac.entitlements; sourceTree = "<group>"; };
+		0FC8737D2C8FFE3E00D809E9 /* BeamApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeamApp.entitlements; sourceTree = "<group>"; };
 		0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		0FC873852C8FFE3E00D809E9 /* BeamAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeamAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC873892C8FFE3E00D809E9 /* BeamPracTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracTests.swift; sourceTree = "<group>"; };
@@ -168,8 +168,8 @@
 		0FB328052C90314800F5675B /* Tab */ = {
 			isa = PBXGroup;
 			children = (
-				0FB328062C90316200F5675B /* TabBarView.swift */,
 				0FB3282C2C929F4000F5675B /* TabBarReducer.swift */,
+				0FB15EE62C9436C8003718C3 /* TabBarView.swift */,
 			);
 			path = Tab;
 			sourceTree = "<group>";
@@ -202,9 +202,9 @@
 		0FC873692C8FFE3D00D809E9 = {
 			isa = PBXGroup;
 			children = (
-				0FC873742C8FFE3D00D809E9 /* BeamPrac */,
-				0FC873882C8FFE3E00D809E9 /* BeamPracTests */,
-				0FC873922C8FFE3F00D809E9 /* BeamPracUITests */,
+				0FC873742C8FFE3D00D809E9 /* BeamApp */,
+				0FC873882C8FFE3E00D809E9 /* BeamAppTests */,
+				0FC873922C8FFE3F00D809E9 /* BeamAppUITests */,
 				0FC873732C8FFE3D00D809E9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -219,7 +219,7 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		0FC873742C8FFE3D00D809E9 /* BeamPrac */ = {
+		0FC873742C8FFE3D00D809E9 /* BeamApp */ = {
 			isa = PBXGroup;
 			children = (
 				0FB328212C91841800F5675B /* AudioProcessing */,
@@ -230,10 +230,10 @@
 				0FC873EA2C90079300D809E9 /* DesignSystem */,
 				0FC873E32C9006E300D809E9 /* App */,
 				0FC873E02C9006BC00D809E9 /* Network */,
-				0FC8737D2C8FFE3E00D809E9 /* BeamPrac.entitlements */,
+				0FC8737D2C8FFE3E00D809E9 /* BeamApp.entitlements */,
 				0FC8737E2C8FFE3E00D809E9 /* Preview Content */,
 			);
-			path = BeamPrac;
+			path = BeamApp;
 			sourceTree = "<group>";
 		};
 		0FC8737E2C8FFE3E00D809E9 /* Preview Content */ = {
@@ -244,21 +244,21 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		0FC873882C8FFE3E00D809E9 /* BeamPracTests */ = {
+		0FC873882C8FFE3E00D809E9 /* BeamAppTests */ = {
 			isa = PBXGroup;
 			children = (
 				0FC873892C8FFE3E00D809E9 /* BeamPracTests.swift */,
 			);
-			path = BeamPracTests;
+			path = BeamAppTests;
 			sourceTree = "<group>";
 		};
-		0FC873922C8FFE3F00D809E9 /* BeamPracUITests */ = {
+		0FC873922C8FFE3F00D809E9 /* BeamAppUITests */ = {
 			isa = PBXGroup;
 			children = (
 				0FC873932C8FFE3F00D809E9 /* BeamPracUITests.swift */,
 				0FC873952C8FFE3F00D809E9 /* BeamPracUITestsLaunchTests.swift */,
 			);
-			path = BeamPracUITests;
+			path = BeamAppUITests;
 			sourceTree = "<group>";
 		};
 		0FC873E02C9006BC00D809E9 /* Network */ = {
@@ -468,7 +468,7 @@
 			files = (
 				0FB3282F2C929FB700F5675B /* PlayerReducer.swift in Sources */,
 				0FC873FA2C90086700D809E9 /* KeychainManager.swift in Sources */,
-				0FB328072C90316200F5675B /* TabBarView.swift in Sources */,
+				0FB15EE72C9436C8003718C3 /* TabBarView.swift in Sources */,
 				0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */,
 				0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */,
 				0FB3282D2C929F4000F5675B /* TabBarReducer.swift in Sources */,
@@ -646,10 +646,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BeamPrac/BeamPrac.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"BeamPrac/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"BeamApp/Preview Content\"";
 				DEVELOPMENT_TEAM = P72UR4K32D;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -671,6 +671,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.beam.abc.BeamPrac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -684,10 +685,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BeamPrac/BeamPrac.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"BeamPrac/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"BeamApp/Preview Content\"";
 				DEVELOPMENT_TEAM = P72UR4K32D;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -709,6 +710,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.beam.abc.BeamPrac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_EMIT_LOC_STRINGS = YES;
