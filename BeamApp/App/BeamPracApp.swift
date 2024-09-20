@@ -7,18 +7,21 @@
 
 import SwiftUI
 import ComposableArchitecture
+import SwiftData
 
 @main
 struct BeamPracApp: App {
-    
+    let container = try! ModelContainer(for: TokenEntity.self)
+
     let store: StoreOf<AppReducer> = Store(initialState: AppReducer.State()) {
            AppReducer()
-               ._printChanges() // 필요하다면 디버깅 용도
+               ._printChanges()
     }
     
     var body: some Scene {
         WindowGroup {
             RootView(store: store)
+              .modelContainer(container)  
         }
     }
 }

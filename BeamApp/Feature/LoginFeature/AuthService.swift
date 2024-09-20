@@ -35,6 +35,13 @@ extension AuthService: DependencyKey {
             }
             
             let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+            @Dependency(\.tokenStorage) var tokenStorage
+            do {
+                try tokenStorage.saveToken(tokenResponse.token)
+                print("토큰 저장 성공:")
+            } catch {
+                print("토큰 저장 실패: \(error)")
+            }
             return tokenResponse.token
         }
     }

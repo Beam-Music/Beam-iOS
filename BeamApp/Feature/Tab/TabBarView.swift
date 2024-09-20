@@ -20,7 +20,13 @@ struct TabBarView: View {
                 HomeView(isLoggedIn: viewStore.binding(
                     get: \.isLoggedIn,
                     send: { .setLoggedIn($0) }
-                ))
+                ),
+                         store: store.scope(
+                            state: \.homeState,
+                            action: AppReducer.Action.home
+                         )
+                )
+                
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }

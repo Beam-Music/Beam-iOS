@@ -13,6 +13,10 @@ struct Endpoints {
         static let login = "\(baseURL)/users/login"
     }
     
+    struct History {
+        static let ListeningHistory = "\(baseURL)/listening-history"
+    }
+    
     struct User {
         static let profile = "\(baseURL)/users/profile"
     }
