@@ -6,80 +6,68 @@
 //
 
 import ComposableArchitecture
+import Foundation
 
 struct AppReducer: Reducer {
     struct State: Equatable {
         var databaseState: DatabaseState = .idle
-        var migrationState = MigrationReducer.State()
         var tabBarState = TabBarReducer.State()
         var homeState = HomeReducer.State()
+        var loginState = LoginFeature.State()
         var selectedTab: Tab = .home
         var isLoggedIn: Bool = false
     }
     
     enum Action: Equatable {
-        case migration(MigrationReducer.Action)
         case tabBar(TabBarReducer.Action)
         case setDatabaseState(DatabaseState)
         case setSelectedTab(Tab)
         case setLoggedIn(Bool)
-        case home(HomeAction)
-        case login(username: String, password: String)
+        case home(HomeReducer.Action)
+        case login(LoginFeature.Action)
     }
-    
+
     enum Tab: Equatable {
         case home, player
     }
     
-    @Dependency(\.authService) var authService  // 의존성 주입
-    private enum CancelID { case login }
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .setDatabaseState(let newState):
+                state.databaseState = newState
+                return .none
 
-    func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .setDatabaseState(let newState):
-            state.databaseState = newState
-            return .none
+            case .setSelectedTab(let tab):
+                state.selectedTab = tab
+                return .none
 
-        case .setSelectedTab(let tab):
-            state.selectedTab = tab
-            return .none
+            case .setLoggedIn(let isLoggedIn):
+                state.isLoggedIn = isLoggedIn
+                return .none
 
-        case .setLoggedIn(let isLoggedIn):
-            state.isLoggedIn = isLoggedIn
-            return .none
-
-        case .home(let homeAction):
-            switch homeAction {
-        case .logOutButtonTapped:
-            state.isLoggedIn = false
-            return .none
-        default:
-            return .none
+           
+            case .login(.loginResponse(.success(let token))):
+                state.isLoggedIn = true
+                state.loginState.token = token
+                return .none
+                
+            case .tabBar, .home, .login:
+                return .none
             }
-
-            
-        case .migration:
-            return .none
-
-        case .tabBar:
-            return .none
-
-        case .login(let username, let password):
-            return .run { send in
-                let isSuccess = try await authService.login(username, password)
-                await send(.setLoggedIn(isSuccess))
-            }
-            .cancellable(id: CancelID.login, cancelInFlight: true)
-            
+        }
+        Scope(state: \.tabBarState, action: /Action.tabBar) {
+            TabBarReducer()
+        }
+        Scope(state: \.homeState, action: /Action.home) {
+            HomeReducer()
+        }
+        Scope(state: \.loginState, action: /Action.login) {
+            LoginFeature()
         }
     }
-    var body: some ReducerOf<Self> {
-            Scope(state: \.homeState, action: /Action.home) {
-                //todo: 필요한지 체크
-//                HomeReducer()
-            }
-            Scope(state: \.tabBarState, action: /Action.tabBar) {
-                TabBarReducer()  // TabBarReducer와 Scope로 연결
-            }
-        }
+}
+
+enum DatabaseState: Equatable {
+    case idle, migrating, error
 }

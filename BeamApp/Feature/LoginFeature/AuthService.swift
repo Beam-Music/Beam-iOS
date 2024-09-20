@@ -6,18 +6,69 @@
 //
 
 import ComposableArchitecture
+import Foundation
+import Combine
 
 struct AuthService {
-    var login: (String, String) async throws -> Bool
+    var login: @Sendable (String, String) async throws -> String
 }
 
 extension AuthService: DependencyKey {
     static var liveValue: AuthService {
         AuthService { username, password in
-            // 실제 로그인 로직
-            return username == "user" && password == "password"
+            guard let url = URL(string: Endpoints.Auth.login) else {
+                throw LoginError.invalidURL
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let body: [String: Any] = ["username": username, "password": password]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                throw LoginError.invalidResponse
+            }
+            
+            let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+            return tokenResponse.token
         }
     }
+}
+
+enum LoginError: Error, Equatable {
+    case invalidURL
+    case invalidResponse
+    case invalidCredentials
+    case serverError
+    case decodingError(DecodingError)
+    case networkError(Error)
+    case unknownError
+    
+    static func == (lhs: LoginError, rhs: LoginError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidURL, .invalidURL),
+            (.invalidResponse, .invalidResponse),
+            (.invalidCredentials, .invalidCredentials),
+            (.serverError, .serverError),
+            (.unknownError, .unknownError):
+            return true
+        case (.decodingError(let lhsError), .decodingError(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
+        case (.networkError(let lhsError), .networkError(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
+        default:
+            return false
+        }
+    }
+}
+
+struct TokenResponse: Decodable {
+    let token: String
 }
 
 extension DependencyValues {

@@ -18,15 +18,10 @@ struct RootView: View {
                     if viewStore.isLoggedIn {
                         TabBarView(store: store)
                     } else {
-                        LoginView(store: store)
-                    }
-                } else {
-                    MigrationView(
-                        databaseState: viewStore.binding(
-                            get: \.databaseState,
-                            send: AppReducer.Action.setDatabaseState
-                        )
-                    )
+                        LoginView(store: store.scope(
+                            state: \.loginState,
+                            action: AppReducer.Action.login
+                        ))                    }
                 }
             }
             .animation(.default, value: viewStore.databaseState)
