@@ -9,10 +9,10 @@ import SwiftUI
 
 struct PlayerView: View {
     @State private var isPlaying = false
-    @State private var currentTrack = "No track selected"
     @State private var currentTime: Double = 0
     @State private var duration: Double = 0
     
+    @ObservedObject private var audioManager = AudioManager.shared
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var body: some View {
@@ -20,8 +20,25 @@ struct PlayerView: View {
             Text("Player View")
                 .font(.largeTitle)
             
-            Text("Now Playing: \(currentTrack)")
+            if let albumArt = audioManager.currentTrackMetadata.albumArt {
+                Image(uiImage: albumArt)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 200, height: 200)
+                    .cornerRadius(10)
+            } else {
+                Rectangle()
+                    .fill(Color.gray)
+                    .frame(width: 200, height: 200)
+                    .cornerRadius(10)
+            }
+            
+            Text(audioManager.currentTrackMetadata.title ?? "No Track")
                 .font(.headline)
+            
+            Text(audioManager.currentTrackMetadata.artist ?? "Unknown Artist")
+                .font(.subheadline)
+                .foregroundColor(.gray)
             
             if duration > 0 {
                 Slider(value: $currentTime, in: 0...duration, onEditingChanged: { editing in
@@ -32,6 +49,12 @@ struct PlayerView: View {
             } else {
                 Slider(value: .constant(0), in: 0...1)
                     .disabled(true)
+            }
+            
+            HStack {
+                Text(formatTime(currentTime))
+                Spacer()
+                Text(formatTime(duration))
             }
             
             HStack(spacing: 30) {
@@ -59,31 +82,30 @@ struct PlayerView: View {
         }
     }
     
+    private func formatTime(_ time: Double) -> String {
+        guard time.isFinite else { return "00:00" }
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
     private func playPause() {
         if isPlaying {
             AudioManager.shared.pause()
         } else {
-            if currentTrack == "No track selected" {
-                currentTrack = "Track 1"
-                AudioManager.shared.startAudio()
-            } else {
-                AudioManager.shared.play()
-            }
+            AudioManager.shared.play()
         }
         isPlaying.toggle()
     }
     
     private func nextTrack() {
-        currentTrack = "Next Track"
         AudioManager.shared.startAudio()
     }
     
     private func previousTrack() {
-        currentTrack = "Previous Track"
         AudioManager.shared.startAudio()
     }
 }
-
 
 //struct PlayerView_Previews: PreviewProvider {
 //    static var previews: some View {

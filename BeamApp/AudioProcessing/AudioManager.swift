@@ -6,12 +6,16 @@
 //
 
 import AVFoundation
+import SwiftUI
+import Combine
 
-final class AudioManager {
+final class AudioManager: ObservableObject {
     static let shared = AudioManager()
-
     private var player: AVPlayer?
     private var session = AVAudioSession.sharedInstance()
+
+    @Published var currentTrackMetadata: (title: String?, artist: String?, albumArt: UIImage?) = (nil, nil, nil)
+    private var cancellables = Set<AnyCancellable>()
 
     private init() {}
 
@@ -39,6 +43,55 @@ final class AudioManager {
         }
     }
 
+    // url 에서도 metadata 가져오기
+    private func extractMetadata(from asset: AVAsset) {
+        Task {
+            do {
+                let metadata = try await asset.load(.commonMetadata)
+                await processMetadata(metadata)
+            } catch {
+                print("Failed to load metadata: \(error)")
+            }
+        }
+    }
+    
+    private func processMetadata(_ metadata: [AVMetadataItem]) async {
+        for item in metadata {
+            guard let commonKey = item.commonKey else { continue }
+            
+            switch commonKey {
+            case .commonKeyTitle:
+                if let title = try? await item.load(.stringValue) {
+                    await updateTrackMetadata(title: title)
+                }
+            case .commonKeyArtist:
+                if let artist = try? await item.load(.stringValue) {
+                    await updateTrackMetadata(artist: artist)
+                }
+            case .commonKeyArtwork:
+                if let data = try? await item.load(.dataValue),
+                   let image = UIImage(data: data) {
+                    await updateTrackMetadata(albumArt: image)
+                }
+            default:
+                break
+            }
+        }
+    }
+    
+    @MainActor
+    private func updateTrackMetadata(title: String? = nil, artist: String? = nil, albumArt: UIImage? = nil) {
+        if let title = title {
+            currentTrackMetadata.title = title
+        }
+        if let artist = artist {
+            currentTrackMetadata.artist = artist
+        }
+        if let albumArt = albumArt {
+            currentTrackMetadata.albumArt = albumArt
+        }
+    }
+
     func startAudio() {
         activateSession()
 
@@ -51,7 +104,6 @@ final class AudioManager {
         } else {
             player = AVPlayer(playerItem: playerItem)
         }
-
         player?.play()
     }
 
