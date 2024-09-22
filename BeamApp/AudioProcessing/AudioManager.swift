@@ -17,7 +17,11 @@ final class AudioManager {
 
     private func activateSession() {
         do {
-            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setCategory(
+                .playback,
+                mode: .default,
+                options: [.allowAirPlay, .defaultToSpeaker]
+            )
         } catch {
             print("Failed to set audio session category: \(error.localizedDescription)")
         }

@@ -42,6 +42,7 @@
 		0FC873F72C90083C00D809E9 /* String+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873F62C90083C00D809E9 /* String+Extensions.swift */; };
 		0FC873FA2C90086700D809E9 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873F92C90086700D809E9 /* KeychainManager.swift */; };
 		0FC873FC2C900D6300D809E9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC873FB2C900D6300D809E9 /* Assets.xcassets */; };
+		9F1F572A2CA05BF400DA564A /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F57292CA05BF400DA564A /* AudioManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +102,8 @@
 		0FC873F92C90086700D809E9 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		0FC873FB2C900D6300D809E9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0FC874002C901B7A00D809E9 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
+		9F1F57292CA05BF400DA564A /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
+		9F1F572B2CA05F9100DA564A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -220,6 +223,7 @@
 			isa = PBXGroup;
 			children = (
 				0FB328222C918A0D00F5675B /* AudioProcessing.swift */,
+				9F1F57292CA05BF400DA564A /* AudioManager.swift */,
 			);
 			path = AudioProcessing;
 			sourceTree = "<group>";
@@ -247,6 +251,7 @@
 		0FC873742C8FFE3D00D809E9 /* BeamApp */ = {
 			isa = PBXGroup;
 			children = (
+				9F1F572B2CA05F9100DA564A /* Info.plist */,
 				0FB328212C91841800F5675B /* AudioProcessing */,
 				0FB328022C9030E100F5675B /* Feature */,
 				0FB327FE2C902E5B00F5675B /* DataFlow */,
@@ -512,6 +517,7 @@
 				0FB15F002C9D6118003718C3 /* ListeningHistoryItem.swift in Sources */,
 				0FB328272C927B7D00F5675B /* AuthClient.swift in Sources */,
 				0FB328252C92777800F5675B /* AuthService.swift in Sources */,
+				9F1F572A2CA05BF400DA564A /* AudioManager.swift in Sources */,
 				0FB328292C927BFB00F5675B /* LoginAction.swift in Sources */,
 				0FC873ED2C9007A800D809E9 /* CustomNavigationBar.swift in Sources */,
 				0FB15EEB2C9BE8C8003718C3 /* Endpoints.swift in Sources */,
@@ -686,6 +692,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BeamApp/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -725,6 +732,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BeamApp/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
