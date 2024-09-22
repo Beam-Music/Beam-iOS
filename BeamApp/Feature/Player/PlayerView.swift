@@ -10,6 +10,10 @@ import SwiftUI
 struct PlayerView: View {
     @State private var isPlaying = false
     @State private var currentTrack = "No track selected"
+    @State private var currentTime: Double = 0
+    @State private var duration: Double = 0
+    
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var body: some View {
         VStack(spacing: 20) {
@@ -18,6 +22,17 @@ struct PlayerView: View {
             
             Text("Now Playing: \(currentTrack)")
                 .font(.headline)
+            
+            if duration > 0 {
+                Slider(value: $currentTime, in: 0...duration, onEditingChanged: { editing in
+                    if !editing {
+                        AudioManager.shared.seek(to: currentTime)
+                    }
+                })
+            } else {
+                Slider(value: .constant(0), in: 0...1)
+                    .disabled(true)
+            }
             
             HStack(spacing: 30) {
                 Button(action: previousTrack) {
@@ -38,6 +53,10 @@ struct PlayerView: View {
             .foregroundColor(.blue)
         }
         .padding()
+        .onReceive(timer) { _ in
+            currentTime = AudioManager.shared.getCurrentTime()
+            duration = AudioManager.shared.getDuration()
+        }
     }
     
     private func playPause() {
@@ -45,11 +64,10 @@ struct PlayerView: View {
             AudioManager.shared.pause()
         } else {
             if currentTrack == "No track selected" {
-                // 첫 트랙을 시작할 때 기본 트랙 설정
                 currentTrack = "Track 1"
-                AudioManager.shared.startAudio() // 첫 번째 트랙 재생
+                AudioManager.shared.startAudio()
             } else {
-                AudioManager.shared.play() // 현재 트랙 재생
+                AudioManager.shared.play()
             }
         }
         isPlaying.toggle()
@@ -57,15 +75,12 @@ struct PlayerView: View {
     
     private func nextTrack() {
         currentTrack = "Next Track"
-        // 다음 트랙 로직 구현
-        // 예시로 다음 트랙 URL 변경 후 재생
-        AudioManager.shared.startAudio() // 다음 트랙으로 재생
+        AudioManager.shared.startAudio()
     }
     
     private func previousTrack() {
         currentTrack = "Previous Track"
-        // 이전 트랙 로직 구현
-        AudioManager.shared.startAudio() // 이전 트랙으로 재생
+        AudioManager.shared.startAudio()
     }
 }
 

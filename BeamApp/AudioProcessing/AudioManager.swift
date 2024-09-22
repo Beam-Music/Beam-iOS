@@ -8,14 +8,13 @@
 import AVFoundation
 
 final class AudioManager {
-    static let shared = AudioManager() // 싱글톤 객체
+    static let shared = AudioManager()
 
     private var player: AVPlayer?
     private var session = AVAudioSession.sharedInstance()
 
     private init() {}
 
-    // AVAudioSession 설정
     private func activateSession() {
         do {
             try session.setCategory(.playback, mode: .default, options: [])
@@ -36,7 +35,6 @@ final class AudioManager {
         }
     }
 
-    // 오디오 재생 시작
     func startAudio() {
         activateSession()
 
@@ -53,17 +51,14 @@ final class AudioManager {
         player?.play()
     }
 
-    // 일시정지
     func pause() {
         player?.pause()
     }
 
-    // 재개
     func play() {
         player?.play()
     }
 
-    // 세션 비활성화 (필요할 때 호출)
     func deactivateSession() {
         do {
             try session.setActive(false, options: .notifyOthersOnDeactivation)
@@ -72,8 +67,20 @@ final class AudioManager {
         }
     }
 
-    // 플레이어로부터 재생 시간 가져오기
     func getPlaybackDuration() -> Double {
+        return player?.currentItem?.duration.seconds ?? 0
+    }
+    
+    func getCurrentTime() -> Double {
+        return player?.currentTime().seconds ?? 0
+    }
+    
+    func seek(to seconds: Double) {
+        let time = CMTime(seconds: seconds, preferredTimescale: 1)
+        player?.seek(to: time)
+    }
+    
+    func getDuration() -> Double {
         return player?.currentItem?.duration.seconds ?? 0
     }
 }
