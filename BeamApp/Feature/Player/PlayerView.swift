@@ -41,22 +41,37 @@ struct PlayerView: View {
     }
     
     private func playPause() {
+        if isPlaying {
+            AudioManager.shared.pause()
+        } else {
+            if currentTrack == "No track selected" {
+                // 첫 트랙을 시작할 때 기본 트랙 설정
+                currentTrack = "Track 1"
+                AudioManager.shared.startAudio() // 첫 번째 트랙 재생
+            } else {
+                AudioManager.shared.play() // 현재 트랙 재생
+            }
+        }
         isPlaying.toggle()
     }
     
     private func nextTrack() {
         currentTrack = "Next Track"
-        // 여기에 다음 트랙으로 이동하는 로직을 구현하세요
+        // 다음 트랙 로직 구현
+        // 예시로 다음 트랙 URL 변경 후 재생
+        AudioManager.shared.startAudio() // 다음 트랙으로 재생
     }
     
     private func previousTrack() {
         currentTrack = "Previous Track"
-        // 여기에 이전 트랙으로 이동하는 로직을 구현하세요
+        // 이전 트랙 로직 구현
+        AudioManager.shared.startAudio() // 이전 트랙으로 재생
     }
 }
 
-struct PlayerView_Previews: PreviewProvider {
-    static var previews: some View {
-        PlayerView()
-    }
-}
+
+//struct PlayerView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        PlayerView()
+//    }
+//}
