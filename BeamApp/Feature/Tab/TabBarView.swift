@@ -41,6 +41,7 @@ struct TabBarView: View {
                     }
                 .tag(AppReducer.Tab.player)
             }
+            .accentColor(.white)
         }
     }
 }

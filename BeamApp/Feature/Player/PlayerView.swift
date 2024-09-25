@@ -10,6 +10,7 @@ import ComposableArchitecture
 
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
+    // todo: add playerReducer
     let store: StoreOf<HomeReducer>
     @State private var currentIndex: Int = 0
 
@@ -28,7 +29,6 @@ struct PlayerView: View {
                         .frame(width: 200, height: 200)
                         .cornerRadius(10)
                 }
-                
                 Text(audioManager.currentTrackMetadata.title ?? "No Track")
                     .font(.headline)
                 
@@ -42,6 +42,7 @@ struct PlayerView: View {
                             audioManager.seek(to: audioManager.currentTime)
                         }
                     })
+                    .accentColor(.white)
                 } else {
                     Slider(value: .constant(0), in: 0...1)
                         .disabled(true)
@@ -69,7 +70,7 @@ struct PlayerView: View {
                             .font(.title)
                     }
                 }
-                .foregroundColor(.blue)
+                .foregroundColor(.gray)
             }
             .padding()
             .onAppear {
