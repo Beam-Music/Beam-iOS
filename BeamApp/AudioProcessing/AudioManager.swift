@@ -14,8 +14,6 @@ import MediaPlayer
 final class AudioManager: ObservableObject {
     static let shared = AudioManager()
 
-    private var player: AVPlayer?
-    private var playerItem: AVPlayerItem?
     private let musicPlayerController = MPMusicPlayerController.applicationQueuePlayer
     
     @Published var currentTrackMetadata: (title: String?, artist: String?, albumArt: UIImage?) = (nil, nil, nil)
@@ -23,16 +21,22 @@ final class AudioManager: ObservableObject {
     @Published var duration: TimeInterval = 0
     @Published var isPlaying: Bool = false
 
-    private var timeObserver: Any?
+    private var timer: Timer?
 
     private init() {
-        setupTimeObserver()
+        startTimer()
     }
 
-    private func setupTimeObserver() {
-        timeObserver = player?.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 1), queue: .main) { [weak self] time in
-            self?.currentTime = time.seconds
+    private func startTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.updatePlaybackTime()
         }
+    }
+
+    private func updatePlaybackTime() {
+        currentTime = musicPlayerController.currentPlaybackTime
+        duration = musicPlayerController.nowPlayingItem?.playbackDuration ?? 0
     }
 
     func playAppleMusicTrack(with trackTitle: String) async {
@@ -61,6 +65,8 @@ final class AudioManager: ObservableObject {
                 print("해당 트랙을 찾을 수 없습니다.")
                 return
             }
+
+            // MPMusicPlayerController를 사용하여 트랙 재생
             playMusicWithPlayerController(songID: song.id)
 
             await updateTrackMetadata(song: song)
@@ -103,8 +109,7 @@ final class AudioManager: ObservableObject {
     }
 
     func seek(to seconds: Double) {
-        let targetTime = CMTime(seconds: seconds, preferredTimescale: 1)
-        player?.seek(to: targetTime)
+        musicPlayerController.currentPlaybackTime = seconds
     }
 
     func getCurrentTime() -> Double {

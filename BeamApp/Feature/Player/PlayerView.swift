@@ -12,9 +12,6 @@ struct PlayerView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            Text("Player View")
-                .font(.largeTitle)
-            
             if let albumArt = audioManager.currentTrackMetadata.albumArt {
                 Image(uiImage: albumArt)
                     .resizable()
