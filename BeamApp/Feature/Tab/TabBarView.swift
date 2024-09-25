@@ -32,7 +32,10 @@ struct TabBarView: View {
                 }
                 .tag(AppReducer.Tab.home)
                 
-                PlayerView()
+                PlayerView(store: store.scope(
+                    state: \.homeState,
+                    action: AppReducer.Action.home
+                ))
                 .tabItem {
                     Label("Player", systemImage: "play.circle.fill")
                     }
