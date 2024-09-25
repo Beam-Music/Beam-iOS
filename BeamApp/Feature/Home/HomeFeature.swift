@@ -19,7 +19,7 @@ struct HomeFeature {
     }
 
     static func fetchListeningHistory(with token: String) async throws -> [ListeningHistoryItem] {
-            var request = URLRequest(url: URL(string: "http://127.0.0.1:8080/listening-history/")!)
+            var request = URLRequest(url: URL(string: "http://192.168.0.50:8080/listening-history/")!)
             request.httpMethod = "GET"
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 

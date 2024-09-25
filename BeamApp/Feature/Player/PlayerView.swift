@@ -8,12 +8,7 @@
 import SwiftUI
 
 struct PlayerView: View {
-    @State private var isPlaying = false
-    @State private var currentTime: Double = 0
-    @State private var duration: Double = 0
-    
     @ObservedObject private var audioManager = AudioManager.shared
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var body: some View {
         VStack(spacing: 20) {
@@ -40,10 +35,10 @@ struct PlayerView: View {
                 .font(.subheadline)
                 .foregroundColor(.gray)
             
-            if duration > 0 {
-                Slider(value: $currentTime, in: 0...duration, onEditingChanged: { editing in
+            if audioManager.duration > 0 {
+                Slider(value: $audioManager.currentTime, in: 0...audioManager.duration, onEditingChanged: { editing in
                     if !editing {
-                        AudioManager.shared.seek(to: currentTime)
+                        audioManager.seek(to: audioManager.currentTime)
                     }
                 })
             } else {
@@ -52,9 +47,9 @@ struct PlayerView: View {
             }
             
             HStack {
-                Text(formatTime(currentTime))
+                Text(formatTime(audioManager.currentTime))
                 Spacer()
-                Text(formatTime(duration))
+                Text(formatTime(audioManager.duration))
             }
             
             HStack(spacing: 30) {
@@ -64,7 +59,7 @@ struct PlayerView: View {
                 }
                 
                 Button(action: playPause) {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
                         .font(.title)
                 }
                 
@@ -76,10 +71,6 @@ struct PlayerView: View {
             .foregroundColor(.blue)
         }
         .padding()
-        .onReceive(timer) { _ in
-            currentTime = AudioManager.shared.getCurrentTime()
-            duration = AudioManager.shared.getDuration()
-        }
     }
     
     private func formatTime(_ time: Double) -> String {
@@ -90,20 +81,23 @@ struct PlayerView: View {
     }
     
     private func playPause() {
-        if isPlaying {
-            AudioManager.shared.pause()
+        if audioManager.isPlaying {
+            audioManager.pause()
         } else {
-            AudioManager.shared.play()
+            audioManager.play()
         }
-        isPlaying.toggle()
     }
     
     private func nextTrack() {
-        AudioManager.shared.startAudio()
+        Task {
+            await audioManager.playAppleMusicTrack(with: "fix you")
+        }
     }
     
     private func previousTrack() {
-        AudioManager.shared.startAudio()
+        Task {
+            await audioManager.playAppleMusicTrack(with: "Shake It Off")
+        }
     }
 }
 
