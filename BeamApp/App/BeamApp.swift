@@ -10,7 +10,7 @@ import ComposableArchitecture
 import SwiftData
 
 @main
-struct BeamPracApp: App {
+struct BeamApp: App {
     let container = try! ModelContainer(for: TokenEntity.self)
 
     let store: StoreOf<AppReducer> = Store(initialState: AppReducer.State()) {

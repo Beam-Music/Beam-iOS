@@ -21,7 +21,7 @@
 		0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280C2C9031CD00F5675B /* HomeView.swift */; };
 		0FB3280F2C9031D500F5675B /* HomeReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3280E2C9031D500F5675B /* HomeReducer.swift */; };
 		0FB328132C90331200F5675B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328122C90331200F5675B /* RootView.swift */; };
-		0FB328172C903AAF00F5675B /* BeamPracApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328162C903AAF00F5675B /* BeamPracApp.swift */; };
+		0FB328172C903AAF00F5675B /* BeamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328162C903AAF00F5675B /* BeamApp.swift */; };
 		0FB3281A2C903E0300F5675B /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328192C903E0300F5675B /* PlayerView.swift */; };
 		0FB328232C918A0D00F5675B /* AudioProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328222C918A0D00F5675B /* AudioProcessing.swift */; };
 		0FB328252C92777800F5675B /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB328242C92777800F5675B /* AuthService.swift */; };
@@ -77,7 +77,7 @@
 		0FB3280C2C9031CD00F5675B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		0FB3280E2C9031D500F5675B /* HomeReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeReducer.swift; sourceTree = "<group>"; };
 		0FB328122C90331200F5675B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		0FB328162C903AAF00F5675B /* BeamPracApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamPracApp.swift; sourceTree = "<group>"; };
+		0FB328162C903AAF00F5675B /* BeamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeamApp.swift; sourceTree = "<group>"; };
 		0FB328192C903E0300F5675B /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
 		0FB328222C918A0D00F5675B /* AudioProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessing.swift; sourceTree = "<group>"; };
 		0FB328242C92777800F5675B /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
@@ -305,7 +305,7 @@
 			children = (
 				0FB3281B2C91339400F5675B /* Tools */,
 				0FC873FB2C900D6300D809E9 /* Assets.xcassets */,
-				0FB328162C903AAF00F5675B /* BeamPracApp.swift */,
+				0FB328162C903AAF00F5675B /* BeamApp.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -524,7 +524,7 @@
 				0FC873F52C90082500D809E9 /* Color+Extensions.swift in Sources */,
 				0FB3281A2C903E0300F5675B /* PlayerView.swift in Sources */,
 				0FB3280F2C9031D500F5675B /* HomeReducer.swift in Sources */,
-				0FB328172C903AAF00F5675B /* BeamPracApp.swift in Sources */,
+				0FB328172C903AAF00F5675B /* BeamApp.swift in Sources */,
 				0FC873F72C90083C00D809E9 /* String+Extensions.swift in Sources */,
 				0FB328092C9031B300F5675B /* LoginView.swift in Sources */,
 				0FC873F22C9007D000D809E9 /* TextStyles.swift in Sources */,

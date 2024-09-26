@@ -10,10 +10,8 @@ import ComposableArchitecture
 
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
-    // todo: add playerReducer
-    let store: StoreOf<HomeReducer>
-    @State private var currentIndex: Int = 0
-
+    let store: StoreOf<PlayerReducer>
+    
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack(spacing: 20) {
@@ -55,7 +53,7 @@ struct PlayerView: View {
                 }
                 
                 HStack(spacing: 30) {
-                    Button(action: { previousTrack(viewStore: viewStore) }) {
+                    Button(action: { viewStore.send(.previousTrack) }) {
                         Image(systemName: "backward.fill")
                             .font(.title)
                     }
@@ -65,7 +63,7 @@ struct PlayerView: View {
                             .font(.title)
                     }
                     
-                    Button(action: { nextTrack(viewStore: viewStore) }) {
+                    Button(action: { viewStore.send(.nextTrack) }) {
                         Image(systemName: "forward.fill")
                             .font(.title)
                     }
@@ -73,10 +71,11 @@ struct PlayerView: View {
                 .foregroundColor(.gray)
             }
             .padding()
-            .onAppear {
-                if !viewStore.listeningHistory.isEmpty {
+            .onChange(of: viewStore.currentIndex) { _ in
                     playCurrentTrack(viewStore: viewStore)
-                }
+            }
+            .onAppear {
+                playCurrentTrack(viewStore: viewStore)
             }
         }
     }
@@ -96,22 +95,32 @@ struct PlayerView: View {
         }
     }
     
-    private func nextTrack(viewStore: ViewStore<HomeReducer.State, HomeReducer.Action>) {
-            currentIndex = (currentIndex + 1) % viewStore.listeningHistory.count
-            playCurrentTrack(viewStore: viewStore)
+    private func nextTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        viewStore.send(.nextTrack)
+    }
+    
+    private func previousTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        viewStore.send(.previousTrack)
+    }
+    
+    
+    private func playCurrentTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        
+        guard !viewStore.listeningHistory.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.listeningHistory.count else {
+            print("Error: Index out of range or empty listening history")
+            return
         }
         
-        private func previousTrack(viewStore: ViewStore<HomeReducer.State, HomeReducer.Action>) {
-            currentIndex = (currentIndex - 1 + viewStore.listeningHistory.count) % viewStore.listeningHistory.count
-            playCurrentTrack(viewStore: viewStore)
+        let currentTrack = viewStore.listeningHistory[viewStore.currentIndex]
+        Task {
+            do {
+                await audioManager.playAppleMusicTrack(with: currentTrack.title)
+            } catch {
+                print("Failed to play track: \(error)")
+            }
         }
 
-    private func playCurrentTrack(viewStore: ViewStore<HomeReducer.State, HomeReducer.Action>) {
-          let currentTrack = viewStore.listeningHistory[currentIndex]
-          Task {
-              await audioManager.playAppleMusicTrack(with: currentTrack.title)
-          }
-      }
+    }
 }
 
 //struct PlayerView_Previews: PreviewProvider {

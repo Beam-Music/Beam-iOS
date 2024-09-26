@@ -16,6 +16,7 @@ struct HomeReducer {
         var route: Route?
         var listeningHistory: [ListeningHistoryItem] = []
         var errorMessage: String? = nil
+        var playerState: PlayerReducer.State? = nil
     }
     
     enum Action: BindableAction, Equatable {
@@ -25,11 +26,13 @@ struct HomeReducer {
         case fetchListeningHistory
         case listeningHistoryLoaded([ListeningHistoryItem])
         case listeningHistoryFailed(String)
+        case player(PlayerReducer.Action)
     }
     
     enum Route: Equatable {
         case detail
         case settings
+        case player
     }
     
     @Dependency(\.modelContext) var modelContext
@@ -43,11 +46,18 @@ struct HomeReducer {
                 
             case .logOutButtonTapped:
                 return .none
+            case let .setNavigation(route):
+                state.route = route
+                if case .player = route {
+                    state.playerState = PlayerReducer.State(                          listeningHistory: state.listeningHistory
+                    )
+                }
+                return .none
                 
             case let .setNavigation(route):
                 state.route = route
                 return .none
-            
+                
             case .fetchListeningHistory:
                 return .run { [context = modelContext] send in
                     do {
@@ -67,7 +77,13 @@ struct HomeReducer {
             case let .listeningHistoryFailed(error):
                 state.errorMessage = error
                 return .none
+                
+            case .player:
+                return .none
             }
+        }
+        .ifLet(\.playerState, action: /HomeReducer.Action.player) {
+            PlayerReducer() 
         }
     }
 }
