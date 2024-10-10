@@ -14,18 +14,21 @@ import Dependencies
 struct HomeReducer {
     struct State: Equatable {
         var route: Route?
-        var listeningHistory: [ListeningHistoryItem] = []
+        var playlist: [PlaylistTrack] = []
         var errorMessage: String? = nil
         var playerState: PlayerReducer.State? = nil
+        var selectedPlaylistID: String? = nil
     }
     
     enum Action: BindableAction, Equatable {
         case binding(BindingAction<State>)
         case logOutButtonTapped
         case setNavigation(Route?)
-        case fetchListeningHistory
-        case listeningHistoryLoaded([ListeningHistoryItem])
-        case listeningHistoryFailed(String)
+        case fetchPlaylist(String)
+        case fetchUserPlaylists
+        case userPlaylistsLoaded([UserPlaylist])
+        case playlistLoaded([PlaylistTrack])
+        case playlistFailed(String)
         case player(PlayerReducer.Action)
     }
     
@@ -49,32 +52,55 @@ struct HomeReducer {
             case let .setNavigation(route):
                 state.route = route
                 if case .player = route {
-                    state.playerState = PlayerReducer.State(                          listeningHistory: state.listeningHistory
+                    state.playerState = PlayerReducer.State(
+                        playlist: state.playlist,
+                        currentIndex: 0
                     )
                 }
                 return .none
                 
-            case let .setNavigation(route):
-                state.route = route
-                return .none
-                
-            case .fetchListeningHistory:
-                return .run { [context = modelContext] send in
+            case .fetchUserPlaylists:
+                return .run { send in
                     do {
-                        let token = try await HomeFeature.fetchToken(context: context)
-                        let history = try await HomeFeature.fetchListeningHistory(with: token)
-                        await send(.listeningHistoryLoaded(history))
+                        let token = try await HomeFeature.fetchToken(context: modelContext)
+                        let userPlaylists = try await HomeFeature.fetchUserPlaylists(with: token)
+                        await send(.userPlaylistsLoaded(userPlaylists))
                     } catch {
-                        await send(.listeningHistoryFailed(error.localizedDescription))
+                        await send(.playlistFailed(error.localizedDescription))
                     }
                 }
                 
-            case let .listeningHistoryLoaded(history):
-                state.listeningHistory = history
-                state.errorMessage = nil
+            case let .userPlaylistsLoaded(userPlaylists):
+                if let firstPlaylist = userPlaylists.first {
+                    state.selectedPlaylistID = firstPlaylist.id
+                    return .send(.fetchPlaylist(firstPlaylist.id))
+                }
                 return .none
                 
-            case let .listeningHistoryFailed(error):
+            case .fetchPlaylist:
+                guard let playlistID = state.selectedPlaylistID else {
+                    return .none
+                }
+                return .run { [context = modelContext] send in
+                    do {
+                        let token = try await HomeFeature.fetchToken(context: context)
+                        let playlist = try await HomeFeature.fetchPlaylist(with: token, playlistID: playlistID)
+                        await send(.playlistLoaded(playlist))
+                    } catch {
+                        await send(.playlistFailed(error.localizedDescription))
+                    }
+                }
+                
+                
+            case let .playlistLoaded(playlist):
+                state.playlist = playlist
+                state.errorMessage = nil
+                if !playlist.isEmpty {
+                        state.route = .player
+                }
+                return .none
+                
+            case let .playlistFailed(error):
                 state.errorMessage = error
                 return .none
                 
@@ -83,7 +109,7 @@ struct HomeReducer {
             }
         }
         .ifLet(\.playerState, action: /HomeReducer.Action.player) {
-            PlayerReducer() 
+            PlayerReducer()
         }
     }
 }

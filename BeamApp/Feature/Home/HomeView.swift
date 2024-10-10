@@ -11,7 +11,7 @@ import ComposableArchitecture
 struct HomeView: View {
     @Binding var isLoggedIn: Bool
     let store: StoreOf<HomeReducer>
-
+    
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             NavigationView {
@@ -28,9 +28,15 @@ struct HomeView: View {
                 }
                 .padding()
                 .onAppear {
-                    viewStore.send(.fetchListeningHistory)
+                    viewStore.send(.fetchUserPlaylists)  
+                    if let selectedPlaylistID = viewStore.selectedPlaylistID {
+                        viewStore.send(.fetchPlaylist(selectedPlaylistID))
+                    } else {
+                        print("No selected playlist ID")
+                    }
                 }
             }
+            .padding()
         }
     }
 }

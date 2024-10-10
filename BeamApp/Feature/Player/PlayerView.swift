@@ -106,12 +106,13 @@ struct PlayerView: View {
     
     private func playCurrentTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
         
-        guard !viewStore.listeningHistory.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.listeningHistory.count else {
-            print("Error: Index out of range or empty listening history")
+        guard !viewStore.playlist.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.playlist.count else {
+            print("Error: Index out of range or empty playlist")
             return
         }
         
-        let currentTrack = viewStore.listeningHistory[viewStore.currentIndex]
+        let currentTrack = viewStore.playlist[viewStore.currentIndex]
+        print(currentTrack, "track check")
         Task {
             do {
                 await audioManager.playAppleMusicTrack(with: currentTrack.title)
@@ -119,8 +120,8 @@ struct PlayerView: View {
                 print("Failed to play track: \(error)")
             }
         }
-
     }
+
 }
 
 //struct PlayerView_Previews: PreviewProvider {

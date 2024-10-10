@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */; };
 		0FB15EE72C9436C8003718C3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EE62C9436C8003718C3 /* TabBarView.swift */; };
 		0FB15EEB2C9BE8C8003718C3 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EEA2C9BE8C8003718C3 /* Endpoints.swift */; };
 		0FB15EF12C9CF729003718C3 /* LoginFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EF02C9CF729003718C3 /* LoginFeature.swift */; };
@@ -63,6 +64,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistItem.swift; sourceTree = "<group>"; };
 		0FB15EE62C9436C8003718C3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		0FB15EEA2C9BE8C8003718C3 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		0FB15EF02C9CF729003718C3 /* LoginFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginFeature.swift; sourceTree = "<group>"; };
@@ -144,6 +146,7 @@
 			isa = PBXGroup;
 			children = (
 				0FB15EFF2C9D6118003718C3 /* ListeningHistoryItem.swift */,
+				0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */,
 			);
 			path = DTO;
 			sourceTree = "<group>";
@@ -509,6 +512,7 @@
 				0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */,
 				0FB15EF72C9D3848003718C3 /* TokenStorage.swift in Sources */,
 				0FB3282D2C929F4000F5675B /* TabBarReducer.swift in Sources */,
+				0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */,
 				0FB328002C902E8500F5675B /* AppReducer.swift in Sources */,
 				0FC873EF2C9007B700D809E9 /* PrimaryButton.swift in Sources */,
 				0FB15EF12C9CF729003718C3 /* LoginFeature.swift in Sources */,

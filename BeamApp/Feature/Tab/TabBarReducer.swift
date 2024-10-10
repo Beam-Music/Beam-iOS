@@ -32,8 +32,8 @@ struct TabBarReducer: Reducer {
         }
         Reduce { state, action in
             switch action {
-            case let .home(.listeningHistoryLoaded(history)):
-                state.playerState.listeningHistory = history 
+            case let .home(.playlistLoaded(playlist)):
+                state.playerState.playlist = playlist  // Use playlist instead of listeningHistory
                 return .none
             default:
                 return .none
