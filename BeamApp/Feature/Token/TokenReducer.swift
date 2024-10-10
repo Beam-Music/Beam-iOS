@@ -20,7 +20,7 @@ struct TokenReducer: Reducer {
 
     @Dependency(\.tokenStorage) var tokenStorage
 
-    func reduce(into state: inout State, action: Action) -> Effect<Action> {
+    @MainActor func reduce(into state: inout State, action: Action) -> Effect<Action> {
         switch action {
         case let .saveToken(token):
             do {

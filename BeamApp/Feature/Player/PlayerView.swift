@@ -6,79 +6,77 @@
 //
 
 import SwiftUI
+import ComposableArchitecture
 
 struct PlayerView: View {
-    @State private var isPlaying = false
-    @State private var currentTime: Double = 0
-    @State private var duration: Double = 0
-    
     @ObservedObject private var audioManager = AudioManager.shared
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    let store: StoreOf<PlayerReducer>
     
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Player View")
-                .font(.largeTitle)
-            
-            if let albumArt = audioManager.currentTrackMetadata.albumArt {
-                Image(uiImage: albumArt)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 200, height: 200)
-                    .cornerRadius(10)
-            } else {
-                Rectangle()
-                    .fill(Color.gray)
-                    .frame(width: 200, height: 200)
-                    .cornerRadius(10)
-            }
-            
-            Text(audioManager.currentTrackMetadata.title ?? "No Track")
-                .font(.headline)
-            
-            Text(audioManager.currentTrackMetadata.artist ?? "Unknown Artist")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-            
-            if duration > 0 {
-                Slider(value: $currentTime, in: 0...duration, onEditingChanged: { editing in
-                    if !editing {
-                        AudioManager.shared.seek(to: currentTime)
+        WithViewStore(self.store, observe: { $0 }) { viewStore in
+            VStack(spacing: 20) {
+                if let albumArt = audioManager.currentTrackMetadata.albumArt {
+                    Image(uiImage: albumArt)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 200, height: 200)
+                        .cornerRadius(10)
+                } else {
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(width: 200, height: 200)
+                        .cornerRadius(10)
+                }
+                Text(audioManager.currentTrackMetadata.title ?? "No Track")
+                    .font(.headline)
+                
+                Text(audioManager.currentTrackMetadata.artist ?? "Unknown Artist")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                if audioManager.duration > 0 {
+                    Slider(value: $audioManager.currentTime, in: 0...audioManager.duration, onEditingChanged: { editing in
+                        if !editing {
+                            audioManager.seek(to: audioManager.currentTime)
+                        }
+                    })
+                    .accentColor(.white)
+                } else {
+                    Slider(value: .constant(0), in: 0...1)
+                        .disabled(true)
+                }
+                
+                HStack {
+                    Text(formatTime(audioManager.currentTime))
+                    Spacer()
+                    Text(formatTime(audioManager.duration))
+                }
+                
+                HStack(spacing: 30) {
+                    Button(action: { viewStore.send(.previousTrack) }) {
+                        Image(systemName: "backward.fill")
+                            .font(.title)
                     }
-                })
-            } else {
-                Slider(value: .constant(0), in: 0...1)
-                    .disabled(true)
-            }
-            
-            HStack {
-                Text(formatTime(currentTime))
-                Spacer()
-                Text(formatTime(duration))
-            }
-            
-            HStack(spacing: 30) {
-                Button(action: previousTrack) {
-                    Image(systemName: "backward.fill")
-                        .font(.title)
+                    
+                    Button(action: playPause) {
+                        Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title)
+                    }
+                    
+                    Button(action: { viewStore.send(.nextTrack) }) {
+                        Image(systemName: "forward.fill")
+                            .font(.title)
+                    }
                 }
-                
-                Button(action: playPause) {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title)
-                }
-                
-                Button(action: nextTrack) {
-                    Image(systemName: "forward.fill")
-                        .font(.title)
-                }
+                .foregroundColor(.gray)
             }
-            .foregroundColor(.blue)
-        }
-        .padding()
-        .onReceive(timer) { _ in
-            currentTime = AudioManager.shared.getCurrentTime()
-            duration = AudioManager.shared.getDuration()
+            .padding()
+            .onChange(of: viewStore.currentIndex) { _ in
+                    playCurrentTrack(viewStore: viewStore)
+            }
+            .onAppear {
+                playCurrentTrack(viewStore: viewStore)
+            }
         }
     }
     
@@ -90,21 +88,40 @@ struct PlayerView: View {
     }
     
     private func playPause() {
-        if isPlaying {
-            AudioManager.shared.pause()
+        if audioManager.isPlaying {
+            audioManager.pause()
         } else {
-            AudioManager.shared.play()
+            audioManager.play()
         }
-        isPlaying.toggle()
     }
     
-    private func nextTrack() {
-        AudioManager.shared.startAudio()
+    private func nextTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        viewStore.send(.nextTrack)
     }
     
-    private func previousTrack() {
-        AudioManager.shared.startAudio()
+    private func previousTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        viewStore.send(.previousTrack)
     }
+    
+    
+    private func playCurrentTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        
+        guard !viewStore.playlist.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.playlist.count else {
+            print("Error: Index out of range or empty playlist")
+            return
+        }
+        
+        let currentTrack = viewStore.playlist[viewStore.currentIndex]
+        print(currentTrack, "track check")
+        Task {
+            do {
+                await audioManager.playAppleMusicTrack(with: currentTrack.title)
+            } catch {
+                print("Failed to play track: \(error)")
+            }
+        }
+    }
+
 }
 
 //struct PlayerView_Previews: PreviewProvider {

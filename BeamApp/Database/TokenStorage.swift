@@ -15,10 +15,22 @@ class TokenStorage {
     init(context: ModelContext) {
         self.context = context
     }
-
+    
+    @MainActor
     func saveToken(_ token: String) throws {
         let newToken = TokenEntity(token: token)
-        context.insert(newToken)
+        print(newToken, "newtoken")
+//        context.insert(newToken)
+        do {
+            try context.transaction {
+                context.insert(newToken)
+            }
+            try context.save()
+            print("Token saved successfully.")
+        } catch {
+            print("Failed to save token: \(error.localizedDescription)")
+            throw error
+        }
         try context.save()
     }
 
@@ -46,13 +58,23 @@ class TokenStorage {
 //    }
 }
 
+//struct TokenStorageKey: DependencyKey {
+//    @MainActor
+//    static var liveValue: TokenStorage {
+//        let container = try! ModelContainer(for: TokenEntity.self)
+//        return TokenStorage(context: container.mainContext)
+//    }
+//}
 struct TokenStorageKey: DependencyKey {
     @MainActor
     static var liveValue: TokenStorage {
-        // Initialize TokenStorage with the appropriate ModelContext
-        // Make sure you have a valid ModelContext to pass here
-        let container = try! ModelContainer(for: TokenEntity.self)
-        return TokenStorage(context: container.mainContext)
+        do {
+            // ModelContainer가 정상적으로 초기화되는지 확인
+            let container = try ModelContainer(for: TokenEntity.self)
+            return TokenStorage(context: container.mainContext)
+        } catch {
+            fatalError("ModelContainer 초기화 실패: \(error)")
+        }
     }
 }
 

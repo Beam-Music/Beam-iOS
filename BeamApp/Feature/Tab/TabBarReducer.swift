@@ -11,11 +11,13 @@ struct TabBarReducer: Reducer {
     struct State: Equatable {
         var playerState = PlayerReducer.State()
         var generatorState = GeneratorReducer.State()
+        var homeState = HomeReducer.State()
     }
     
     enum Action: Equatable {
         case player(PlayerReducer.Action)
         case generator(GeneratorReducer.Action)
+        case home(HomeReducer.Action)
     }
     
     var body: some ReducerOf<Self> {
@@ -24,6 +26,18 @@ struct TabBarReducer: Reducer {
         }
         Scope(state: \.generatorState, action: /Action.generator) {
             GeneratorReducer()
+        }
+        Scope(state: \.homeState, action: /Action.home) {
+                    HomeReducer()
+        }
+        Reduce { state, action in
+            switch action {
+            case let .home(.playlistLoaded(playlist)):
+                state.playerState.playlist = playlist  // Use playlist instead of listeningHistory
+                return .none
+            default:
+                return .none
+            }
         }
     }
 }

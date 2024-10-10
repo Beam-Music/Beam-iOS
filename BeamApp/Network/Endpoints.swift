@@ -7,7 +7,10 @@
 import Foundation
 
 struct Endpoints {
-    static let baseURL = "http://127.0.0.1:8080"
+    static let baseURL = 
+//    "http://127.0.0.1:8080"
+    "http://192.168.0.50:8080"
+
 
     struct Auth {
         static let login = "\(baseURL)/users/login"

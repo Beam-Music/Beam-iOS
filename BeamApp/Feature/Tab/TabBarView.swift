@@ -22,8 +22,8 @@ struct TabBarView: View {
                     send: { .setLoggedIn($0) }
                 ),
                          store: store.scope(
-                            state: \.homeState,
-                            action: AppReducer.Action.home
+                            state: \.tabBarState.homeState,
+                            action: { AppReducer.Action.tabBar(.home($0)) }
                          )
                 )
                 
@@ -32,12 +32,16 @@ struct TabBarView: View {
                 }
                 .tag(AppReducer.Tab.home)
                 
-                PlayerView()
+                PlayerView(store: store.scope(
+                    state: \.tabBarState.playerState,
+                    action: { AppReducer.Action.tabBar(.player($0)) }
+                ))
                 .tabItem {
                     Label("Player", systemImage: "play.circle.fill")
-                    }
+                }
                 .tag(AppReducer.Tab.player)
             }
+            .accentColor(.white)
         }
     }
 }
