@@ -11,7 +11,7 @@ import ComposableArchitecture
 struct PlayerReducer: Reducer {
     struct State: Equatable {
         var playlist: [PlaylistTrack] = []
-        var currentIndex: Int = 1
+        var currentIndex: Int = 0
     }
     
     enum Action: Equatable {
