@@ -10,14 +10,10 @@ import ComposableArchitecture
 
 struct LibraryView: View {
     let store: StoreOf<LibraryReducer>
-
+    
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack(spacing: 20) {
-                Text("재생 목록")
-                    .font(.largeTitle)
-                    .padding()
-
                 if let errorMessage = viewStore.errorMessage {
                     Text("Error: \(errorMessage)")
                         .foregroundColor(.red)
@@ -26,6 +22,11 @@ struct LibraryView: View {
                         HStack {
                             Text(playlist.name)
                             Spacer()
+                            Button(action: {
+                                viewStore.send(.selectPlaylist(playlist))
+                            }) {
+                                Text("Select")
+                            }
                         }
                         .padding()
                     }

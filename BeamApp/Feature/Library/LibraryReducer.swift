@@ -17,7 +17,10 @@ struct LibraryReducer: Reducer {
     enum Action: Equatable {
         case fetchUserPlaylists
         case userPlaylistsLoaded([UserPlaylist])
+        case selectPlaylist(UserPlaylist)
+        case playlistLoaded([PlaylistTrack])
         case playlistFetchFailed(String)
+        case startPlayback([PlaylistTrack])
     }
     
     @Dependency(\.modelContext) var modelContext
@@ -41,10 +44,33 @@ struct LibraryReducer: Reducer {
                 state.errorMessage = nil
                 return .none
                 
+            case let .selectPlaylist(playlist):
+                return .run { send in
+                    do {
+                        let token = try await HomeFeature.fetchToken(context: modelContext)
+                        let tracks = try await HomeFeature.fetchPlaylist(with: token, playlistID: playlist.id)
+                        await send(.playlistLoaded(tracks))
+                    } catch {
+                        await send(.playlistFetchFailed(error.localizedDescription))
+                    }
+                }
+                
+            case let .playlistLoaded(tracks):
+                state.playlist = tracks
+                return .send(.startPlayback(tracks))
+                
+            case let .startPlayback(tracks):
+                return .run { _ in
+                    if let firstTrack = tracks.first {
+                        await AudioManager.shared.playAppleMusicTrack(with: firstTrack.title)
+                    }
+                }
+                
             case let .playlistFetchFailed(error):
-                state.errorMessage = error 
+                state.errorMessage = error
                 return .none
             }
         }
     }
 }
+
