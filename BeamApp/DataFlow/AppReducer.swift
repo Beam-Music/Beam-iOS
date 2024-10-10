@@ -28,7 +28,7 @@ struct AppReducer: Reducer {
     }
 
     enum Tab: Equatable {
-        case home, player
+        case home, player, library
     }
     
     var body: some ReducerOf<Self> {

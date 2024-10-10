@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */; };
+		0F5621C12CB76D1B006E03F9 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621C02CB76D1B006E03F9 /* LibraryView.swift */; };
+		0F5621C32CB76D23006E03F9 /* LibraryReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */; };
 		0FB15EE72C9436C8003718C3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EE62C9436C8003718C3 /* TabBarView.swift */; };
 		0FB15EEB2C9BE8C8003718C3 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EEA2C9BE8C8003718C3 /* Endpoints.swift */; };
 		0FB15EF12C9CF729003718C3 /* LoginFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB15EF02C9CF729003718C3 /* LoginFeature.swift */; };
@@ -65,6 +67,8 @@
 
 /* Begin PBXFileReference section */
 		0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistItem.swift; sourceTree = "<group>"; };
+		0F5621C02CB76D1B006E03F9 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryReducer.swift; sourceTree = "<group>"; };
 		0FB15EE62C9436C8003718C3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		0FB15EEA2C9BE8C8003718C3 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		0FB15EF02C9CF729003718C3 /* LoginFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginFeature.swift; sourceTree = "<group>"; };
@@ -134,6 +138,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0F5621BF2CB76D0C006E03F9 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				0F5621C02CB76D1B006E03F9 /* LibraryView.swift */,
+				0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
 		0FB15EF82C9D3A4F003718C3 /* Token */ = {
 			isa = PBXGroup;
 			children = (
@@ -162,6 +175,7 @@
 		0FB328022C9030E100F5675B /* Feature */ = {
 			isa = PBXGroup;
 			children = (
+				0F5621BF2CB76D0C006E03F9 /* Library */,
 				0FB15EF82C9D3A4F003718C3 /* Token */,
 				0FB328182C903DF400F5675B /* Player */,
 				0FB328052C90314800F5675B /* Tab */,
@@ -518,6 +532,7 @@
 				0FB15EF12C9CF729003718C3 /* LoginFeature.swift in Sources */,
 				0FB3282B2C92843600F5675B /* HomeAction.swift in Sources */,
 				0FB328232C918A0D00F5675B /* AudioProcessing.swift in Sources */,
+				0F5621C32CB76D23006E03F9 /* LibraryReducer.swift in Sources */,
 				0FB15F002C9D6118003718C3 /* ListeningHistoryItem.swift in Sources */,
 				0FB328272C927B7D00F5675B /* AuthClient.swift in Sources */,
 				0FB328252C92777800F5675B /* AuthService.swift in Sources */,
@@ -530,6 +545,7 @@
 				0FB3280F2C9031D500F5675B /* HomeReducer.swift in Sources */,
 				0FB328172C903AAF00F5675B /* BeamApp.swift in Sources */,
 				0FC873F72C90083C00D809E9 /* String+Extensions.swift in Sources */,
+				0F5621C12CB76D1B006E03F9 /* LibraryView.swift in Sources */,
 				0FB328092C9031B300F5675B /* LoginView.swift in Sources */,
 				0FC873F22C9007D000D809E9 /* TextStyles.swift in Sources */,
 				0FB328132C90331200F5675B /* RootView.swift in Sources */,
