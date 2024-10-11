@@ -71,11 +71,12 @@ struct PlayerView: View {
                 .foregroundColor(.gray)
             }
             .padding()
-            .onChange(of: viewStore.currentIndex) { _ in
-                    playCurrentTrack(viewStore: viewStore)
+            .onChange(of: viewStore.playlist) { _ in
+                //                playCurrentTrack(viewStore: viewStore)
             }
             .onAppear {
-                playCurrentTrack(viewStore: viewStore)
+                // page 로드 될 때 자동재생 필요하면
+                //                playCurrentTrack(viewStore: viewStore)
             }
         }
     }
@@ -95,17 +96,7 @@ struct PlayerView: View {
         }
     }
     
-    private func nextTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
-        viewStore.send(.nextTrack)
-    }
-    
-    private func previousTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
-        viewStore.send(.previousTrack)
-    }
-    
-    
     private func playCurrentTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
-        
         guard !viewStore.playlist.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.playlist.count else {
             print("Error: Index out of range or empty playlist")
             return
@@ -121,11 +112,4 @@ struct PlayerView: View {
             }
         }
     }
-
 }
-
-//struct PlayerView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        PlayerView()
-//    }
-//}

@@ -40,6 +40,15 @@ struct TabBarView: View {
                     Label("Player", systemImage: "play.circle.fill")
                 }
                 .tag(AppReducer.Tab.player)
+                
+                LibraryView(store: store.scope(
+                    state: \.tabBarState.libraryState,
+                    action: { AppReducer.Action.tabBar(.library($0)) }
+                ))
+                .tabItem {
+                    Label("Library", systemImage: "books.vertical.fill")
+                }
+                .tag(AppReducer.Tab.library)
             }
             .accentColor(.white)
         }
