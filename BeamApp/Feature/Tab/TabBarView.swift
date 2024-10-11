@@ -10,6 +10,7 @@ import ComposableArchitecture
 
 struct TabBarView: View {
     let store: StoreOf<AppReducer>
+    @Binding var isMiniPlayerVisible: Bool
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
@@ -24,27 +25,17 @@ struct TabBarView: View {
                          store: store.scope(
                             state: \.tabBarState.homeState,
                             action: { AppReducer.Action.tabBar(.home($0)) }
-                         )
-                )
-                
+                         ))
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
                 .tag(AppReducer.Tab.home)
                 
-                PlayerView(store: store.scope(
-                    state: \.tabBarState.playerState,
-                    action: { AppReducer.Action.tabBar(.player($0)) }
-                ))
-                .tabItem {
-                    Label("Player", systemImage: "play.circle.fill")
-                }
-                .tag(AppReducer.Tab.player)
-                
                 LibraryView(store: store.scope(
                     state: \.tabBarState.libraryState,
                     action: { AppReducer.Action.tabBar(.library($0)) }
-                ))
+                ),
+                            isMiniPlayerVisible: $isMiniPlayerVisible)
                 .tabItem {
                     Label("Library", systemImage: "books.vertical.fill")
                 }

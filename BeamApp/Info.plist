@@ -5,7 +5,7 @@
 	<key>NSAppTransportSecurity</key>
 	<dict/>
 	<key>NSExceptionDomains</key>
-	<string>192.168.0.50</string>
+	<string>192.168.0.19</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

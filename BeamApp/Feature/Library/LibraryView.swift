@@ -10,7 +10,8 @@ import ComposableArchitecture
 
 struct LibraryView: View {
     let store: StoreOf<LibraryReducer>
-    
+    @Binding var isMiniPlayerVisible: Bool
+
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack(spacing: 20) {
@@ -24,6 +25,7 @@ struct LibraryView: View {
                             Spacer()
                             Button(action: {
                                 viewStore.send(.selectPlaylist(playlist))
+                                isMiniPlayerVisible = true
                             }) {
                                 Text("Select")
                             }
@@ -34,6 +36,9 @@ struct LibraryView: View {
             }
             .onAppear {
                 viewStore.send(.fetchUserPlaylists)
+            }
+            .onChange(of: viewStore.playlist) { _ in
+                isMiniPlayerVisible = !viewStore.playlist.isEmpty
             }
         }
     }

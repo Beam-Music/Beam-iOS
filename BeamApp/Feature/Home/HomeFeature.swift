@@ -19,7 +19,7 @@ struct HomeFeature {
     }
     
     static func fetchUserPlaylists(with token: String) async throws -> [UserPlaylist] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.50:8080/user-playlists")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.19:8080/user-playlists")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
@@ -32,7 +32,7 @@ struct HomeFeature {
     }
     
     static func fetchPlaylist(with token: String, playlistID: String) async throws -> [PlaylistTrack] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.50:8080/user-playlists/\(playlistID)/songs")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.19:8080/user-playlists/\(playlistID)/songs")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         print("Requesting playlist with token: Bearer \(token)")
