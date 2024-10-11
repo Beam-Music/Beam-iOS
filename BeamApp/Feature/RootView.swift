@@ -12,6 +12,8 @@ struct RootView: View {
     let store: StoreOf<AppReducer>
     @State private var isMiniPlayerVisible: Bool = true
     @State private var isPlayerViewVisible: Bool = false
+    @State private var playerOffset: CGFloat = UIScreen.main.bounds.height
+    @GestureState private var dragOffset: CGFloat = 0
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
@@ -35,46 +37,83 @@ struct RootView: View {
                             action: { AppReducer.Action.tabBar(.player($0)) }
                         ), isPlayerViewVisible: $isPlayerViewVisible)
                         .onTapGesture {
-                            withAnimation {
-                                isPlayerViewVisible = true
-                                isMiniPlayerVisible = false
-                            }
+                            showFullPlayer()
                         }
                         .transition(.move(edge: .bottom))
-                        .animation(.easeInOut, value: isMiniPlayerVisible)
                         .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
                         .zIndex(1)
                     }
                 }
+                .opacity(isPlayerViewVisible ? 0.3 : 1)
                 
                 if isPlayerViewVisible {
-                    Color.black.edgesIgnoringSafeArea(.all)
+                    Color.black
+                        .opacity(calculateBackgroundOpacity())
+                        .ignoresSafeArea()
+                        .zIndex(1)
+                    
                     PlayerView(store: store.scope(
                         state: \.tabBarState.playerState,
                         action: { AppReducer.Action.tabBar(.player($0)) }
                     ), isMiniPlayerVisible: $isMiniPlayerVisible)
-                    .transition(.move(edge: .bottom))
-                    .animation(.easeInOut)
-                    .onTapGesture {
-                        withAnimation {
-                            isPlayerViewVisible = false
-                            isMiniPlayerVisible = true
-                        }
-                    }
-                    .gesture(DragGesture().onEnded { value in
-                        if value.translation.height > 100 {
-                            withAnimation {
-                                isPlayerViewVisible = false
-                                isMiniPlayerVisible = true
+                    .background(Color.black)
+                    .offset(y: calculatePlayerOffset())
+                    .gesture(
+                        DragGesture()
+                            .updating($dragOffset) { value, state, _ in
+                                state = value.translation.height
                             }
-                        }
-                    })
-                    .ignoresSafeArea()
+                            .onEnded { value in
+                                handleDragEnd(value)
+                            }
+                    )
+                    .transition(.move(edge: .bottom))
                     .zIndex(2)
                 }
             }
-            .animation(.default, value: viewStore.databaseState)
-            .animation(.default, value: viewStore.isLoggedIn)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPlayerViewVisible)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
+        }
+    }
+    
+    private func calculatePlayerOffset() -> CGFloat {
+        if isPlayerViewVisible {
+            return max(0, dragOffset)
+        } else {
+            return UIScreen.main.bounds.height
+        }
+    }
+    
+    private func calculateBackgroundOpacity() -> Double {
+        let maxDragDistance: CGFloat = 200
+        let dragPercentage = min(dragOffset / maxDragDistance, 1)
+        return 0.7 * (1 - Double(dragPercentage))
+    }
+    
+    private func handleDragEnd(_ value: DragGesture.Value) {
+        let threshold: CGFloat = 100
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            if value.translation.height > threshold || value.predictedEndTranslation.height > threshold {
+                hideFullPlayer()
+            } else {
+                showFullPlayer()
+            }
+        }
+    }
+    
+    private func showFullPlayer() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isPlayerViewVisible = true
+            isMiniPlayerVisible = false
+            playerOffset = 0
+        }
+    }
+    
+    private func hideFullPlayer() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isPlayerViewVisible = false
+            isMiniPlayerVisible = true
+            playerOffset = UIScreen.main.bounds.height
         }
     }
 }
