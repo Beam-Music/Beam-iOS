@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F2B10242CB90E99005156A6 /* MiniPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2B10232CB90E99005156A6 /* MiniPlayerView.swift */; };
 		0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */; };
 		0F5621C12CB76D1B006E03F9 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621C02CB76D1B006E03F9 /* LibraryView.swift */; };
 		0F5621C32CB76D23006E03F9 /* LibraryReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */; };
@@ -66,6 +67,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0F2B10232CB90E99005156A6 /* MiniPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPlayerView.swift; sourceTree = "<group>"; };
 		0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistItem.swift; sourceTree = "<group>"; };
 		0F5621C02CB76D1B006E03F9 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryReducer.swift; sourceTree = "<group>"; };
@@ -138,6 +140,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0F2B10222CB90E77005156A6 /* MiniPlayer */ = {
+			isa = PBXGroup;
+			children = (
+				0F2B10232CB90E99005156A6 /* MiniPlayerView.swift */,
+			);
+			path = MiniPlayer;
+			sourceTree = "<group>";
+		};
 		0F5621BF2CB76D0C006E03F9 /* Library */ = {
 			isa = PBXGroup;
 			children = (
@@ -175,6 +185,7 @@
 		0FB328022C9030E100F5675B /* Feature */ = {
 			isa = PBXGroup;
 			children = (
+				0F2B10222CB90E77005156A6 /* MiniPlayer */,
 				0F5621BF2CB76D0C006E03F9 /* Library */,
 				0FB15EF82C9D3A4F003718C3 /* Token */,
 				0FB328182C903DF400F5675B /* Player */,
@@ -528,6 +539,7 @@
 				0FB3282D2C929F4000F5675B /* TabBarReducer.swift in Sources */,
 				0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */,
 				0FB328002C902E8500F5675B /* AppReducer.swift in Sources */,
+				0F2B10242CB90E99005156A6 /* MiniPlayerView.swift in Sources */,
 				0FC873EF2C9007B700D809E9 /* PrimaryButton.swift in Sources */,
 				0FB15EF12C9CF729003718C3 /* LoginFeature.swift in Sources */,
 				0FB3282B2C92843600F5675B /* HomeAction.swift in Sources */,

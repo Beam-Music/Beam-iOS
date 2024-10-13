@@ -11,6 +11,7 @@ import ComposableArchitecture
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     let store: StoreOf<PlayerReducer>
+    @Binding var isMiniPlayerVisible: Bool
     
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
@@ -78,6 +79,13 @@ struct PlayerView: View {
                 // page 로드 될 때 자동재생 필요하면
                 //                playCurrentTrack(viewStore: viewStore)
             }
+            .gesture(DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                .onEnded { value in
+                    if value.translation.height > 100 {
+                        isMiniPlayerVisible = true
+                    }
+                }
+            )
         }
     }
     
