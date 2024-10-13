@@ -67,12 +67,12 @@ struct RootView: View {
                                 handleDragEnd(value)
                             }
                     )
-                    .transition(.move(edge: .bottom))
+                    .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
                     .zIndex(2)
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPlayerViewVisible)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isPlayerViewVisible) 
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: dragOffset)
         }
     }
     
@@ -92,7 +92,7 @@ struct RootView: View {
     
     private func handleDragEnd(_ value: DragGesture.Value) {
         let threshold: CGFloat = 100
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             if value.translation.height > threshold || value.predictedEndTranslation.height > threshold {
                 hideFullPlayer()
             } else {
@@ -102,7 +102,7 @@ struct RootView: View {
     }
     
     private func showFullPlayer() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             isPlayerViewVisible = true
             isMiniPlayerVisible = false
             playerOffset = 0
@@ -110,7 +110,7 @@ struct RootView: View {
     }
     
     private func hideFullPlayer() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             isPlayerViewVisible = false
             isMiniPlayerVisible = true
             playerOffset = UIScreen.main.bounds.height

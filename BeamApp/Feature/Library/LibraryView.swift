@@ -27,7 +27,6 @@ struct LibraryView: View {
                                 viewStore.send(.selectPlaylist(playlist))
                                 isMiniPlayerVisible = true
                             }) {
-                                Text("Select")
                             }
                         }
                         .padding()
