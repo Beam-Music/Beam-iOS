@@ -36,6 +36,7 @@ struct HomeReducer {
         case recommendPlaylistsLoaded([RecommendPlaylist])
         case recommendPlaylistsFailed(String)
         case fetchRecommendPlaylistSongs(String)
+        case startPlayback([PlaylistTrack])
     }
     
     enum Route: Equatable {
@@ -59,6 +60,7 @@ struct HomeReducer {
                 
             case .logOutButtonTapped:
                 return .none
+                
             case let .setNavigation(route):
                 state.route = route
                 if case .player = route {
@@ -108,7 +110,6 @@ struct HomeReducer {
             case .fetchRecommendPlaylists:
                 return .run { send in
                     do {
-                        let token = try await HomeFeature.fetchToken(context: modelContext)
                         let recommendPlaylists = try await HomeFeature.fetchRecommendPlaylists()
                         await send(.recommendPlaylistsLoaded(recommendPlaylists))
                     } catch {
@@ -124,14 +125,15 @@ struct HomeReducer {
                         await send(.playlistFailed(error.localizedDescription))
                     }
                 }
-
-            case .recommendPlaylistsLoaded(let playlists):
+                
+            case let .recommendPlaylistsLoaded(playlists):
                 state.recommendedPlaylists = playlists
                 if let firstPlaylist = playlists.first {
                     state.selectedPlaylistID = firstPlaylist.id.uuidString
-                    return .send(.fetchPlaylist(firstPlaylist.id.uuidString))
+                    return .send(.fetchRecommendPlaylistSongs(firstPlaylist.id.uuidString))
                 }
                 return .none
+                
                 
             case let .recommendPlaylistsFailed(error):
                 state.errorMessage = error
@@ -140,14 +142,14 @@ struct HomeReducer {
             case let .playlistLoaded(playlist):
                 state.playlist = playlist
                 state.errorMessage = nil
-                if !playlist.isEmpty {
-                    state.playerState = PlayerReducer.State(
-                        playlist: state.playlist,
-                        currentIndex: 0
-                    )
-                    return .send(.player(.startPlayback))
-                }
                 return .none
+                
+            case let .startPlayback(playlistTracks):
+                return .run { _ in
+                    if let firstTrack = playlistTracks.first {
+                        await AudioManager.shared.playAppleMusicTrack(with: firstTrack.title)
+                    }
+                }
                 
             case let .playlistFailed(error):
                 state.errorMessage = error
