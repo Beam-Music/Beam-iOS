@@ -4,8 +4,6 @@
 //
 //  Created by freed on 9/20/24.
 //
-
-
 import SwiftData
 import Foundation
 
@@ -19,7 +17,7 @@ struct HomeFeature {
     }
     
     static func fetchUserPlaylists(with token: String) async throws -> [UserPlaylist] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.104:8080/user-playlists")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/user-playlists")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
@@ -32,10 +30,9 @@ struct HomeFeature {
     }
     
     static func fetchPlaylist(with token: String, playlistID: String) async throws -> [PlaylistTrack] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.104:8080/user-playlists/\(playlistID)/songs")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/user-playlists/\(playlistID)/songs")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        print("Requesting playlist with token: Bearer \(token)")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -44,8 +41,43 @@ struct HomeFeature {
         }
         do {
             let playlist = try JSONDecoder().decode([PlaylistTrack].self, from: data)
-            print(playlist, "playlist check")
             return playlist
+        } catch let decodingError as DecodingError {
+            print("Failed to decode JSON: \(decodingError)")
+            throw decodingError
+        } catch {
+            print("Unexpected error: \(error)")
+            throw error
+        }
+    }
+    
+    static func fetchRecommendPlaylists() async throws -> [RecommendPlaylist] {
+        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/recommend-playlists")!)
+        request.httpMethod = "GET"
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
+        }
+        
+        let recommendPlaylists = try JSONDecoder().decode([RecommendPlaylist].self, from: data)
+        return recommendPlaylists
+    }
+    
+    static func fetchRecommendPlaylistSongs(with playlistID: String) async throws -> [PlaylistTrack] {
+        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/recommend-playlists/\(playlistID)/songs")!)
+        request.httpMethod = "GET"
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
+        }
+        
+        do {
+            let playlistSongs = try JSONDecoder().decode([PlaylistTrack].self, from: data)
+            print(playlistSongs, "Recommended playlist songs check")
+            return playlistSongs
         } catch let decodingError as DecodingError {
             print("Failed to decode JSON: \(decodingError)")
             throw decodingError

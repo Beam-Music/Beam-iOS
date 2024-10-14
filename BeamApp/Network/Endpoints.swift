@@ -9,7 +9,7 @@ import Foundation
 struct Endpoints {
     static let baseURL = 
 //    "http://127.0.0.1:8080"
-    "http://192.168.0.104:8080"
+    "http://192.168.0.14:8080"
 
 
     struct Auth {
