@@ -16,22 +16,14 @@ struct HomeView: View {
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             NavigationView {
-                VStack(spacing: 20) {
-//                    Button(action: {
-//                        isLoggedIn = false
-//                    }) {
-//                        Text("Log out")
-//                            .padding()
-//                            .background(Color.red)
-//                            .foregroundColor(.white)
-//                            .cornerRadius(10)
-//                    }
+                VStack(spacing: 12) {
                     List(viewStore.recommendedPlaylists, id: \.id) { playlist in
                         HStack {
                             Text(playlist.name)
                             Spacer()
                             Button(action: {
                                 viewStore.send(.selectPlaylist(playlist))
+                                viewStore.send(.startPlayback(viewStore.playlist))
                                 isMiniPlayerVisible = true
                             }) {
                                 
@@ -41,8 +33,13 @@ struct HomeView: View {
                     }
                 }
                 .padding()
+                .navigationBarItems(trailing: NavigationLink(destination: SettingsView(isLoggedIn: $isLoggedIn)) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                })
                 .onAppear {
-                    viewStore.send(.fetchUserPlaylists)  
+                    viewStore.send(.fetchUserPlaylists)
                     viewStore.send(.fetchRecommendPlaylists)
                     if let selectedPlaylistID = viewStore.selectedPlaylistID {
                         viewStore.send(.fetchPlaylist(selectedPlaylistID))

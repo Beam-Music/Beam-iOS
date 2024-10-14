@@ -52,10 +52,13 @@ struct PlayerReducer: Reducer {
         case .startPlayback:
             if !state.playlist.isEmpty {
                 let track = state.playlist[state.currentIndex]
+                print("Starting playback for track: \(track.title)")
                 Task {
                     await AudioManager.shared.playAppleMusicTrack(with: track.title)
                 }
                 state.isPlaying = true
+            } else {
+                print("Playlist is empty")
             }
             return .none
         }
