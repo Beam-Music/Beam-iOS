@@ -18,6 +18,7 @@ struct HomeReducer {
         var errorMessage: String? = nil
         var playerState: PlayerReducer.State? = nil
         var selectedPlaylistID: String? = nil
+        var recommendedPlaylists: [RecommendPlaylist] = []
     }
     
     enum Action: BindableAction, Equatable {
@@ -25,11 +26,16 @@ struct HomeReducer {
         case logOutButtonTapped
         case setNavigation(Route?)
         case fetchPlaylist(String)
+        case selectPlaylist(RecommendPlaylist)
         case fetchUserPlaylists
         case userPlaylistsLoaded([UserPlaylist])
         case playlistLoaded([PlaylistTrack])
         case playlistFailed(String)
         case player(PlayerReducer.Action)
+        case fetchRecommendPlaylists
+        case recommendPlaylistsLoaded([RecommendPlaylist])
+        case recommendPlaylistsFailed(String)
+        case fetchRecommendPlaylistSongs(String)
     }
     
     enum Route: Equatable {
@@ -46,6 +52,10 @@ struct HomeReducer {
             switch action {
             case .binding:
                 return .none
+                
+            case let .selectPlaylist(playlist):
+                state.selectedPlaylistID = playlist.id.uuidString
+                return .send(.fetchRecommendPlaylistSongs(playlist.id.uuidString))
                 
             case .logOutButtonTapped:
                 return .none
@@ -77,6 +87,10 @@ struct HomeReducer {
                 }
                 return .none
                 
+            case let .selectPlaylist(playlist):
+                state.selectedPlaylistID = playlist.id.uuidString
+                return .send(.fetchRecommendPlaylistSongs(playlist.id.uuidString))
+                
             case .fetchPlaylist:
                 guard let playlistID = state.selectedPlaylistID else {
                     return .none
@@ -91,12 +105,47 @@ struct HomeReducer {
                     }
                 }
                 
+            case .fetchRecommendPlaylists:
+                return .run { send in
+                    do {
+                        let token = try await HomeFeature.fetchToken(context: modelContext)
+                        let recommendPlaylists = try await HomeFeature.fetchRecommendPlaylists()
+                        await send(.recommendPlaylistsLoaded(recommendPlaylists))
+                    } catch {
+                        await send(.recommendPlaylistsFailed(error.localizedDescription))
+                    }
+                }
+            case .fetchRecommendPlaylistSongs(let playlistID):
+                return .run { send in
+                    do {
+                        let playlistSongs = try await HomeFeature.fetchRecommendPlaylistSongs(with: playlistID)
+                        await send(.playlistLoaded(playlistSongs))
+                    } catch {
+                        await send(.playlistFailed(error.localizedDescription))
+                    }
+                }
+
+            case .recommendPlaylistsLoaded(let playlists):
+                state.recommendedPlaylists = playlists
+                if let firstPlaylist = playlists.first {
+                    state.selectedPlaylistID = firstPlaylist.id.uuidString
+                    return .send(.fetchPlaylist(firstPlaylist.id.uuidString))
+                }
+                return .none
+                
+            case let .recommendPlaylistsFailed(error):
+                state.errorMessage = error
+                return .none
                 
             case let .playlistLoaded(playlist):
                 state.playlist = playlist
                 state.errorMessage = nil
                 if !playlist.isEmpty {
-                        state.route = .player
+                    state.playerState = PlayerReducer.State(
+                        playlist: state.playlist,
+                        currentIndex: 0
+                    )
+                    return .send(.player(.startPlayback))
                 }
                 return .none
                 

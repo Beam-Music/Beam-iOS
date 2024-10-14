@@ -7,7 +7,6 @@
 
 import ComposableArchitecture
 
-// todo: playerview는 나중에 팝업 탭으로 바뀔꺼고 재생 목록도 지금처럼 첫번째 index의 playlist를 default playlist로 가져오는게 아니라 유저가 선택한 재생목록을 재생시켜야 하고 청취 기록 및 노래 추천 서비스도 추가되어야함
 struct PlayerReducer: Reducer {
     struct State: Equatable {
         var playlist: [PlaylistTrack] = []

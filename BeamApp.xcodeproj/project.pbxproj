@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0F2B10242CB90E99005156A6 /* MiniPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2B10232CB90E99005156A6 /* MiniPlayerView.swift */; };
+		0F44C4CA2CBCA13B00ADF578 /* RecommendPlaylist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F44C4C92CBCA13B00ADF578 /* RecommendPlaylist.swift */; };
 		0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */; };
 		0F5621C12CB76D1B006E03F9 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621C02CB76D1B006E03F9 /* LibraryView.swift */; };
 		0F5621C32CB76D23006E03F9 /* LibraryReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */; };
@@ -68,6 +69,7 @@
 
 /* Begin PBXFileReference section */
 		0F2B10232CB90E99005156A6 /* MiniPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPlayerView.swift; sourceTree = "<group>"; };
+		0F44C4C92CBCA13B00ADF578 /* RecommendPlaylist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendPlaylist.swift; sourceTree = "<group>"; };
 		0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistItem.swift; sourceTree = "<group>"; };
 		0F5621C02CB76D1B006E03F9 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		0F5621C22CB76D23006E03F9 /* LibraryReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryReducer.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 			children = (
 				0FB15EFF2C9D6118003718C3 /* ListeningHistoryItem.swift */,
 				0F5621BD2CB75CF9006E03F9 /* PlaylistItem.swift */,
+				0F44C4C92CBCA13B00ADF578 /* RecommendPlaylist.swift */,
 			);
 			path = DTO;
 			sourceTree = "<group>";
@@ -537,6 +540,7 @@
 				0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */,
 				0FB15EF72C9D3848003718C3 /* TokenStorage.swift in Sources */,
 				0FB3282D2C929F4000F5675B /* TabBarReducer.swift in Sources */,
+				0F44C4CA2CBCA13B00ADF578 /* RecommendPlaylist.swift in Sources */,
 				0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */,
 				0FB328002C902E8500F5675B /* AppReducer.swift in Sources */,
 				0F2B10242CB90E99005156A6 /* MiniPlayerView.swift in Sources */,

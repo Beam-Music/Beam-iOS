@@ -21,7 +21,7 @@ struct TabBarView: View {
                 HomeView(isLoggedIn: viewStore.binding(
                     get: \.isLoggedIn,
                     send: { .setLoggedIn($0) }
-                ),
+                ), isMiniPlayerVisible: $isMiniPlayerVisible,
                          store: store.scope(
                             state: \.tabBarState.homeState,
                             action: { AppReducer.Action.tabBar(.home($0)) }
