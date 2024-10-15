@@ -37,6 +37,8 @@
 		0FB3282D2C929F4000F5675B /* TabBarReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3282C2C929F4000F5675B /* TabBarReducer.swift */; };
 		0FB3282F2C929FB700F5675B /* PlayerReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB3282E2C929FB700F5675B /* PlayerReducer.swift */; };
 		0FB655262CBDED66000B803B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB655252CBDED66000B803B /* LoginView.swift */; };
+		0FB655282CBDF6CB000B803B /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB655272CBDF6CB000B803B /* SignupView.swift */; };
+		0FB6552A2CBDF7B5000B803B /* SignupFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB655292CBDF7B5000B803B /* SignupFeature.swift */; };
 		0FC48B752CB381F3002AB60E /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 0FC48B742CB381F3002AB60E /* ComposableArchitecture */; };
 		0FC873802C8FFE3E00D809E9 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */; };
 		0FC8738A2C8FFE3E00D809E9 /* BeamPracTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC873892C8FFE3E00D809E9 /* BeamPracTests.swift */; };
@@ -100,6 +102,8 @@
 		0FB3282C2C929F4000F5675B /* TabBarReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarReducer.swift; sourceTree = "<group>"; };
 		0FB3282E2C929FB700F5675B /* PlayerReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerReducer.swift; sourceTree = "<group>"; };
 		0FB655252CBDED66000B803B /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		0FB655272CBDF6CB000B803B /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
+		0FB655292CBDF7B5000B803B /* SignupFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupFeature.swift; sourceTree = "<group>"; };
 		0FC873722C8FFE3D00D809E9 /* BeamApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeamApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC8737D2C8FFE3E00D809E9 /* BeamApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeamApp.entitlements; sourceTree = "<group>"; };
 		0FC8737F2C8FFE3E00D809E9 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -231,7 +235,6 @@
 				0FB655232CBDEC95000B803B /* Onboard */,
 				0FB655222CBDEC8B000B803B /* Login */,
 				0FB328242C92777800F5675B /* AuthService.swift */,
-				0FB328082C9031B300F5675B /* OnboardView.swift */,
 				0FB3280A2C9031BF00F5675B /* LoginReducer.swift */,
 				0FB328262C927B7D00F5675B /* AuthClient.swift */,
 				0FB328282C927BFB00F5675B /* LoginAction.swift */,
@@ -286,6 +289,7 @@
 		0FB655232CBDEC95000B803B /* Onboard */ = {
 			isa = PBXGroup;
 			children = (
+				0FB328082C9031B300F5675B /* OnboardView.swift */,
 			);
 			path = Onboard;
 			sourceTree = "<group>";
@@ -293,6 +297,8 @@
 		0FB655242CBDEC9C000B803B /* SignUp */ = {
 			isa = PBXGroup;
 			children = (
+				0FB655272CBDF6CB000B803B /* SignupView.swift */,
+				0FB655292CBDF7B5000B803B /* SignupFeature.swift */,
 			);
 			path = SignUp;
 			sourceTree = "<group>";
@@ -568,6 +574,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0FB655282CBDF6CB000B803B /* SignupView.swift in Sources */,
 				0FB15EF52C9D3824003718C3 /* TokenEntity.swift in Sources */,
 				0FB3282F2C929FB700F5675B /* PlayerReducer.swift in Sources */,
 				0FB15EF32C9D34E0003718C3 /* HomeFeature.swift in Sources */,
@@ -575,6 +582,7 @@
 				0FB15EFA2C9D3A5B003718C3 /* TokenReducer.swift in Sources */,
 				0FB15EE72C9436C8003718C3 /* TabBarView.swift in Sources */,
 				0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */,
+				0FB6552A2CBDF7B5000B803B /* SignupFeature.swift in Sources */,
 				0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */,
 				0FB15EF72C9D3848003718C3 /* TokenStorage.swift in Sources */,
 				0FB3282D2C929F4000F5675B /* TabBarReducer.swift in Sources */,

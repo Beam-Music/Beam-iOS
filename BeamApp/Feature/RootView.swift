@@ -24,10 +24,16 @@ struct RootView: View {
                             TabBarView(store: store, isMiniPlayerVisible: $isMiniPlayerVisible)
                                 .zIndex(0)
                         } else {
-                            OnboardView(store: store.scope(
-                                state: \.loginState,
-                                action: AppReducer.Action.login
-                            ))
+                            OnboardView(
+                                loginStore: store.scope(
+                                    state: \.loginState,
+                                    action: AppReducer.Action.login
+                                ),
+                                signupStore: store.scope(
+                                    state: \.signupState,
+                                    action: AppReducer.Action.signup
+                                )
+                            )
                         }
                     }
                     

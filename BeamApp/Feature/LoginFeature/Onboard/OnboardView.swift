@@ -9,11 +9,13 @@ import SwiftUI
 import ComposableArchitecture
 
 struct OnboardView: View {
-    let store: StoreOf<LoginFeature>
-    @State private var navigateToLogin: Bool = false  // To control navigation
-
+    let loginStore: StoreOf<LoginFeature>
+    let signupStore: StoreOf<SignupFeature>
+    @State private var navigateToLogin: Bool = false
+    @State private var navigateToSignup: Bool = false
+    
     var body: some View {
-        NavigationView {  
+        NavigationView {
             ZStack {
                 Image("background_image")
                     .resizable()
@@ -43,26 +45,32 @@ struct OnboardView: View {
                             .multilineTextAlignment(.center)
                             .padding(.bottom, 40)
                         
-                        Button(action: {
-                            // Action for Sign up button, e.g., navigate to signup view
-                        }) {
-                            Text("Sign up free")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.purple)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                                .padding(.horizontal, 40)
+                        NavigationLink(
+                            destination: SignupView(store: signupStore),
+                            isActive: $navigateToSignup
+                        ) {
+                            Button(action: {
+                                navigateToSignup = true
+                            }) {
+                                
+                                Text("Sign up free")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.purple)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                                    .padding(.horizontal, 40)
+                            }
                         }
                         .padding(.bottom, 15)
                         
                         NavigationLink(
-                            destination: LoginView(store: store),  // Navigate to LoginView
-                            isActive: $navigateToLogin  // Bind navigation state to this flag
+                            destination: LoginView(store: loginStore),
+                            isActive: $navigateToLogin
                         ) {
                             Button(action: {
-                                navigateToLogin = true  // Trigger the navigation
+                                navigateToLogin = true
                             }) {
                                 Text("Log in")
                                     .font(.headline)

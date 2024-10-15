@@ -14,8 +14,10 @@ struct AppReducer: Reducer {
         var tabBarState = TabBarReducer.State()
         var homeState = HomeReducer.State()
         var loginState = LoginFeature.State()
+        var signupState: SignupFeature.State = SignupFeature.State()
         var selectedTab: Tab = .home
         var isLoggedIn: Bool = false
+        var isSignedUp: Bool = false
     }
     
     enum Action: Equatable {
@@ -25,10 +27,11 @@ struct AppReducer: Reducer {
         case setLoggedIn(Bool)
         case home(HomeReducer.Action)
         case login(LoginFeature.Action)
+        case signup(SignupFeature.Action)
     }
 
     enum Tab: Equatable {
-        case home, player, library
+        case home, library
     }
     
     var body: some ReducerOf<Self> {
@@ -50,6 +53,10 @@ struct AppReducer: Reducer {
             case .login(.loginResponse(.success(let token))):
                 state.isLoggedIn = true
                 state.loginState.token = token
+                return .none
+                
+            case .signup(let isSignedUp):
+                state.isSignedUp = true
                 return .none
                 
             case .tabBar, .home, .login:
