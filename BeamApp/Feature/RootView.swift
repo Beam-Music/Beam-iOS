@@ -24,7 +24,7 @@ struct RootView: View {
                             TabBarView(store: store, isMiniPlayerVisible: $isMiniPlayerVisible)
                                 .zIndex(0)
                         } else {
-                            LoginView(store: store.scope(
+                            OnboardView(store: store.scope(
                                 state: \.loginState,
                                 action: AppReducer.Action.login
                             ))

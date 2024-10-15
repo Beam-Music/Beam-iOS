@@ -17,7 +17,7 @@ struct HomeFeature {
     }
     
     static func fetchUserPlaylists(with token: String) async throws -> [UserPlaylist] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/user-playlists")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.30:8080/user-playlists")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
@@ -30,7 +30,7 @@ struct HomeFeature {
     }
     
     static func fetchPlaylist(with token: String, playlistID: String) async throws -> [PlaylistTrack] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/user-playlists/\(playlistID)/songs")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.30:8080/user-playlists/\(playlistID)/songs")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
@@ -52,7 +52,7 @@ struct HomeFeature {
     }
     
     static func fetchRecommendPlaylists() async throws -> [RecommendPlaylist] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/recommend-playlists")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.30:8080/recommend-playlists")!)
         request.httpMethod = "GET"
         
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -65,7 +65,7 @@ struct HomeFeature {
     }
     
     static func fetchRecommendPlaylistSongs(with playlistID: String) async throws -> [PlaylistTrack] {
-        var request = URLRequest(url: URL(string: "http://192.168.0.14:8080/recommend-playlists/\(playlistID)/songs")!)
+        var request = URLRequest(url: URL(string: "http://192.168.0.30:8080/recommend-playlists/\(playlistID)/songs")!)
         request.httpMethod = "GET"
         
         let (data, response) = try await URLSession.shared.data(for: request)
