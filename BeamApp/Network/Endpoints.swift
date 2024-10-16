@@ -9,15 +9,28 @@ import Foundation
 struct Endpoints {
     static let baseURL = 
 //    "http://127.0.0.1:8080"
-    "http://192.168.0.14:8080"
+    "http://192.168.0.33:8080"
 
 
     struct Auth {
         static let login = "\(baseURL)/users/login"
+        static let register = "\(baseURL)/users/register"
+        static let verify = "\(baseURL)/users/verify"
     }
     
     struct History {
         static let ListeningHistory = "\(baseURL)/listening-history"
+    }
+    
+    struct Playlist {
+        static let userPlaylist = "\(baseURL)/user-playlists"
+        static func userPlaylistSongs(playlistID: String) -> String {
+            return "\(baseURL)/user-playlists/\(playlistID)/songs"
+        }
+        static let recommendPlaylists = "\(baseURL)/recommend-playlists"
+        static func recommendPlaylistsSongs(playlistID: String) -> String {
+            return "\(baseURL)/recommend-playlists/\(playlistID)/songs"
+        }
     }
     
     struct User {

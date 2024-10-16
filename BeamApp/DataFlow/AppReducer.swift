@@ -14,8 +14,10 @@ struct AppReducer: Reducer {
         var tabBarState = TabBarReducer.State()
         var homeState = HomeReducer.State()
         var loginState = LoginFeature.State()
+        var signupState: SignupFeature.State = SignupFeature.State()
         var selectedTab: Tab = .home
         var isLoggedIn: Bool = false
+        var isSignedUp: Bool = false
     }
     
     enum Action: Equatable {
@@ -25,10 +27,11 @@ struct AppReducer: Reducer {
         case setLoggedIn(Bool)
         case home(HomeReducer.Action)
         case login(LoginFeature.Action)
+        case signup(SignupFeature.Action)
     }
 
     enum Tab: Equatable {
-        case home, player, library
+        case home, library
     }
     
     var body: some ReducerOf<Self> {
@@ -45,14 +48,37 @@ struct AppReducer: Reducer {
             case .setLoggedIn(let isLoggedIn):
                 state.isLoggedIn = isLoggedIn
                 return .none
-
            
             case .login(.loginResponse(.success(let token))):
                 state.isLoggedIn = true
                 state.loginState.token = token
                 return .none
                 
+            case .signup(.signupResponse(.success)):
+                state.isLoggedIn = true
+                return .none
+                
             case .tabBar, .home, .login:
+                return .none
+            
+            case .signup(.usernameChanged(_)):
+                return .none
+            case .signup(.emailChanged(_)):
+                return .none
+            case .signup(.passwordChanged(_)):
+                return .none
+            case .signup(.verificationCodeChanged(_)):
+                return .none
+            case .signup(.signupButtonTapped):
+                return .none
+            case .signup(.verifyButtonTapped):
+                return .none
+            case .signup(.signupResponse(.failure(_))):
+                return .none
+            case .signup(.verifyResponse(_)):
+                return .none
+            case let .signup(.setIsLoggedIn(isLoggedIn)):
+                state.isLoggedIn = isLoggedIn 
                 return .none
             }
         }
@@ -64,6 +90,9 @@ struct AppReducer: Reducer {
         }
         Scope(state: \.loginState, action: /Action.login) {
             LoginFeature()
+        }
+        Scope(state: \.signupState, action: /Action.signup) {
+            SignupFeature()
         }
     }
 }
