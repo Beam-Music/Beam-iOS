@@ -10,7 +10,7 @@ import Foundation
 
 struct SignupFeature: Reducer {
     struct State: Equatable {
-        var fullName: String = ""
+        var username: String = ""
         var email: String = ""
         var password: String = ""
         var isLoading: Bool = false
@@ -18,7 +18,7 @@ struct SignupFeature: Reducer {
     }
 
     enum Action: Equatable {
-        case fullNameChanged(String)
+        case usernameChanged(String)
         case emailChanged(String)
         case passwordChanged(String)
         case signupButtonTapped
@@ -39,14 +39,14 @@ struct SignupFeature: Reducer {
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
-            case let .fullNameChanged(fullName):
-                state.fullName = fullName
+            case let .usernameChanged(username):
+                state.username = username
                 return .none
-
+                
             case let .emailChanged(email):
                 state.email = email
                 return .none
-
+                
             case let .passwordChanged(password):
                 state.password = password
                 return .none
@@ -55,9 +55,9 @@ struct SignupFeature: Reducer {
                 state.isLoading = true
                 state.errorMessage = nil
 
-                return .run { [fullName = state.fullName, email = state.email, password = state.password] send in
+                return .run { [username = state.username, email = state.email, password = state.password] send in
                     do {
-                        let success = try await signupRequest(fullName, email, password)
+                        let success = try await signupRequest(username, email, password)
                         await send(.signupResponse(.success(success)))
                     } catch {
                         // 에러 처리
@@ -89,9 +89,24 @@ extension DependencyValues {
 }
 
 private struct SignupRequestKey: DependencyKey {
-    static var liveValue: (String, String, String) async throws -> Bool = { fullName, email, password in
-        // 실제 서버로의 회원가입 요청 구현
-        // 성공 시 true 반환, 실패 시 에러 던짐
+    static var liveValue: (String, String, String) async throws -> Bool = { username, email, password in
+        var request = URLRequest(url: URL(string: Endpoints.Auth.register)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "username": username,
+            "email": email,
+            "password": password
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
+            throw URLError(.badServerResponse)
+        }
+
         return true
     }
 }

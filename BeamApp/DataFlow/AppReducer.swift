@@ -72,6 +72,9 @@ struct AppReducer: Reducer {
         Scope(state: \.loginState, action: /Action.login) {
             LoginFeature()
         }
+        Scope(state: \.signupState, action: /Action.signup) {
+            SignupFeature()
+        }
     }
 }
 

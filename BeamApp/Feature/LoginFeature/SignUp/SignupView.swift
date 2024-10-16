@@ -14,9 +14,9 @@ struct SignupView: View {
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack {
-                TextField("Full name", text: viewStore.binding(
-                    get: \.fullName,
-                    send: SignupFeature.Action.fullNameChanged
+                TextField("usename", text: viewStore.binding(
+                    get: \.username,
+                    send: SignupFeature.Action.usernameChanged
                 ))
                 .padding()
                 .background(Color.white.opacity(0.2))

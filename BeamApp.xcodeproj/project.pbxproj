@@ -235,10 +235,7 @@
 				0FB655232CBDEC95000B803B /* Onboard */,
 				0FB655222CBDEC8B000B803B /* Login */,
 				0FB328242C92777800F5675B /* AuthService.swift */,
-				0FB3280A2C9031BF00F5675B /* LoginReducer.swift */,
 				0FB328262C927B7D00F5675B /* AuthClient.swift */,
-				0FB328282C927BFB00F5675B /* LoginAction.swift */,
-				0FB15EF02C9CF729003718C3 /* LoginFeature.swift */,
 			);
 			path = LoginFeature;
 			sourceTree = "<group>";
@@ -282,6 +279,9 @@
 			isa = PBXGroup;
 			children = (
 				0FB655252CBDED66000B803B /* LoginView.swift */,
+				0FB3280A2C9031BF00F5675B /* LoginReducer.swift */,
+				0FB15EF02C9CF729003718C3 /* LoginFeature.swift */,
+				0FB328282C927BFB00F5675B /* LoginAction.swift */,
 			);
 			path = Login;
 			sourceTree = "<group>";
