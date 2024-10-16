@@ -15,6 +15,7 @@ struct Endpoints {
     struct Auth {
         static let login = "\(baseURL)/users/login"
         static let register = "\(baseURL)/users/register"
+        static let verify = "\(baseURL)/users/verify"
     }
     
     struct History {

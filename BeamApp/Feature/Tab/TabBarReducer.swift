@@ -24,10 +24,10 @@ struct TabBarReducer: Reducer {
     
     var body: some ReducerOf<Self> {
         Scope(state: \.playerState, action: /Action.player) {
-            PlayerReducer()
+                    PlayerReducer()
         }
         Scope(state: \.generatorState, action: /Action.generator) {
-            GeneratorReducer()
+                    GeneratorReducer()
         }
         Scope(state: \.homeState, action: /Action.home) {
                     HomeReducer()
@@ -38,7 +38,7 @@ struct TabBarReducer: Reducer {
         Reduce { state, action in
             switch action {
             case let .home(.playlistLoaded(playlist)):
-                state.playerState.playlist = playlist // todo: library view 만들고 삭제
+                state.playerState.playlist = playlist
                 state.libraryState.playlist = playlist
                 return .none
             default:

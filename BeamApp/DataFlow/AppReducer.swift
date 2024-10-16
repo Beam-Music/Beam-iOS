@@ -48,18 +48,37 @@ struct AppReducer: Reducer {
             case .setLoggedIn(let isLoggedIn):
                 state.isLoggedIn = isLoggedIn
                 return .none
-
            
             case .login(.loginResponse(.success(let token))):
                 state.isLoggedIn = true
                 state.loginState.token = token
                 return .none
                 
-            case .signup(let isSignedUp):
-                state.isSignedUp = true
+            case .signup(.signupResponse(.success)):
+                state.isLoggedIn = true
                 return .none
                 
             case .tabBar, .home, .login:
+                return .none
+            
+            case .signup(.usernameChanged(_)):
+                return .none
+            case .signup(.emailChanged(_)):
+                return .none
+            case .signup(.passwordChanged(_)):
+                return .none
+            case .signup(.verificationCodeChanged(_)):
+                return .none
+            case .signup(.signupButtonTapped):
+                return .none
+            case .signup(.verifyButtonTapped):
+                return .none
+            case .signup(.signupResponse(.failure(_))):
+                return .none
+            case .signup(.verifyResponse(_)):
+                return .none
+            case let .signup(.setIsLoggedIn(isLoggedIn)):
+                state.isLoggedIn = isLoggedIn 
                 return .none
             }
         }
