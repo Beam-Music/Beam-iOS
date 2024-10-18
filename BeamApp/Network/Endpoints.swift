@@ -7,9 +7,7 @@
 import Foundation
 
 struct Endpoints {
-    static let baseURL = 
-//    "http://127.0.0.1:8080"
-    "http://192.168.0.33:8080"
+    static let baseURL = "https://beammusicserver-a12dff0f2245.herokuapp.com"
 
 
     struct Auth {
