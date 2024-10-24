@@ -19,7 +19,8 @@ struct PlayerReducer: Reducer {
         case nextTrack
         case previousTrack
         case updateCurrentIndex(Int)
-        case startPlayback 
+        case startPlayback
+        case audioDidFinish
     }
     
     func reduce(into state: inout State, action: Action) -> Effect<Action> {
@@ -49,16 +50,34 @@ struct PlayerReducer: Reducer {
             }
             return .none
             
+        case .audioDidFinish:
+            if !state.playlist.isEmpty && state.currentIndex < state.playlist.count - 1 {
+                let nextIndex = state.currentIndex + 1
+                let nextTrack = state.playlist[nextIndex]
+                state.currentIndex = nextIndex
+                
+                return .run { send in
+                    try await Task.sleep(for: .seconds(1))
+                    await send(.startPlayback)
+                }
+            }
+            return .none
+          
         case .startPlayback:
             if !state.playlist.isEmpty {
-                let track = state.playlist[state.currentIndex]
-                print("Starting playback for track: \(track.title)")
-                Task {
-                    await AudioManager.shared.playAppleMusicTrack(with: track.title)
-                }
+                let currentTrack = state.playlist[state.currentIndex]
+                let hasNextTrack = state.currentIndex < state.playlist.count - 1
+                let nextTrackTitle = hasNextTrack ? state.playlist[state.currentIndex + 1].title : nil
+                
                 state.isPlaying = true
-            } else {
-                print("Playlist is empty")
+                
+                return .run { _ in
+                    await AudioManager.shared.playAppleMusicTrack(with: currentTrack.title)
+                    
+                    if hasNextTrack, let nextTitle = nextTrackTitle {
+                        await AudioManager.shared.queueNextTrack(trackTitle: nextTitle)
+                    }
+                }
             }
             return .none
         }
