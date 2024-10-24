@@ -10,6 +10,7 @@ import ComposableArchitecture
 
 struct LoginView: View {
     let store: StoreOf<LoginFeature>
+    @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
@@ -19,7 +20,7 @@ struct LoginView: View {
                     .scaledToFill()
                     .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height)
                     .clipped()
-
+                
                 VStack {
                     Spacer()
                     VStack(alignment: .leading, spacing: 8) {
@@ -27,14 +28,14 @@ struct LoginView: View {
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-
+                        
                         Text("Welcome back to BeamApp, listen to your favorite music!")
                             .font(.body)
                             .foregroundColor(.white.opacity(0.8))
                     }
                     .padding(.horizontal, 30)
                     .padding(.bottom, 40)
-
+                    
                     VStack(spacing: 16) {
                         TextField("Email address", text: viewStore.binding(
                             get: \.username,
@@ -55,20 +56,20 @@ struct LoginView: View {
                         .cornerRadius(8)
                         .foregroundColor(.white)
                         .padding(.horizontal, 30)
-
+                        
                         HStack {
                             Spacer()
-                            Button(action: {
-                            }) {
-                                Text("Forgot your password?")
-                                    .font(.caption)
-                                    .foregroundColor(.purple)
-                            }
+//                            Button(action: {
+//                            }) {
+//                                Text("Forgot your password?")
+//                                    .font(.caption)
+//                                    .foregroundColor(.purple)
+//                            }
                         }
                         .padding(.horizontal, 30)
                     }
                     .padding(.bottom, 40)
-
+                    
                     Button(action: {
                         viewStore.send(.loginButtonTapped)
                     }) {
@@ -83,15 +84,15 @@ struct LoginView: View {
                     }
                     .disabled(viewStore.isLoading)
                     
-                    HStack {
-                        Text("Don't have an account?")
-                            .foregroundColor(.white.opacity(0.8))
-                        Button(action: {
-                        }) {
-                            Text("Sign up")
-                                .foregroundColor(.purple)
-                        }
-                    }
+//                    HStack {
+//                        Text("Don't have an account?")
+//                            .foregroundColor(.white.opacity(0.8))
+//                        Button(action: {
+//                        }) {
+//                            Text("Sign up")
+//                                .foregroundColor(.purple)
+//                        }
+//                    }
                     .padding(.top, 16)
                     
                     Spacer()
@@ -107,5 +108,9 @@ struct LoginView: View {
             }
             .edgesIgnoringSafeArea(.vertical)
         }
+        .navigationBarBackButtonHidden(true)
+        .navigationBarItems(leading: BackButton(action: {
+            self.presentationMode.wrappedValue.dismiss()
+        }))
     }
 }

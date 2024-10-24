@@ -12,7 +12,8 @@ struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     let store: StoreOf<PlayerReducer>
     @Binding var isMiniPlayerVisible: Bool
-    
+    @State private var isDetailViewPresented = false
+
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack(spacing: 20) {
@@ -70,6 +71,19 @@ struct PlayerView: View {
                     }
                 }
                 .foregroundColor(.gray)
+                Button(action: {
+                    isDetailViewPresented = true
+                }) {
+                    Text("Track List")
+                        .font(.headline)
+                        .padding()
+                        .background(Color.gray)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                .sheet(isPresented: $isDetailViewPresented) {
+                    PlayerDetailView(store: self.store)
+                }
             }
             .padding()
             .onAppear {
