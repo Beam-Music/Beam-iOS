@@ -12,6 +12,7 @@ struct PlayerReducer: Reducer {
         var playlist: [PlaylistTrack] = []
         var currentIndex: Int = 0
         var isPlaying: Bool = false
+        var isTransitioning: Bool = false
     }
     
     enum Action: Equatable {
@@ -21,37 +22,57 @@ struct PlayerReducer: Reducer {
         case updateCurrentIndex(Int)
         case startPlayback
         case audioDidFinish
+        case playbackFinished
     }
     
     func reduce(into state: inout State, action: Action) -> Effect<Action> {
         switch action {
         case .playPause:
             state.isPlaying.toggle()
+            if state.isPlaying {
+                return .send(.startPlayback)
+            } else {
+                AudioManager.shared.pause()
+            }
             return .none
             
         case .nextTrack:
+            guard !state.isTransitioning else {
+                return .none
+            }
+            
             if !state.playlist.isEmpty {
+                state.isTransitioning = true
                 state.currentIndex = (state.currentIndex + 1) % state.playlist.count
                 return .send(.startPlayback)
             }
             return .none
             
         case .previousTrack:
+            guard !state.isTransitioning else {
+                return .none
+            }
+            
             if !state.playlist.isEmpty {
+                state.isTransitioning = true
                 state.currentIndex = (state.currentIndex - 1 + state.playlist.count) % state.playlist.count
                 return .send(.startPlayback)
             }
             return .none
             
         case let .updateCurrentIndex(index):
+            guard !state.isTransitioning else {
+                return .none
+            }
+            
             if !state.playlist.isEmpty && index >= 0 && index < state.playlist.count {
+                state.isTransitioning = true
                 state.currentIndex = index
                 return .send(.startPlayback)
             }
             return .none
             
         case .audioDidFinish:
-            // 마지막 곡일 경우 지금은 리스트의 첫 번째 곡으로 돌아가기 나중에 random recommend playlist로 더 듣게하기
             if state.currentIndex >= state.playlist.count - 1 {
                 return .send(.updateCurrentIndex(0))
             } else {
@@ -59,28 +80,27 @@ struct PlayerReducer: Reducer {
             }
             
         case .startPlayback:
-            if !state.playlist.isEmpty {
-                let currentTrack = state.playlist[state.currentIndex]
-                let nextTrackTitle = state.currentIndex < state.playlist.count - 1 ? state.playlist[state.currentIndex + 1].title : nil
-                state.isPlaying = true
+            guard !state.playlist.isEmpty else { return .none }
+            
+            let currentTrack = state.playlist[state.currentIndex]
+            let nextTrackTitle = state.currentIndex < state.playlist.count - 1 ? state.playlist[state.currentIndex + 1].title : nil
+            state.isPlaying = true
+            
+            return .run { send in
+                await AudioManager.shared.playAppleMusicTrack(with: currentTrack.title)
                 
-                return .run { send in
-                    await AudioManager.shared.playAppleMusicTrack(with: currentTrack.title)
-                    
-                    if let nextTrackTitle = nextTrackTitle {
-                        await AudioManager.shared.queueNextTrack(trackTitle: nextTrackTitle)
-                    }
-                    
-                    //                            await send(.playbackStarted)
+                if let nextTrackTitle = nextTrackTitle {
+                    await AudioManager.shared.queueNextTrack(trackTitle: nextTrackTitle)
                 }
+                
+                await send(.playbackFinished)
             }
+            
+        case .playbackFinished:
+            state.isTransitioning = false
             return .none
-            
-            
-            //                case .playbackStarted:
-            //                    // 상태 업데이트가 필요하다면 여기에서 처리
-            //                    return .none
         }
+        
     }
 }
 
