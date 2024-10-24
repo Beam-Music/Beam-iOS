@@ -72,12 +72,17 @@ struct PlayerView: View {
                 .foregroundColor(.gray)
             }
             .padding()
-            .onChange(of: viewStore.playlist) { _ in
-                //                playCurrentTrack(viewStore: viewStore)
-            }
             .onAppear {
-                // page 로드 될 때 자동재생 필요하면
-                //                playCurrentTrack(viewStore: viewStore)
+                NotificationCenter.default.addObserver(
+                    forName: AudioManager.audioDidFinishNotification,
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    viewStore.send(.audioDidFinish)
+                }
+            }
+            .onDisappear {
+                NotificationCenter.default.removeObserver(self)
             }
             .gesture(DragGesture(minimumDistance: 10, coordinateSpace: .local)
                 .onEnded { value in
@@ -86,6 +91,16 @@ struct PlayerView: View {
                     }
                 }
             )
+        }
+    }
+    
+    private func setupAudioFinishObserver(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
+        NotificationCenter.default.addObserver(
+            forName: .init("AudioDidFinishPlaying"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            viewStore.send(.nextTrack)
         }
     }
     
