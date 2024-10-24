@@ -51,35 +51,35 @@ struct PlayerReducer: Reducer {
             return .none
             
         case .audioDidFinish:
-            if !state.playlist.isEmpty && state.currentIndex < state.playlist.count - 1 {
-                let nextIndex = state.currentIndex + 1
-                let nextTrack = state.playlist[nextIndex]
-                state.currentIndex = nextIndex
-                
-                return .run { send in
-                    try await Task.sleep(for: .seconds(1))
-                    await send(.startPlayback)
-                }
+            // 마지막 곡일 경우 지금은 리스트의 첫 번째 곡으로 돌아가기 나중에 random recommend playlist로 더 듣게하기
+            if state.currentIndex >= state.playlist.count - 1 {
+                return .send(.updateCurrentIndex(0))
+            } else {
+                return .send(.nextTrack)
             }
-            return .none
-          
+            
         case .startPlayback:
             if !state.playlist.isEmpty {
                 let currentTrack = state.playlist[state.currentIndex]
-                let hasNextTrack = state.currentIndex < state.playlist.count - 1
-                let nextTrackTitle = hasNextTrack ? state.playlist[state.currentIndex + 1].title : nil
-                
+                let nextTrackTitle = state.currentIndex < state.playlist.count - 1 ? state.playlist[state.currentIndex + 1].title : nil
                 state.isPlaying = true
                 
-                return .run { _ in
+                return .run { send in
                     await AudioManager.shared.playAppleMusicTrack(with: currentTrack.title)
                     
-                    if hasNextTrack, let nextTitle = nextTrackTitle {
-                        await AudioManager.shared.queueNextTrack(trackTitle: nextTitle)
+                    if let nextTrackTitle = nextTrackTitle {
+                        await AudioManager.shared.queueNextTrack(trackTitle: nextTrackTitle)
                     }
+                    
+                    //                            await send(.playbackStarted)
                 }
             }
             return .none
+            
+            
+            //                case .playbackStarted:
+            //                    // 상태 업데이트가 필요하다면 여기에서 처리
+            //                    return .none
         }
     }
 }
