@@ -16,6 +16,7 @@ struct HomeFeature {
         return token
     }
     
+    //토큰이 만료되면 플레이리스트 안보이니 서버에서 토큰 만료 시간 후에 조정해줘야함
     static func fetchUserPlaylists(with token: String) async throws -> [UserPlaylist] {
         var request = URLRequest(url: URL(string: Endpoints.Playlist.userPlaylist)!)
         request.httpMethod = "GET"
