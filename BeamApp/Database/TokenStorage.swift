@@ -58,18 +58,10 @@ class TokenStorage {
 //    }
 }
 
-//struct TokenStorageKey: DependencyKey {
-//    @MainActor
-//    static var liveValue: TokenStorage {
-//        let container = try! ModelContainer(for: TokenEntity.self)
-//        return TokenStorage(context: container.mainContext)
-//    }
-//}
 struct TokenStorageKey: DependencyKey {
     @MainActor
     static var liveValue: TokenStorage {
         do {
-            // ModelContainer가 정상적으로 초기화되는지 확인
             let container = try ModelContainer(for: TokenEntity.self)
             return TokenStorage(context: container.mainContext)
         } catch {
