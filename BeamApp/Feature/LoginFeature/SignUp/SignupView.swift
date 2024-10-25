@@ -11,6 +11,21 @@ import ComposableArchitecture
 struct SignupView: View {
     let store: StoreOf<SignupFeature>
     @State private var navigateToHome = false
+    @Environment(\.presentationMode) var presentationMode
+    
+    var backButton: some View {
+        Button {
+            self.presentationMode.wrappedValue.dismiss()
+        } label: {
+            HStack {
+                Image(systemName: "chevron.left")
+                    .aspectRatio(contentMode: .fit)
+                Text("뒤로")
+                    .foregroundColor(.white)
+            }
+        }
+        .foregroundColor(.white)
+    }
     
     var body: some View {
         NavigationView {
@@ -52,6 +67,7 @@ struct SignupView: View {
                     .foregroundColor(.white)
                     .cornerRadius(10)
                     .padding(.horizontal, 30)
+                    .padding(.top, 50)
                     
                     if viewStore.isLoading {
                         ProgressView()
@@ -85,5 +101,9 @@ struct SignupView: View {
                 .padding()
             }
         }
+        .navigationBarBackButtonHidden(true)
+        .navigationBarItems(leading: BackButton(action: {
+            self.presentationMode.wrappedValue.dismiss()
+        }))
     }
 }
