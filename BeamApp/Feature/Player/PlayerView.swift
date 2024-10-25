@@ -13,6 +13,7 @@ struct PlayerView: View {
     let store: StoreOf<PlayerReducer>
     @Binding var isMiniPlayerVisible: Bool
     @State private var isDetailViewPresented = false
+    @State private var isAIMusicEnabled: Bool = false // AI toggle state
 
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
@@ -84,6 +85,12 @@ struct PlayerView: View {
                 .sheet(isPresented: $isDetailViewPresented) {
                     PlayerDetailView(store: self.store)
                 }
+                Toggle("AI Music", isOn: $isAIMusicEnabled)
+                    .padding()
+                    .onChange(of: isAIMusicEnabled) { value in
+                        // Update the store with the AI music toggle state
+                        viewStore.send(.toggleAIMusic(value))
+                    }
             }
             .padding()
             .onAppear {
