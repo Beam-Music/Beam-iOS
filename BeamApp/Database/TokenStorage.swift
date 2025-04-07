@@ -10,63 +10,84 @@ import SwiftUI
 import Dependencies
 
 class TokenStorage {
-    private let context: ModelContext
-
-    init(context: ModelContext) {
-        self.context = context
+    static let shared = TokenStorage()
+    var container: ModelContainer
+    
+    init() {
+        do {
+            let schema = Schema([TokenEntity.self])
+            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            self.container = try ModelContainer(for: TokenEntity.self, configurations: modelConfiguration)
+            print("TokenStorage initialized successfully")
+        } catch {
+            fatalError("Failed to initialize ModelContainer: \(error)")
+        }
     }
     
     @MainActor
     func saveToken(_ token: String) throws {
+        print("Attempting to save token...")
+        
+        // Delete existing tokens first
+        try deleteAllTokens()
+        
         let newToken = TokenEntity(token: token)
-        print(newToken, "newtoken")
-//        context.insert(newToken)
+        print("Created new token entity: \(newToken)")
+        
+        // Insert the new token
+        container.mainContext.insert(newToken)
+        
         do {
-            try context.transaction {
-                context.insert(newToken)
-            }
-            try context.save()
+            try container.mainContext.save()
             print("Token saved successfully.")
         } catch {
             print("Failed to save token: \(error.localizedDescription)")
             throw error
         }
-        try context.save()
     }
 
+    @MainActor
     func fetchToken() -> String? {
-            do {
-                let result = try context.fetch(FetchDescriptor<TokenEntity>())
-                        return result.first?.token
-            } catch {
-                print("토큰 가져오기 실패: \(error)")
-                return nil
-            }
+        do {
+            let descriptor = FetchDescriptor<TokenEntity>()
+            
+            let result = try container.mainContext.fetch(descriptor)
+            print("Fetched token count: \(result.count)")
+            return result.first?.token
+        } catch {
+            print("토큰 가져오기 실패: \(error)")
+            return nil
         }
+    }
     
-//    // Delete Token
-//    func deleteToken() throws {
-//        do {
-//            let result = try context.fetch(Query.fetch(TokenEntity.self))
-//            if let tokenEntity = result.first {
-//                context.delete(tokenEntity)
-//                try context.save()
-//            }
-//        } catch {
-//            print("Failed to delete token: \(error)")
-//        }
-//    }
+    // Delete All Tokens
+    @MainActor
+    func deleteAllTokens() throws {
+        print("Attempting to delete all tokens...")
+        
+        do {
+            let descriptor = FetchDescriptor<TokenEntity>()
+            let tokens = try container.mainContext.fetch(descriptor)
+            print("Found \(tokens.count) tokens to delete")
+            
+            for token in tokens {
+                container.mainContext.delete(token)
+                print("Deleting token: \(token.token)")
+            }
+            
+            try container.mainContext.save()
+            print("Successfully deleted all tokens")
+        } catch {
+            print("Failed to delete tokens: \(error)")
+            throw error
+        }
+    }
 }
 
 struct TokenStorageKey: DependencyKey {
     @MainActor
     static var liveValue: TokenStorage {
-        do {
-            let container = try ModelContainer(for: TokenEntity.self)
-            return TokenStorage(context: container.mainContext)
-        } catch {
-            fatalError("ModelContainer 초기화 실패: \(error)")
-        }
+        TokenStorage.shared
     }
 }
 

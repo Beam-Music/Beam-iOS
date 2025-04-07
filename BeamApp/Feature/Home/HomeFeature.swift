@@ -9,8 +9,7 @@ import Foundation
 
 struct HomeFeature {
     static func fetchToken(context: ModelContext) async throws -> String {
-        let tokenStorage = TokenStorage(context: context)
-        guard let token = tokenStorage.fetchToken() else {
+        guard let token = await TokenStorage.shared.fetchToken() else {
             throw NSError(domain: "No Token Found", code: 401, userInfo: nil)
         }
         return token
