@@ -41,27 +41,22 @@ final class AudioManager: ObservableObject {
         ) { [weak self] _ in
             self?.handlePlaybackStateChange()
         }
-        nowPlayingObserver = NotificationCenter.default.addObserver(
-            forName: .MPMusicPlayerControllerNowPlayingItemDidChange,
-            object: musicPlayerController,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleNowPlayingItemChange()
-        }
+
         musicPlayerController.beginGeneratingPlaybackNotifications()
     }
     
     private func handlePlaybackStateChange() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
             switch self.musicPlayerController.playbackState {
             case .stopped:
                 self.isPlaying = false
-                NotificationCenter.default.post(
-                    name: AudioManager.audioDidFinishNotification,
-                    object: nil
-                )
+                if self.currentTime >= (self.duration - 1) {
+                    NotificationCenter.default.post(
+                        name: AudioManager.audioDidFinishNotification,
+                        object: nil
+                    )
+                }
             case .playing:
                 self.isPlaying = true
             case .paused:
@@ -93,58 +88,64 @@ final class AudioManager: ObservableObject {
     }
     
     private func checkForTrackCompletion() {
-            let currentPlaybackTime = musicPlayerController.currentPlaybackTime
-            let totalDuration = musicPlayerController.nowPlayingItem?.playbackDuration ?? 0
-            
-            if (currentPlaybackTime < lastCheckedTime) ||
-               (totalDuration > 0 && (totalDuration - currentPlaybackTime) <= 1) {
-                NotificationCenter.default.post(
-                    name: AudioManager.audioDidFinishNotification,
-                    object: nil
-                )
-            }
-            lastCheckedTime = currentPlaybackTime
+        let currentPlaybackTime = musicPlayerController.currentPlaybackTime
+        let totalDuration = musicPlayerController.nowPlayingItem?.playbackDuration ?? 0
+        
+        if totalDuration > 0 && (totalDuration - currentPlaybackTime) <= 1 {
+            NotificationCenter.default.post(
+                name: AudioManager.audioDidFinishNotification,
+                object: nil
+            )
         }
+        lastCheckedTime = currentPlaybackTime
+    }
     
     private func updatePlaybackTime() {
         currentTime = musicPlayerController.currentPlaybackTime
         duration = musicPlayerController.nowPlayingItem?.playbackDuration ?? 0
     }
     
-    func playAppleMusicTrack(with trackTitle: String) async {
-        let authorizationStatus = await MusicAuthorization.request()
-        guard authorizationStatus == .authorized else {
-            print("Apple Music 권한이 필요합니다.")
-            return
-        }
-        
+    func playAppleMusicTrack(with title: String) async throws { // completion 제거, throws 추가
         do {
-            let subscriptionStatus = try await MusicSubscription.current
-            guard subscriptionStatus.canPlayCatalogContent else {
-                print("Apple Music 구독이 필요합니다.")
-                return
+            let authorizationStatus = await MusicAuthorization.request()
+            guard authorizationStatus == .authorized else {
+                throw NSError(domain: "com.yourapp.music", code: 1, userInfo: [NSLocalizedDescriptionKey: "Apple Music 권한이 없습니다. 현재 상태: \(authorizationStatus)"])
             }
             
-            let catalogSearchRequest = MusicCatalogSearchRequest(term: trackTitle, types: [Song.self])
+            let subscriptionStatus = try await MusicSubscription.current
+            guard subscriptionStatus.canPlayCatalogContent else {
+                throw NSError(domain: "com.yourapp.music", code: 2, userInfo: [NSLocalizedDescriptionKey: "Apple Music 구독이 필요합니다. 현재 구독 상태가 유효하지 않습니다."])
+            }
+            
+            guard !title.isEmpty else {
+                throw NSError(domain: "com.yourapp.music", code: 3, userInfo: [NSLocalizedDescriptionKey: "트랙 제목이 비어있습니다."])
+            }
+            
+            var catalogSearchRequest = MusicCatalogSearchRequest(term: title, types: [Song.self])
+            catalogSearchRequest.limit = 1
+            
             let response = try await catalogSearchRequest.response()
             
             guard let song = response.songs.first else {
-                print("해당 트랙을 찾을 수 없습니다.")
-                return
+                throw NSError(domain: "com.yourapp.music", code: 4, userInfo: [NSLocalizedDescriptionKey: "'\(title)' 트랙을 Apple Music에서 찾을 수 없습니다."])
             }
             
             await playMusicWithPlayerController(song: song)
+            
         } catch {
-            print("Apple Music 트랙 재생 중 오류 발생: \(error.localizedDescription)")
+            throw error
         }
     }
-    
+
     @MainActor
     private func playMusicWithPlayerController(song: Song) async {
-        musicPlayerController.setQueue(with: [song.id.rawValue])
-        musicPlayerController.play()
-        isPlaying = true
-        await updateTrackMetadata(song: song)
+        let storeID = song.id.rawValue
+        if musicPlayerController.nowPlayingItem?.playbackStoreID != storeID {
+            musicPlayerController.setQueue(with: [storeID])
+            musicPlayerController.play()
+            isPlaying = true
+            await updateTrackMetadata(song: song)
+        }
     }
     
     @MainActor
@@ -169,14 +170,16 @@ final class AudioManager: ObservableObject {
         guard authorizationStatus == .authorized else { return }
         
         do {
-            let catalogSearchRequest = MusicCatalogSearchRequest(term: trackTitle, types: [Song.self])
+            var catalogSearchRequest = MusicCatalogSearchRequest(term: trackTitle, types: [Song.self])
+            catalogSearchRequest.limit = 1
             let response = try await catalogSearchRequest.response()
+            
             if let nextSong = response.songs.first {
                 let descriptor = MPMusicPlayerStoreQueueDescriptor(storeIDs: [nextSong.id.rawValue])
-                musicPlayerController.append(descriptor)
+                musicPlayerController.prepend(descriptor)
             }
         } catch {
-            print("Failed to queue next track: \(error)")
+            print("다음 트랙 큐잉 실패: \(error.localizedDescription)")
         }
     }
     
@@ -213,3 +216,4 @@ final class AudioManager: ObservableObject {
         }
     }
 }
+

@@ -60,9 +60,16 @@ struct LibraryReducer: Reducer {
                 return .send(.startPlayback(tracks))
                 
             case let .startPlayback(tracks):
-                return .run { _ in
-                    if let firstTrack = tracks.first {
-                        await AudioManager.shared.playAppleMusicTrack(with: firstTrack.title)
+                guard let firstTrack = tracks.first else {
+                    print("Playback Error: No tracks provided to start playback.")
+                    return .none
+                }
+             
+                return .run { [title = firstTrack.title] send async in
+                    do {
+                        try await AudioManager.shared.playAppleMusicTrack(with: title)
+                    } catch {
+                        print("Failed to initiate playback for track '\(title)': \(error)")
                     }
                 }
                 

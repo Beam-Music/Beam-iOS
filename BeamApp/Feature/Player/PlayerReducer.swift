@@ -6,6 +6,7 @@
 //
 
 import ComposableArchitecture
+import Dispatch
 
 struct PlayerReducer: Reducer {
     struct State: Equatable {
@@ -23,6 +24,30 @@ struct PlayerReducer: Reducer {
         case startPlayback
         case audioDidFinish
         case playbackFinished
+        case playbackError(Error)
+
+        static func == (lhs: PlayerReducer.Action, rhs: PlayerReducer.Action) -> Bool {
+            switch (lhs, rhs) {
+            case (.playPause, .playPause):
+                return true
+            case (.nextTrack, .nextTrack):
+                return true
+            case (.previousTrack, .previousTrack):
+                return true
+            case let (.updateCurrentIndex(lhsIndex), .updateCurrentIndex(rhsIndex)):
+                return lhsIndex == rhsIndex
+            case (.startPlayback, .startPlayback):
+                return true
+            case (.audioDidFinish, .audioDidFinish):
+                return true
+            case (.playbackFinished, .playbackFinished):
+                return true
+            case let (.playbackError(lhsError), .playbackError(rhsError)):
+                return lhsError.localizedDescription == rhsError.localizedDescription
+            default:
+                return false
+            }
+        }
     }
     
     func reduce(into state: inout State, action: Action) -> Effect<Action> {
@@ -40,12 +65,21 @@ struct PlayerReducer: Reducer {
             guard !state.isTransitioning else {
                 return .none
             }
-            
+//            todo : check
+//            if !state.playlist.isEmpty {
+//                state.isTransitioning = true
+//                state.currentIndex = (state.currentIndex + 1) % state.playlist.count
+//                print("Reducer: Updated currentIndex to \(state.currentIndex), sending .startPlayback")
+//                return .send(.startPlayback)
+//            }
             if !state.playlist.isEmpty {
-                state.isTransitioning = true
-                state.currentIndex = (state.currentIndex + 1) % state.playlist.count
-                return .send(.startPlayback)
-            }
+                    state.isTransitioning = true
+                    let oldIndex = state.currentIndex
+                    let newIndex = (oldIndex + 1) % state.playlist.count
+                    state.currentIndex = newIndex
+                    return .send(.startPlayback)
+                }
+
             return .none
             
         case .previousTrack:
@@ -80,24 +114,29 @@ struct PlayerReducer: Reducer {
             }
             
         case .startPlayback:
-            guard !state.playlist.isEmpty else { return .none }
-            
+            guard !state.playlist.isEmpty,
+                  state.currentIndex >= 0 && state.currentIndex < state.playlist.count else { return .none }
             let currentTrack = state.playlist[state.currentIndex]
-            let nextTrackTitle = state.currentIndex < state.playlist.count - 1 ? state.playlist[state.currentIndex + 1].title : nil
             state.isPlaying = true
             
-            return .run { send in
-                await AudioManager.shared.playAppleMusicTrack(with: currentTrack.title)
-                
-                if let nextTrackTitle = nextTrackTitle {
-                    await AudioManager.shared.queueNextTrack(trackTitle: nextTrackTitle)
+            return .run { [title = currentTrack.title] send async in
+                do {
+                    try await AudioManager.shared.playAppleMusicTrack(with: title)
+                    await send(.playbackFinished)
+                    
+                } catch {
+                    await send(.playbackError(error))
                 }
-                
-                await send(.playbackFinished)
             }
-            
+
         case .playbackFinished:
             state.isTransitioning = false
+            return .none
+
+        case let .playbackError(error):
+            print("Playback error received: \(error)")
+            state.isTransitioning = false
+            state.isPlaying = false
             return .none
         }
         

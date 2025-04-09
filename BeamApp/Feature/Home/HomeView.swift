@@ -23,7 +23,6 @@ struct HomeView: View {
                             Spacer()
                             Button(action: {
                                 viewStore.send(.selectPlaylist(playlist))
-                                viewStore.send(.startPlayback(viewStore.playlist))
                                 isMiniPlayerVisible = true
                             }) {
                                 

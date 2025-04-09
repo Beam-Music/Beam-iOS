@@ -142,12 +142,21 @@ struct HomeReducer {
             case let .playlistLoaded(playlist):
                 state.playlist = playlist
                 state.errorMessage = nil
-                return .none
+                return .send(.startPlayback(playlist))
                 
             case let .startPlayback(playlistTracks):
-                return .run { _ in
-                    if let firstTrack = playlistTracks.first {
-                        await AudioManager.shared.playAppleMusicTrack(with: firstTrack.title)
+                guard let firstTrack = playlistTracks.first else {
+                    print("Playback Error: No tracks provided to start playback.")
+                    return .none
+                }
+                
+                return .run { [title = firstTrack.title] send async in
+                    do {
+                        try await AudioManager.shared.playAppleMusicTrack(with: title)
+                        
+                    } catch {
+                        print("Failed to initiate playback for track '\(title)': \(error)")
+                        await send(.playlistFailed("Playback failed: \(error.localizedDescription)"))
                     }
                 }
                 

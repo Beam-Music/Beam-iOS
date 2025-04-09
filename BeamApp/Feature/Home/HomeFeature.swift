@@ -15,17 +15,29 @@ struct HomeFeature {
         return token
     }
     
-    //토큰이 만료되면 플레이리스트 안보이니 서버에서 토큰 만료 시간 후에 조정해줘야함
     static func fetchUserPlaylists(with token: String) async throws -> [UserPlaylist] {
+        print("Fetching user playlists with token: \(token)")
         var request = URLRequest(url: URL(string: Endpoints.Playlist.userPlaylist)!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("Invalid response type")
             throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
         }
+        
+        if let responseData = String(data: data, encoding: .utf8) {
+            print("Response data: \(responseData)")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            print("Error response: \(httpResponse.statusCode)")
+            throw NSError(domain: "Invalid Response", code: httpResponse.statusCode, userInfo: nil)
+        }
+        
         let userPlaylists = try JSONDecoder().decode([UserPlaylist].self, from: data)
+        print("Decoded playlists count: \(userPlaylists.count)")
         return userPlaylists
     }
     
@@ -41,6 +53,7 @@ struct HomeFeature {
         }
         do {
             let playlist = try JSONDecoder().decode([PlaylistTrack].self, from: data)
+            print("fetchPlaylist: Decoded \(playlist.count) tracks.")
             return playlist
         } catch let decodingError as DecodingError {
             print("Failed to decode JSON: \(decodingError)")
@@ -52,15 +65,28 @@ struct HomeFeature {
     }
     
     static func fetchRecommendPlaylists() async throws -> [RecommendPlaylist] {
+        print("Fetching recommended playlists")
         var request = URLRequest(url: URL(string: Endpoints.Playlist.recommendPlaylists)!)
         request.httpMethod = "GET"
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("Invalid response type")
             throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
         }
         
+        if let responseData = String(data: data, encoding: .utf8) {
+            print("Response data: \(responseData)")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            print("Error response: \(httpResponse.statusCode)")
+            throw NSError(domain: "Invalid Response", code: httpResponse.statusCode, userInfo: nil)
+        }
+        
         let recommendPlaylists = try JSONDecoder().decode([RecommendPlaylist].self, from: data)
+        print("Decoded recommended playlists count: \(recommendPlaylists.count)")
         return recommendPlaylists
     }
     

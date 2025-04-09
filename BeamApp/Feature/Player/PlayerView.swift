@@ -13,7 +13,7 @@ struct PlayerView: View {
     let store: StoreOf<PlayerReducer>
     @Binding var isMiniPlayerVisible: Bool
     @State private var isDetailViewPresented = false
-
+    
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack(spacing: 20) {
@@ -135,17 +135,16 @@ struct PlayerView: View {
     
     private func playCurrentTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
         guard !viewStore.playlist.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.playlist.count else {
-            print("Error: Index out of range or empty playlist")
             return
         }
         
         let currentTrack = viewStore.playlist[viewStore.currentIndex]
-        print(currentTrack, "track check")
+        
         Task {
             do {
-                await audioManager.playAppleMusicTrack(with: currentTrack.title)
+                try await audioManager.playAppleMusicTrack(with: currentTrack.title)
             } catch {
-                print("Failed to play track: \(error)")
+                print("Failed to initiate playback for track '\(currentTrack.title)': \(error)")
             }
         }
     }

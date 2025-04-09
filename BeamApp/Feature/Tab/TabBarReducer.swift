@@ -38,8 +38,18 @@ struct TabBarReducer: Reducer {
         Reduce { state, action in
             switch action {
             case let .home(.playlistLoaded(playlist)):
-                state.playerState.playlist = playlist
-                state.libraryState.playlist = playlist
+                if state.playerState.playlist != playlist {
+                    state.playerState.playlist = playlist
+                    state.playerState.currentIndex = 0
+                    state.libraryState.playlist = playlist
+                }
+                return .none
+            case let .library(.playlistLoaded(playlist)):
+                if state.playerState.playlist != playlist {
+                    state.playerState.playlist = playlist
+                    state.playerState.currentIndex = 0
+                    state.homeState.playlist = playlist
+                }
                 return .none
             default:
                 return .none
