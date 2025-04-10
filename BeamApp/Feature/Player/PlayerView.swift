@@ -60,8 +60,8 @@ struct PlayerView: View {
                             .font(.title)
                     }
                     
-                    Button(action: playPause) {
-                        Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
+                    Button(action: { viewStore.send(.playPause) }) {
+                        Image(systemName: viewStore.isPlaying ? "pause.fill" : "play.fill")
                             .font(.title)
                     }
                     
@@ -84,6 +84,30 @@ struct PlayerView: View {
                 .sheet(isPresented: $isDetailViewPresented) {
                     PlayerDetailView(store: self.store)
                 }
+                
+                // AI 음악 토글 추가
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("AI 음악 모드")
+                            .font(.headline)
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { viewStore.isAIMusicEnabled },
+                            set: { viewStore.send(.toggleAIMusic($0)) }
+                        ))
+                        .labelsHidden()
+                    }
+                    
+                    if viewStore.isAIMusicEnabled {
+                        Text("AI가 생성한 음악을 재생합니다")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(10)
+                .padding(.horizontal)
             }
             .padding()
             .onAppear {
@@ -94,6 +118,9 @@ struct PlayerView: View {
                 ) { _ in
                     viewStore.send(.audioDidFinish)
                 }
+                
+                // Load AI preference
+                viewStore.send(.loadAIPreference)
             }
             .onDisappear {
                 NotificationCenter.default.removeObserver(self)
@@ -108,44 +135,10 @@ struct PlayerView: View {
         }
     }
     
-    private func setupAudioFinishObserver(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
-        NotificationCenter.default.addObserver(
-            forName: .init("AudioDidFinishPlaying"),
-            object: nil,
-            queue: .main
-        ) { _ in
-            viewStore.send(.nextTrack)
-        }
-    }
-    
     private func formatTime(_ time: Double) -> String {
         guard time.isFinite else { return "00:00" }
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
-    }
-    
-    private func playPause() {
-        if audioManager.isPlaying {
-            audioManager.pause()
-        } else {
-            audioManager.play()
-        }
-    }
-    
-    private func playCurrentTrack(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) {
-        guard !viewStore.playlist.isEmpty, viewStore.currentIndex >= 0, viewStore.currentIndex < viewStore.playlist.count else {
-            return
-        }
-        
-        let currentTrack = viewStore.playlist[viewStore.currentIndex]
-        
-        Task {
-            do {
-                try await audioManager.playAppleMusicTrack(with: currentTrack.title)
-            } catch {
-                print("Failed to initiate playback for track '\(currentTrack.title)': \(error)")
-            }
-        }
     }
 }

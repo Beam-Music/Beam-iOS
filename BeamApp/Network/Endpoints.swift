@@ -33,6 +33,16 @@ struct Endpoints {
     struct User {
         static let profile = "\(baseURL)/users/profile"
     }
+    
+    struct AIPreference {
+        static func getPreference(userId: UUID) -> String {
+            return "\(baseURL)/api/ai-preferences/\(userId)"
+        }
+        static func updatePreference(userId: UUID) -> String {
+            return "\(baseURL)/api/ai-preferences/\(userId)"
+        }
+        static let createPreference = "\(baseURL)/api/ai-preferences"
+    }
 }
 
 struct Endpoint {
