@@ -1,21 +1,24 @@
-//
-//  File.swift
-//  BeamPrac
-//
-//  Created by freed on 9/12/24.
-//
-
 import ComposableArchitecture
 import Dispatch
 import Foundation
+import SwiftData
 
-struct PlayerReducer: Reducer {
+@Reducer
+struct PlayerReducer {
     struct State: Equatable {
-        var playlist: [PlaylistTrack] = []
+        var playlist: [PlayableTrackDTO] = []
         var currentIndex: Int = 0
         var isPlaying: Bool = false
         var isTransitioning: Bool = false
         var isAIMusicEnabled: Bool = false
+        var isLoadingAISongs: Bool = false
+        var aiSongFetchError: String? = nil
+        var currentTrack: PlayableTrackDTO? {
+            guard !playlist.isEmpty, currentIndex >= 0, currentIndex < playlist.count else {
+                return nil
+            }
+            return playlist[currentIndex]
+        }
     }
     
     enum Action: Equatable {
@@ -26,209 +29,232 @@ struct PlayerReducer: Reducer {
         case startPlayback
         case audioDidFinish
         case playbackFinished
-        case playbackError(Error)
+        case playbackError(String)
         case toggleAIMusic(Bool)
+        case fetchAISongs
+        case aiSongsResponse(TaskResult<[PlayableTrackDTO]>)
+        case removeAISongsFromPlaylist
         case aiPreferenceResponse(Result<Bool, Error>)
         case loadAIPreference
-
+        
         static func == (lhs: PlayerReducer.Action, rhs: PlayerReducer.Action) -> Bool {
             switch (lhs, rhs) {
-            case (.playPause, .playPause):
-                return true
-            case (.nextTrack, .nextTrack):
-                return true
-            case (.previousTrack, .previousTrack):
-                return true
-            case let (.updateCurrentIndex(lhsIndex), .updateCurrentIndex(rhsIndex)):
-                return lhsIndex == rhsIndex
-            case (.startPlayback, .startPlayback):
-                return true
-            case (.audioDidFinish, .audioDidFinish):
-                return true
-            case (.playbackFinished, .playbackFinished):
-                return true
-            case let (.playbackError(lhsError), .playbackError(rhsError)):
-                return lhsError.localizedDescription == rhsError.localizedDescription
-            case let (.toggleAIMusic(lhsEnabled), .toggleAIMusic(rhsEnabled)):
-                return lhsEnabled == rhsEnabled
-            case (.aiPreferenceResponse(.success(let lhsEnabled)), .aiPreferenceResponse(.success(let rhsEnabled))):
-                return lhsEnabled == rhsEnabled
-            case (.aiPreferenceResponse(.failure), .aiPreferenceResponse(.failure)):
-                return true // Simplify for Equatable
-            case (.loadAIPreference, .loadAIPreference):
-                return true
-            default:
-                return false
+            case (.playPause, .playPause): return true
+            case (.nextTrack, .nextTrack): return true
+            case (.previousTrack, .previousTrack): return true
+            case let (.updateCurrentIndex(l), .updateCurrentIndex(r)): return l == r
+            case (.startPlayback, .startPlayback): return true
+            case (.audioDidFinish, .audioDidFinish): return true
+            case (.playbackFinished, .playbackFinished): return true
+            case let (.playbackError(l), .playbackError(r)): return l == r
+            case let (.toggleAIMusic(l), .toggleAIMusic(r)): return l == r
+            case (.fetchAISongs, .fetchAISongs): return true
+            case let (.aiSongsResponse(l), .aiSongsResponse(r)):
+                switch (l, r) {
+                case let (.success(lhsTracks), .success(rhsTracks)):
+                    return lhsTracks == rhsTracks
+                case (.failure, .failure):
+                    return true
+                default:
+                    return false
+                }
+            case (.removeAISongsFromPlaylist, .removeAISongsFromPlaylist): return true
+            case let (.aiPreferenceResponse(.success(l)), .aiPreferenceResponse(.success(r))): return l == r
+            case (.aiPreferenceResponse(.failure), .aiPreferenceResponse(.failure)): return true
+            case (.loadAIPreference, .loadAIPreference): return true
+            default: return false
             }
         }
     }
     
     @Dependency(\.aiPreferenceClient) private var aiPreferenceClient
+    @Dependency(\.modelContext) var modelContext
     
-    func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .playPause:
-            state.isPlaying.toggle()
-            if state.isPlaying {
-                return .send(.startPlayback)
-            } else {
-                AudioManager.shared.pause()
-            }
-            return .none
-            
-        case .nextTrack:
-            guard !state.isTransitioning else {
+    
+    var body: some Reducer<State, Action> {
+        Reduce { state, action in
+            switch action {
+            case .playPause:
+                state.isPlaying.toggle()
+                if state.isPlaying {
+                    if state.currentTrack != nil { return .send(.startPlayback) }
+                    else { state.isPlaying = false }
+                } else {
+                    AudioManager.shared.pause()
+                }
                 return .none
-            }
-            if !state.playlist.isEmpty {
+                
+            case .nextTrack:
+                guard !state.isTransitioning, !state.playlist.isEmpty else { return .none }
                 state.isTransitioning = true
-                let oldIndex = state.currentIndex
-                let newIndex = (oldIndex + 1) % state.playlist.count
-                state.currentIndex = newIndex
+                state.currentIndex = (state.currentIndex + 1) % state.playlist.count
                 return .send(.startPlayback)
-            }
-            return .none
-            
-        case .previousTrack:
-            guard !state.isTransitioning else {
-                return .none
-            }
-            
-            if !state.playlist.isEmpty {
-                state.isTransitioning = true
-                state.currentIndex = (state.currentIndex - 1 + state.playlist.count) % state.playlist.count
+                
+            case .previousTrack:
+                guard !state.isTransitioning, !state.playlist.isEmpty else { return .none }
+                let currentTime = AudioManager.shared.getCurrentTime()
+                if currentTime < 5 {
+                    state.isTransitioning = true
+                    state.currentIndex = (state.currentIndex - 1 + state.playlist.count) % state.playlist.count
+                } else {
+                    state.isTransitioning = true
+                    AudioManager.shared.seek(to: 0)
+                    return .run { send async in
+                        try? await Task.sleep(for: .milliseconds(100))
+                        await send(.playbackFinished) // Seek 완료 가정
+                    }
+                }
                 return .send(.startPlayback)
-            }
-            return .none
-            
-        case let .updateCurrentIndex(index):
-            guard !state.isTransitioning else {
-                return .none
-            }
-            
-            if !state.playlist.isEmpty && index >= 0 && index < state.playlist.count {
+                
+            case let .updateCurrentIndex(index):
+                guard !state.isTransitioning, !state.playlist.isEmpty,
+                      index >= 0, index < state.playlist.count, state.currentIndex != index
+                else { return .none }
                 state.isTransitioning = true
                 state.currentIndex = index
                 return .send(.startPlayback)
-            }
-            return .none
-            
-        case .audioDidFinish:
-            if state.currentIndex >= state.playlist.count - 1 {
-                return .send(.updateCurrentIndex(0))
-            } else {
-                return .send(.nextTrack)
-            }
-            
-        case .startPlayback:
-            guard !state.playlist.isEmpty,
-                  state.currentIndex >= 0 && state.currentIndex < state.playlist.count else { return .none }
-            let currentTrack = state.playlist[state.currentIndex]
-            state.isPlaying = true
-            
-            return .run { [title = currentTrack.title] send async in
-                do {
-                    try await AudioManager.shared.playAppleMusicTrack(with: title)
-                    await send(.playbackFinished)
-                    
-                } catch {
-                    await send(.playbackError(error))
-                }
-            }
-
-        case .playbackFinished:
-            state.isTransitioning = false
-            return .none
-
-        case let .playbackError(error):
-            print("Playback error received: \(error)")
-            state.isTransitioning = false
-            state.isPlaying = false
-            return .none
-            
-        case let .toggleAIMusic(isEnabled):
-            state.isAIMusicEnabled = isEnabled
-            
-            return .run { send in
-                do {
-                    // --- 임시 수정 시작 ---
-                    // UserDefaults에서 가져오는 대신 테스트 ID를 직접 사용
-                    let userIdString = "7d634b64-551f-479f-8fe9-9868e9d1a5fe"
-                    guard let userUUID = UUID(uuidString: userIdString) else {
-                        // 이 경우는 ID 형식이 잘못되었을 때만 발생 (지금은 고정값이므로 거의 발생 안 함)
-                        throw NSError(domain: "BeamApp", code: 400,
-                                      userInfo: [NSLocalizedDescriptionKey: "Invalid Hardcoded User ID Format"])
+                
+            case .audioDidFinish:
+                if !state.isTransitioning {
+                    if state.currentIndex >= state.playlist.count - 1 {
+                        state.currentIndex = 0
+                        state.isPlaying = false
+                        return .none
+                    } else {
+                        return .send(.nextTrack)
                     }
-                    // --- 임시 수정 끝 ---
-                    
-                    /* 원래 코드 주석 처리
-                     guard let userId = UserDefaults.standard.string(forKey: "userId"),
-                     let userUUID = UUID(uuidString: userId) else {
-                     throw NSError(domain: "BeamApp", code: 400,
-                     userInfo: [NSLocalizedDescriptionKey: "User ID not found"])
-                     }
-                     */
-                    
-                    print("Attempting to update AI preference for fixed test user: \(userUUID)") // 디버깅 로그 추가
-                    
-                    let result = try await aiPreferenceClient.updateAIPreference(userUUID, isEnabled)
-                    await send(.aiPreferenceResponse(.success(result)))
-                    
-                } catch {
-                    print("Error during AI preference update: \(error)") // 에러 로그 추가
-                    await send(.aiPreferenceResponse(.failure(error)))
-                    // 실패 시 롤백하는 로직은 그대로 둡니다.
-                    await send(.toggleAIMusic(!isEnabled))
                 }
-            }
-            
-        case let .aiPreferenceResponse(.success(isEnabled)):
-            state.isAIMusicEnabled = isEnabled
-            return .none
-            
-        case let .aiPreferenceResponse(.failure(error)):
-            print("Failed to update AI preference: \(error.localizedDescription)")
-            // Could add an alert here
-            return .none
-            
-        case .loadAIPreference:
-            return .run { send in
-                do {
-                    guard let userId = UserDefaults.standard.string(forKey: "userId"),
-                          let userUUID = UUID(uuidString: userId) else {
-                        return
+                return .none
+                
+            case .startPlayback:
+                guard let track = state.currentTrack else {
+                    state.isPlaying = false
+                    return .none
+                }
+                state.isPlaying = true
+                
+                return .run { send async in
+                    do {
+                        if track.isAIGenerated {
+                            guard let urlString = track.playbackUrl, !urlString.isEmpty else {
+                                throw NSError(domain: "PlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: "AI track playback URL missing or empty."])
+                            }
+                            AudioManager.shared.playAIMusic(from: urlString)
+                            await send(.playbackFinished)
+                        } else {
+                            guard !track.title.isEmpty else {
+                                throw NSError(domain: "PlayerError", code: 3, userInfo: [NSLocalizedDescriptionKey: "Apple Music track title missing."])
+                            }
+                            try await AudioManager.shared.playAppleMusicTrack(with: track.title)
+                            await send(.playbackFinished)
+                        }
+                    } catch {
+                        await send(.playbackError(error.localizedDescription))
                     }
-                    
-                    let isEnabled = try await aiPreferenceClient.getAIPreference(userUUID)
-                    await send(.aiPreferenceResponse(.success(isEnabled)))
-                } catch {
-                    print("Failed to load AI preference: \(error.localizedDescription)")
-                    // Silently fail on initial load
+                }
+                
+            case .playbackFinished:
+                state.isTransitioning = false
+                return .none
+                
+            case let .playbackError(errorString):
+                state.isTransitioning = false
+                state.isPlaying = false
+                return .none
+                
+            case let .toggleAIMusic(isEnabled):
+                state.isAIMusicEnabled = isEnabled
+                state.aiSongFetchError = nil
+                
+                let preferenceUpdateEffect: Effect<Action> = .run { send in
+                    do {
+                        let userIdString = "7D634B64-551F-479F-8FE9-9868E9D1A5FE" // TODO: 테스트용 ID,  수정 필요함
+                        guard let userUUID = UUID(uuidString: userIdString) else { throw URLError(.badURL) }
+                        let result = try await aiPreferenceClient.updateAIPreference(userUUID, isEnabled)
+                    } catch {
+                        await send(.aiPreferenceResponse(.failure(error)))
+                        await send(.toggleAIMusic(!isEnabled)) // UI 상태만 되돌림
+                    }
+                }
+                
+                if isEnabled {
+                    if !state.isLoadingAISongs && !state.playlist.contains(where: { $0.isAIGenerated }) {
+                        return .merge(
+                            preferenceUpdateEffect,
+                            .send(.fetchAISongs)
+                        )
+                    } else {
+                        return preferenceUpdateEffect
+                    }
+                } else {
+                    return .merge(
+                        preferenceUpdateEffect,
+                        .send(.removeAISongsFromPlaylist)
+                    )
+                }
+            case .fetchAISongs:
+                guard !state.isLoadingAISongs else { return .none }
+                state.isLoadingAISongs = true
+                state.aiSongFetchError = nil
+                
+                return .run { send in
+                    await send(
+                        .aiSongsResponse(
+                            await TaskResult {
+                                let token = try await HomeFeature.fetchToken(context: modelContext)
+                                return try await HomeFeature.fetchPlayableAISongs(with: token)
+                            }
+                        )
+                    )
+                }
+                
+            case let .aiSongsResponse(.success(aiTracks)):
+                state.isLoadingAISongs = false
+                state.aiSongFetchError = nil
+                let currentSongIDs = Set(state.playlist.map { $0.id })
+                let newTracksToAdd = aiTracks.filter { !currentSongIDs.contains($0.id) }
+                state.playlist.append(contentsOf: newTracksToAdd)
+                return .none
+                
+            case let .aiSongsResponse(.failure(error)):
+                state.isLoadingAISongs = false
+                state.aiSongFetchError = error.localizedDescription
+                return .none
+                
+            case .removeAISongsFromPlaylist:
+                let originalCount = state.playlist.count
+                state.playlist.removeAll { $0.isAIGenerated }
+                let removedCount = originalCount - state.playlist.count
+                if state.currentIndex >= state.playlist.count {
+                    state.currentIndex = max(0, state.playlist.count - 1)
+                    if state.playlist.isEmpty {
+                        state.isPlaying = false
+                    } else if state.isPlaying {
+                        return .send(.startPlayback)
+                    }
+                }
+                return .none
+                
+            case let .aiPreferenceResponse(.success(isEnabled)):
+                return .none
+                
+            case let .aiPreferenceResponse(.failure(error)):
+                return .none
+                
+            case .loadAIPreference:
+                return .run { send in
+                    do {
+                        guard let userId = UserDefaults.standard.string(forKey: "userId"),
+                              let userUUID = UUID(uuidString: userId) else {
+                            return
+                        }
+                        let isEnabled = try await aiPreferenceClient.getAIPreference(userUUID)
+                        await send(.aiPreferenceResponse(.success(isEnabled)))
+                    } catch {
+                        print("Failed to load AI preference: \(error.localizedDescription)")
+                    }
                 }
             }
-        }
-    }
-}
-
-struct GeneratorReducer: Reducer {
-    struct State: Equatable {
-        var generatedMusic: String = ""
-    }
-    
-    enum Action: Equatable {
-        case generateNewMusic
-        case stopGeneration
-    }
-    
-    func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .generateNewMusic:
-            state.generatedMusic = "New Music Generated"
-            return .none
-            
-        case .stopGeneration:
-            state.generatedMusic = ""
-            return .none
         }
     }
 }

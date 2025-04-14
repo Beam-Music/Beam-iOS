@@ -19,3 +19,22 @@ struct UserPlaylist: Codable, Equatable, Identifiable {
     let name: String
     let userID: String
 }
+
+struct PlaylistSummaryDTO: Codable, Identifiable, Equatable {
+    let id: UUID?
+    let name: String
+    let description: String?
+}
+
+struct PlayableTrackDTO: Codable, Identifiable, Equatable {
+    let id: UUID
+    let title: String
+    let artistName: String?
+    let genre: String?
+    let duration: Int?
+    let artworkUrl: String?
+
+    let isAIGenerated: Bool
+    let playbackUrl: String?
+    let musicKitID: String?
+}

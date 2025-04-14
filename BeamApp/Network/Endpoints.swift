@@ -19,15 +19,17 @@ struct Endpoints {
         static let ListeningHistory = "\(baseURL)/listening-history"
     }
     
+    struct AISong {
+        static let register = "\(baseURL)/api/ai-songs/register"
+        static let playable = "\(baseURL)/api/ai-songs/playable"
+    }
+
     struct Playlist {
         static let userPlaylist = "\(baseURL)/user-playlists"
-        static func userPlaylistSongs(playlistID: String) -> String {
-            return "\(baseURL)/user-playlists/\(playlistID)/songs"
-        }
+        static func userPlaylistSongs(playlistID: String) -> String { "\(userPlaylist)/\(playlistID)/songs" }
+
         static let recommendPlaylists = "\(baseURL)/recommend-playlists"
-        static func recommendPlaylistsSongs(playlistID: String) -> String {
-            return "\(baseURL)/recommend-playlists/\(playlistID)/songs"
-        }
+        static func recommendPlaylistsSongs(playlistID: String) -> String { "\(recommendPlaylists)/\(playlistID)/songs" }
     }
     
     struct User {

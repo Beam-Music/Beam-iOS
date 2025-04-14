@@ -17,9 +17,24 @@ struct ListeningHistoryItem: Codable, Identifiable, Equatable {
     let song: Song
     let user: User
 
-    struct Song: Codable, Equatable {
+    struct Song: Codable, Identifiable, Equatable {
         let id: String
     }
+    
+    struct AiSong: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let artist: String
+        let genre: String
+        let generatedAt: Date
+        let serverPath: String
+        
+        // TODO: check this url
+        var fileURL: URL {
+            URL(string: "\(Endpoints.baseURL)/ai-songs/\(serverPath)")!
+        }
+    }
+
 
     struct User: Codable, Equatable {
         let id: String

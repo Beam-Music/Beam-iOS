@@ -23,9 +23,6 @@ struct PlayerDetailView: View {
                         Text(currentTrack.title)
                             .font(.headline)
                         Spacer()
-//                        Text("Unknown Artist")
-//                            .font(.subheadline)
-//                            .foregroundColor(.gray)
                     }
                     .padding()
                 } else {
@@ -39,14 +36,14 @@ struct PlayerDetailView: View {
                     .padding()
                 
                 List {
-                    ForEach(Array(viewStore.playlist.dropFirst(viewStore.currentIndex + 1)), id: \.id) { (track: PlaylistTrack) in
+                    ForEach(Array(viewStore.playlist.dropFirst(viewStore.currentIndex + 1)), id: \.id) { (track: PlayableTrackDTO) in
                         HStack {
                             Text(track.title)
                                 .font(.headline)
                             Spacer()
-//                            Text("Unknown Artist")
-//                                .font(.subheadline)
-//                                .foregroundColor(.gray)
+                            Text(track.artistName ?? "Unknown Artist") // <- artistName 사용
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
                         }
                         .padding()
                     }

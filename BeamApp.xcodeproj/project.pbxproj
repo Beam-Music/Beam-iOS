@@ -56,6 +56,7 @@
 		0FC873FC2C900D6300D809E9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC873FB2C900D6300D809E9 /* Assets.xcassets */; };
 		9F1F572A2CA05BF400DA564A /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F57292CA05BF400DA564A /* AudioManager.swift */; };
 		B737C1472DA68342008FDA8F /* AIPreferenceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */; };
+		B7641C6B2DACCFB8005C3FFC /* GeneratorFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -130,6 +131,7 @@
 		9F1F57292CA05BF400DA564A /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
 		9F1F572B2CA05F9100DA564A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPreferenceClient.swift; sourceTree = "<group>"; };
+		B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorFeature.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -238,6 +240,7 @@
 		0FB328032C90313A00F5675B /* Home */ = {
 			isa = PBXGroup;
 			children = (
+				B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */,
 				0FB3280C2C9031CD00F5675B /* HomeView.swift */,
 				0FB3280E2C9031D500F5675B /* HomeReducer.swift */,
 				0FB3282A2C92843600F5675B /* HomeAction.swift */,
@@ -610,6 +613,7 @@
 				0F44C4CA2CBCA13B00ADF578 /* RecommendPlaylist.swift in Sources */,
 				0F5621BE2CB75CF9006E03F9 /* PlaylistItem.swift in Sources */,
 				0FB328002C902E8500F5675B /* AppReducer.swift in Sources */,
+				B7641C6B2DACCFB8005C3FFC /* GeneratorFeature.swift in Sources */,
 				0FB655262CBDED66000B803B /* LoginView.swift in Sources */,
 				0F2B10242CB90E99005156A6 /* MiniPlayerView.swift in Sources */,
 				0FC873EF2C9007B700D809E9 /* PrimaryButton.swift in Sources */,
