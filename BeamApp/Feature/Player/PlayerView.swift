@@ -85,7 +85,6 @@ struct PlayerView: View {
                     PlayerDetailView(store: self.store)
                 }
                 
-                // AI 음악 토글 추가
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("AI 음악 모드")
