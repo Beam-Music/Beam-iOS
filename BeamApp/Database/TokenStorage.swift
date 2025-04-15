@@ -82,6 +82,11 @@ class TokenStorage {
             throw error
         }
     }
+    
+    @MainActor
+    func hasValidToken() -> Bool {
+        fetchToken() != nil
+    }
 }
 
 struct TokenStorageKey: DependencyKey {
@@ -96,4 +101,4 @@ extension DependencyValues {
         get { self[TokenStorageKey.self] }
         set { self[TokenStorageKey.self] = newValue }
     }
-}
+} 

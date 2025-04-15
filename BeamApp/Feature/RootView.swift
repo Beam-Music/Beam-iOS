@@ -14,15 +14,28 @@ struct RootView: View {
     @State private var isPlayerViewVisible: Bool = false
     @State private var playerOffset: CGFloat = UIScreen.main.bounds.height
     @GestureState private var dragOffset: CGFloat = 0
+    @State private var isLoading = true
+    @Dependency(\.tokenStorage) var tokenStorage
+    
+    struct ViewState: Equatable {
+        let isLoggedIn: Bool
+        
+        init(state: AppReducer.State) {
+            self.isLoggedIn = state.isLoggedIn
+        }
+    }
     
     var body: some View {
-        WithViewStore(store, observe: { $0 }) { viewStore in
+        WithViewStore(self.store, observe: ViewState.init) { viewStore in
             ZStack {
-                ZStack {
-                    if viewStore.databaseState == .idle {
+                if isLoading {
+                    ProgressView()
+                        .tint(Color.purple)
+                } else {
+                    ZStack {
                         if viewStore.isLoggedIn {
                             TabBarView(store: store, isMiniPlayerVisible: $isMiniPlayerVisible)
-                                .zIndex(0)
+                            .zIndex(0)
                         } else {
                             OnboardView(
                                 loginStore: store.scope(
@@ -35,50 +48,57 @@ struct RootView: View {
                                 )
                             )
                         }
+                        
+                        if isMiniPlayerVisible && !isPlayerViewVisible && viewStore.isLoggedIn {
+                            MiniPlayerView(store: store.scope(
+                                state: \.tabBarState.playerState,
+                                action: { AppReducer.Action.tabBar(.player($0)) }
+                            ), isPlayerViewVisible: $isPlayerViewVisible)
+                            .onTapGesture {
+                                showFullPlayer()
+                            }
+                            .transition(.move(edge: .bottom))
+                            .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
+                            .zIndex(1)
+                        }
                     }
+                    .opacity(isPlayerViewVisible ? 0.3 : 1)
                     
-                    if isMiniPlayerVisible && !isPlayerViewVisible && viewStore.isLoggedIn {
-                        MiniPlayerView(store: store.scope(
+                    if isPlayerViewVisible {
+                        Color.black
+                            .opacity(calculateBackgroundOpacity())
+                            .ignoresSafeArea()
+                            .zIndex(1)
+                        
+                        PlayerView(store: store.scope(
                             state: \.tabBarState.playerState,
                             action: { AppReducer.Action.tabBar(.player($0)) }
-                        ), isPlayerViewVisible: $isPlayerViewVisible)
-                        .onTapGesture {
-                            showFullPlayer()
-                        }
-                        .transition(.move(edge: .bottom))
-                        .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
-                        .zIndex(1)
+                        ), isMiniPlayerVisible: $isMiniPlayerVisible)
+                        .background(Color.black)
+                        .offset(y: calculatePlayerOffset())
+                        .gesture(
+                            DragGesture()
+                                .updating($dragOffset) { value, state, _ in
+                                    state = value.translation.height
+                                }
+                                .onEnded { value in
+                                    handleDragEnd(value)
+                                }
+                        )
+                        .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
+                        .zIndex(2)
                     }
                 }
-                .opacity(isPlayerViewVisible ? 0.3 : 1)
-                
-                if isPlayerViewVisible {
-                    Color.black
-                        .opacity(calculateBackgroundOpacity())
-                        .ignoresSafeArea()
-                        .zIndex(1)
-                    
-                    PlayerView(store: store.scope(
-                        state: \.tabBarState.playerState,
-                        action: { AppReducer.Action.tabBar(.player($0)) }
-                    ), isMiniPlayerVisible: $isMiniPlayerVisible)
-                    .background(Color.black)
-                    .offset(y: calculatePlayerOffset())
-                    .gesture(
-                        DragGesture()
-                            .updating($dragOffset) { value, state, _ in
-                                state = value.translation.height
-                            }
-                            .onEnded { value in
-                                handleDragEnd(value)
-                            }
-                    )
-                    .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
-                    .zIndex(2)
-                }
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isPlayerViewVisible) 
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isPlayerViewVisible)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: dragOffset)
+            .task {
+                // Check for saved token on app launch
+                if let token = tokenStorage.fetchToken() {
+                    viewStore.send(.setLoggedIn(true))
+                }
+                isLoading = false
+            }
         }
     }
     
