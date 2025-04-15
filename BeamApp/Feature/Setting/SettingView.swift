@@ -19,7 +19,7 @@ struct SettingsView: View {
                 Text("Log out")
                     .padding()
                     .background(Color.red)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primaryBackground)
                     .cornerRadius(10)
             }
             Spacer()

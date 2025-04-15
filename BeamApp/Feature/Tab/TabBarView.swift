@@ -11,6 +11,7 @@ import ComposableArchitecture
 struct TabBarView: View {
     let store: StoreOf<AppReducer>
     @Binding var isMiniPlayerVisible: Bool
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
@@ -41,7 +42,8 @@ struct TabBarView: View {
                 }
                 .tag(AppReducer.Tab.library)
             }
-            .accentColor(.white)
+            .accentColor(Color.purple)
+            .background(colorScheme == .dark ? Color.black : Color.white)
         }
     }
 }

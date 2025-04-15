@@ -57,6 +57,7 @@
 		9F1F572A2CA05BF400DA564A /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F57292CA05BF400DA564A /* AudioManager.swift */; };
 		B737C1472DA68342008FDA8F /* AIPreferenceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */; };
 		B7641C6B2DACCFB8005C3FFC /* GeneratorFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */; };
+		B7641C6F2DADF795005C3FFC /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7641C6E2DADF795005C3FFC /* Color+Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +133,7 @@
 		9F1F572B2CA05F9100DA564A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPreferenceClient.swift; sourceTree = "<group>"; };
 		B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorFeature.swift; sourceTree = "<group>"; };
+		B7641C6E2DADF795005C3FFC /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -429,6 +431,7 @@
 		0FC873F02C9007C000D809E9 /* Styles */ = {
 			isa = PBXGroup;
 			children = (
+				B7641C6E2DADF795005C3FFC /* Color+Theme.swift */,
 				0FC873F12C9007D000D809E9 /* TextStyles.swift */,
 			);
 			path = Styles;
@@ -630,6 +633,7 @@
 				9F1F572A2CA05BF400DA564A /* AudioManager.swift in Sources */,
 				0FB328292C927BFB00F5675B /* LoginAction.swift in Sources */,
 				0FC873ED2C9007A800D809E9 /* CustomNavigationBar.swift in Sources */,
+				B7641C6F2DADF795005C3FFC /* Color+Theme.swift in Sources */,
 				0FB15EEB2C9BE8C8003718C3 /* Endpoints.swift in Sources */,
 				0FC873F52C90082500D809E9 /* Color+Extensions.swift in Sources */,
 				0FB3281A2C903E0300F5675B /* PlayerView.swift in Sources */,
