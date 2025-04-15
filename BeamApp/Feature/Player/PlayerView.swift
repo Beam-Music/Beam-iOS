@@ -184,13 +184,6 @@ struct PlayerView: View {
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
             }
-            .gesture(DragGesture(minimumDistance: 10, coordinateSpace: .local)
-                .onEnded { value in
-                    if value.translation.height > 100 {
-                        isMiniPlayerVisible = true
-                    }
-                }
-            )
         }
     }
     
