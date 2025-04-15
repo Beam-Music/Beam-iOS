@@ -34,6 +34,8 @@ struct AppReducer: Reducer {
         case home, library
     }
     
+    @Dependency(\.tokenStorage) var tokenStorage
+    
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
@@ -47,6 +49,13 @@ struct AppReducer: Reducer {
 
             case .setLoggedIn(let isLoggedIn):
                 state.isLoggedIn = isLoggedIn
+                if !isLoggedIn {
+                    return .run { _ in
+                        try await tokenStorage.deleteAllTokens()
+                        await AudioManager.shared.stop()
+                        await AudioManager.shared.reset()
+                    }
+                }
                 return .none
            
             case .login(.loginResponse(.success(let token))):
@@ -78,7 +87,15 @@ struct AppReducer: Reducer {
             case .signup(.verifyResponse(_)):
                 return .none
             case let .signup(.setIsLoggedIn(isLoggedIn)):
-                state.isLoggedIn = isLoggedIn 
+                state.isLoggedIn = isLoggedIn
+                if !isLoggedIn {
+                    // 회원가입 화면에서의 로그아웃도 처리
+                    return .run { _ in
+                        try await tokenStorage.deleteAllTokens()
+                        await AudioManager.shared.stop()
+                        await AudioManager.shared.reset()
+                    }
+                }
                 return .none
             }
         }

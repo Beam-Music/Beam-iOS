@@ -21,7 +21,7 @@ final class AudioManager: ObservableObject {
     @Published var isPlaying: Bool = false
 
     private var timer: Timer?
-    static let audioDidFinishNotification = Notification.Name("AudioDidFinishPlaying")
+    static let audioDidFinishNotification = Notification.Name("AudioDidFinish")
 
     private init() {
         setupNotifications()
@@ -284,8 +284,8 @@ final class AudioManager: ObservableObject {
             currentTime = targetTime
         } else {
             if let itemDuration = musicPlayerController.nowPlayingItem?.playbackDuration, itemDuration > 0 {
-                 musicPlayerController.currentPlaybackTime = min(targetTime, itemDuration) // 범위 제한
-                 currentTime = musicPlayerController.currentPlaybackTime // 즉시 반영
+                 musicPlayerController.currentPlaybackTime = min(targetTime, itemDuration)
+                 currentTime = musicPlayerController.currentPlaybackTime
             }
         }
     }
@@ -293,13 +293,40 @@ final class AudioManager: ObservableObject {
     func getCurrentTime() -> Double { return currentTime }
     func getDuration() -> Double { return duration }
 
+    @MainActor
+    func stop() {
+        if isPlayingAIMusic {
+            avPlayer?.pause()
+            avPlayer?.seek(to: .zero)
+        } else {
+            musicPlayerController.stop()
+        }
+        currentTime = 0
+        isPlaying = false
+        isPlayingAIMusic = false
+        timer?.invalidate()
+        startTimer()
+    }
+    @MainActor
+    func reset() {
+        stop()
+        avPlayer = nil
+        currentTrackMetadata = (nil, nil, nil)
+        duration = 0
+        
+        if let observer = avPlayerItemObserver {
+            NotificationCenter.default.removeObserver(observer)
+            avPlayerItemObserver = nil
+        }
+    }
+
     deinit {
         timer?.invalidate()
         musicPlayerController.endGeneratingPlaybackNotifications()
         if let observer = playbackStateObserver { NotificationCenter.default.removeObserver(observer) }
         // if let observer = nowPlayingObserver { NotificationCenter.default.removeObserver(observer) } // 현재 미사용
         if let observer = avPlayerItemObserver { NotificationCenter.default.removeObserver(observer) }
-        NotificationCenter.default.removeObserver(self) // 
+        NotificationCenter.default.removeObserver(self) //
     }
 }
 
