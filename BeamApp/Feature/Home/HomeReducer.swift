@@ -164,8 +164,6 @@ struct HomeReducer {
                     // .fetchRecommendPlaylistSongs 액션에도 변환된 String 전달
                     return .send(.fetchRecommendPlaylistSongs(playlistIDString))
                 }
-                // --- 수정 완료 ---
-                // 첫 번째 플레이리스트가 없거나 ID가 nil이면 아무 작업 안 함
                 return .none
                 
                 
@@ -176,7 +174,8 @@ struct HomeReducer {
             case let .playlistLoaded(playlist):
                 state.playlist = playlist
                 state.errorMessage = nil
-                return .send(.startPlayback(playlist))
+//                return .send(.startPlayback(playlist))
+                return .none
                 
             case let .startPlayback(playlistTracks):
                 guard let firstTrack = playlistTracks.first else {

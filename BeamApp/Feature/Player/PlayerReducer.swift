@@ -22,6 +22,7 @@ struct PlayerReducer {
     }
 
     enum Action: Equatable {
+        case syncPlaybackState
         case playPause
         case nextTrack
         case previousTrack
@@ -66,17 +67,33 @@ struct PlayerReducer {
 
     @Dependency(\.aiPreferenceClient) private var aiPreferenceClient
     @Dependency(\.modelContext) var modelContext
-
+    @Dependency(\.audioManager) var audioManager
+    
     var body: some Reducer<State, Action> {
         Reduce { state, action in
             switch action {
+            case .syncPlaybackState:
+                let actualIsPlaying = audioManager.isPlaying() // isPlaying이 함수라고 가정, 프로퍼티면 audioManager.isPlaying
+                if state.isPlaying != actualIsPlaying {
+                    print("PlayerReducer: Syncing playback state - Reducer: \(state.isPlaying), Actual: \(actualIsPlaying)")
+                    state.isPlaying = actualIsPlaying
+                }
+                return .none
             case .playPause:
-                state.isPlaying.toggle()
-                if state.isPlaying {
-                    if state.currentTrack != nil { return .send(.startPlayback) }
-                    else { state.isPlaying = false; return .none }
-                } else {
-                    return .run { _ in await AudioManager.shared.pause() }
+                // 1. 목표 상태 결정
+                let shouldPlay = !state.isPlaying
+                // 2. AudioManager에 명령 전달
+                return .run { send in
+                    if shouldPlay {
+                        // 재생 시작 시도 (startPlayback과 유사하게 처리 가능)
+                        // 또는 단순히 audioManager.play() 호출
+                        await send(.startPlayback) // 이미 구현된 재생 로직 재사용
+                    } else {
+                        await audioManager.pause()
+                    }
+                    // 3. 잠시 후 상태 재동기화 (명령이 즉시 반영 안될 수 있으므로)
+                    try await Task.sleep(for: .milliseconds(200))
+                    await send(.syncPlaybackState)
                 }
 
             case .nextTrack:
@@ -117,7 +134,7 @@ struct PlayerReducer {
                     state.isPlaying = false
                     return .none
                 }
-                state.isPlaying = true // UI 상 재생 상태 우선 반영
+                state.isPlaying = true
 
                 return .run { send async in
                     do {
@@ -225,5 +242,34 @@ struct PlayerReducer {
                   return .run { send in /* ... (기존 코드 유지) ... */ }
             }
         }
+    }
+}
+
+protocol AudioManagerProtocol {
+    // PlayerReducer에서 사용하는 함수/프로퍼티 정의
+    func play() async
+    func pause() async
+    func stop() async
+    func playAppleMusicTrack(with title: String) async throws
+    func playAIMusic(from urlString: String) async // @MainActor 제거 또는 async 유지? -> @MainActor 유지하고 async 제거하거나, async 유지하고 @MainActor에서 호출
+    func isPlaying() -> Bool // 현재 재생 상태 반환 함수
+    func seek(to seconds: Double) async // @MainActor에서 호출되더라도 async 가능
+    func reset() async
+    var isAIPlaying: Bool { get }
+    // 필요한 경우 currentTime, duration 등도 추가
+    // 상태 변경을 알리는 Combine Publisher 또는 AsyncStream 추가 (이상적)
+}
+
+
+// 3. DependencyKey 정의
+private struct AudioManagerKey: DependencyKey {
+    @MainActor // liveValue 계산을 메인 액터에서 하도록 지정
+    static let liveValue: AudioManagerProtocol = AudioManager.shared }
+
+// 4. DependencyValues 확장
+extension DependencyValues {
+    var audioManager: AudioManagerProtocol {
+        get { self[AudioManagerKey.self] }
+        set { self[AudioManagerKey.self] = newValue }
     }
 }

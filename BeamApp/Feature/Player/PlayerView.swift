@@ -132,11 +132,12 @@ struct PlayerView: View {
                     .font(.subheadline)
                     .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .gray)
                 
-                // Progress Slider
                 if audioManager.duration > 0 {
                     Slider(value: $audioManager.currentTime, in: 0...audioManager.duration, onEditingChanged: { editing in
                         if !editing {
-                            audioManager.seek(to: audioManager.currentTime)
+                            Task{
+                                await audioManager.seek(to: audioManager.currentTime)
+                            }
                         }
                     })
                     .accentColor(Color.purple)
@@ -145,7 +146,6 @@ struct PlayerView: View {
                         .disabled(true)
                 }
                 
-                // Time Labels
                 HStack {
                     Text(formatTime(audioManager.currentTime))
                         .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .gray)
@@ -181,6 +181,9 @@ struct PlayerView: View {
             }
             .padding()
             .background(colorScheme == .dark ? Color.black : Color.white)
+            .onAppear {
+                viewStore.send(.syncPlaybackState)
+            }
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
             }
