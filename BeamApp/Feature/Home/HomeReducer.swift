@@ -56,11 +56,10 @@ struct HomeReducer {
                 
             case let .selectPlaylist(playlist):
                 guard let playlistID = playlist.id else {
-                    print("HomeReducer: Selected playlist has no ID.")
                     return .none
                 }
                 let playlistIDString = playlistID.uuidString
-                state.selectedPlaylistID = playlistIDString // String으로 할당
+                state.selectedPlaylistID = playlistIDString
                 return .send(.fetchRecommendPlaylistSongs(playlistIDString))
             case .logOutButtonTapped:
                 return .none
@@ -86,38 +85,24 @@ struct HomeReducer {
                     }
                 }
                 
-            case let .userPlaylistsLoaded(userPlaylists): // userPlaylists는 [PlaylistSummaryDTO]
-                // --- 수정: firstPlaylist 및 그 ID(UUID?)를 안전하게 unwrap하고 String으로 변환 ---
+            case let .userPlaylistsLoaded(userPlaylists):
                 if let firstPlaylist = userPlaylists.first, let playlistID = firstPlaylist.id {
-                    // UUID를 String으로 변환
                     let playlistIDString = playlistID.uuidString
-                    // String? 타입인 state.selectedPlaylistID에 변환된 String 할당
                     state.selectedPlaylistID = playlistIDString
                     
-                    // .fetchPlaylist 액션에도 변환된 String 전달
-                    // (fetchPlaylist 액션이 String을 받는다고 가정)
                     return .send(.fetchPlaylist(playlistIDString))
                 }
-                // --- 수정 완료 ---
-                // 첫 번째 플레이리스트가 없거나 ID가 nil이면 아무 작업 안 함
                 return .none
                 
-            case let .selectPlaylist(playlist): // playlist는 PlaylistSummaryDTO
-                // --- 수정: playlist.id (UUID?) unwrap 후 uuidString 사용 ---
+            case let .selectPlaylist(playlist):
                 guard let playlistID = playlist.id else {
-                    print("HomeReducer: Selected playlist has no ID in .selectPlaylist case.")
-                    // ID가 없으면 상태 변경 및 액션 전송 안 함
                     return .none
                 }
-                // UUID를 String으로 변환
                 let playlistIDString = playlistID.uuidString
                 
-                // 변환된 String을 state.selectedPlaylistID (String?)에 할당
                 state.selectedPlaylistID = playlistIDString
                 
-                // .fetchRecommendPlaylistSongs 액션에도 변환된 String 전달
                 return .send(.fetchRecommendPlaylistSongs(playlistIDString))
-                // --- 수정 완료 ---
                 
             case .fetchPlaylist:
                 guard let playlistID = state.selectedPlaylistID else {
@@ -152,16 +137,11 @@ struct HomeReducer {
                     }
                 }
                 
-            case let .recommendPlaylistsLoaded(playlists): // playlists는 [PlaylistSummaryDTO]
+            case let .recommendPlaylistsLoaded(playlists):
                 state.recommendedPlaylists = playlists
-                // --- 수정: firstPlaylist 및 그 ID(UUID?)를 안전하게 unwrap하고 String으로 변환 ---
-                // if let으로 첫 번째 플레이리스트와 그 ID가 모두 nil이 아닌지 한 번에 확인
                 if let firstPlaylist = playlists.first, let playlistID = firstPlaylist.id {
-                    // UUID를 String으로 변환
                     let playlistIDString = playlistID.uuidString
-                    // String? 타입인 state.selectedPlaylistID에 변환된 String 할당
                     state.selectedPlaylistID = playlistIDString
-                    // .fetchRecommendPlaylistSongs 액션에도 변환된 String 전달
                     return .send(.fetchRecommendPlaylistSongs(playlistIDString))
                 }
                 return .none
@@ -179,7 +159,6 @@ struct HomeReducer {
                 
             case let .startPlayback(playlistTracks):
                 guard let firstTrack = playlistTracks.first else {
-                    print("Playback Error: No tracks provided to start playback.")
                     return .none
                 }
                 
@@ -188,7 +167,6 @@ struct HomeReducer {
                         try await AudioManager.shared.playAppleMusicTrack(with: title)
                         
                     } catch {
-                        print("Failed to initiate playback for track '\(title)': \(error)")
                         await send(.playlistFailed("Playback failed: \(error.localizedDescription)"))
                     }
                 }
