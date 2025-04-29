@@ -43,30 +43,35 @@ struct HomeFeature {
         return userPlaylists
     }
     
-    static func fetchPlayableAISongs(with token: String) async throws -> [PlayableTrackDTO] {
-        guard let url = URL(string: Endpoints.AISong.playable) else {
-            throw NSError(domain: "InvalidURL", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid playable AI songs endpoint URL"])
+    static func fetchPlayableAISongs(token: String) async throws -> [PlayableTrackDTO] {
+        print("🌐 Fetching AI songs...")
+        print("🔑 Using token: \(token.prefix(10))...")
+        
+        do {
+            let tracks = try await APIClient.shared.getPlayableAISongs(token)
+            print("✅ Successfully fetched \(tracks.count) AI tracks")
+            
+            // Validate track data
+            tracks.forEach { track in
+                if track.isAIGenerated {
+                    if track.playbackUrl == nil {
+                        print("⚠️ AI track missing playbackUrl: \(track.title)")
+                    }
+                } else {
+                    if track.playbackStoreID == nil {
+                        print("⚠️ MusicKit track missing storeID: \(track.title)")
+                    }
+                }
+            }
+            
+            return tracks
+        } catch {
+            print("❌ Failed to fetch AI songs: \(error)")
+//            if let apiError = error as? APIError {
+//                print("   API Error details: \(apiError)")
+//            }
+            throw error
         }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NSError(domain: "Invalid Response", code: 0, userInfo: [NSLocalizedDescriptionKey: "Did not receive HTTPURLResponse"])
-        }
-        guard httpResponse.statusCode == 200 else {
-            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
-            throw NSError(domain: "Server Error", code: httpResponse.statusCode, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to fetch playable AI songs. Status: \(httpResponse.statusCode)",
-                "responseBody": responseBody
-            ])
-        }
-        
-        return try JSONDecoder().decode([PlayableTrackDTO].self, from: data)
     }
     
     static func registerNewAISong(

@@ -58,6 +58,7 @@
 		B737C1472DA68342008FDA8F /* AIPreferenceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */; };
 		B7641C6B2DACCFB8005C3FFC /* GeneratorFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */; };
 		B7641C6F2DADF795005C3FFC /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7641C6E2DADF795005C3FFC /* Color+Theme.swift */; };
+		B7CAFECB2DC0C18300ECE0BE /* APIClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7CAFECA2DC0C17F00ECE0BE /* APIClients.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -135,7 +136,7 @@
 		B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorFeature.swift; sourceTree = "<group>"; };
 		B7641C6E2DADF795005C3FFC /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		B7CAFEC42DC0A52B00ECE0BE /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
-		B7CAFEC52DC0A57A00ECE0BE /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
+		B7CAFECA2DC0C17F00ECE0BE /* APIClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClients.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -396,7 +397,7 @@
 		0FC873E02C9006BC00D809E9 /* Network */ = {
 			isa = PBXGroup;
 			children = (
-				B7CAFEC52DC0A57A00ECE0BE /* Untitled.swift */,
+				B7CAFECA2DC0C17F00ECE0BE /* APIClients.swift */,
 				0FB15EFE2C9D60FE003718C3 /* DTO */,
 				0FB15EEA2C9BE8C8003718C3 /* Endpoints.swift */,
 			);
@@ -613,6 +614,7 @@
 				0FB15EFA2C9D3A5B003718C3 /* TokenReducer.swift in Sources */,
 				0FB15EE72C9436C8003718C3 /* TabBarView.swift in Sources */,
 				0FB3280D2C9031CD00F5675B /* HomeView.swift in Sources */,
+				B7CAFECB2DC0C18300ECE0BE /* APIClients.swift in Sources */,
 				0FB6552A2CBDF7B5000B803B /* SignupFeature.swift in Sources */,
 				0FB3280B2C9031BF00F5675B /* LoginReducer.swift in Sources */,
 				0FB15EF72C9D3848003718C3 /* TokenStorage.swift in Sources */,

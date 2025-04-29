@@ -81,6 +81,7 @@ struct PlayerReducer {
     @Dependency(\.modelContext) var modelContext
     @Dependency(\.audioManager) var audioManager
     @Dependency(\.apiClient) var apiClient
+    @Dependency(\.homeFeature) var homeFeature
     
     private func findNextTrackIndexSequentially(currentIndex: Int, playlistCount: Int) -> Int? {
         guard playlistCount > 0 else { return nil }
@@ -167,39 +168,24 @@ struct PlayerReducer {
                 return .send(.startPlayback)
                 
             case .audioDidFinish:
-                // 이미 전환 중이면 무시
-                guard !state.isTransitioning else {
-                    print("PlayerReducer: AudioDidFinish received, but already transitioning. Ignoring.")
-                    return .none
-                }
-                // 현재 트랙이 없으면 무시 (또는 정지)
-                guard let currentTrack = state.currentTrack else {
-                    print("PlayerReducer: AudioDidFinish received, but no current track.")
-                    // 재생 중이었다면 멈추는 것이 더 자연스러울 수 있음
-                    if state.isPlaying {
-                        state.isPlaying = false
-                        return .run { _ async in await audioManager.stop() } // 상태 변경과 Effect 동시 반환
-                    }
-                    return .none
-                }
+                print("PlayerReducer: Audio finished, checking for next track")
+                state.isTransitioning = true
                 
-                print("PlayerReducer: AudioDidFinish for track \(currentTrack.title). Requesting next track from server.")
-                state.isTransitioning = true // state 변경은 여기서 완료
-                
-                // --- FIX: Escaping 클로저에서 사용할 값을 미리 복사 ---
-                let trackID = currentTrack.id
-                let aiEnabled = state.isAIMusicEnabled // 값 복사
-                // --- FIX END ---
-                
-                return .run { send in
-                    // --- FIX: 복사된 상수 사용 ---
-                    await send(.nextTrackResponse(
-                        await TaskResult {
-                            // apiClient.getNextTrack 호출 시 복사된 상수(trackID, aiEnabled) 사용
-                            try await apiClient.getNextTrack(trackID, aiEnabled)
-                        }
-                    ))
-                    // --- FIX END ---
+                if let nextIndex = findNextTrackIndexSequentially(
+                    currentIndex: state.currentIndex,
+                    playlistCount: state.playlist.count
+                ) {
+                    print("PlayerReducer: Found next track at index \(nextIndex)")
+                    state.currentIndex = nextIndex
+                    return .merge(
+                        .send(.startPlayback),
+                        .send(.playbackFinished)
+                    )
+                } else {
+                    print("PlayerReducer: No next track found, stopping playback")
+                    state.isPlaying = false
+                    state.isTransitioning = false
+                    return .send(.playbackFinished)
                 }
                 
             case let .nextTrackResponse(.success(nextTrack)):
@@ -228,7 +214,17 @@ struct PlayerReducer {
                     return .run { _ async in await audioManager.stop() }
                 }
                 
+                // Add detailed logging for track information
+                print("🔍 Track Details:")
+                print("   Title: \(track.title)")
+                print("   ID: \(track.id)")
+                print("   Is AI Generated: \(track.isAIGenerated)")
+                print("   Playback URL: \(track.playbackUrl ?? "nil")")
+                print("   Store ID: \(track.playbackStoreID ?? "nil")")
+                
+                // Set state before the effect
                 state.isPlaying = true
+                let trackCopy = track // Capture the track value
                 
                 return .run { send async in
                     var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -243,21 +239,59 @@ struct PlayerReducer {
                     taskIDForHandler = backgroundTaskID
                     
                     print("Started background task: \(backgroundTaskID)")
+                    print("PlayerReducer: Starting playback for track '\(trackCopy.title)' (ID: \(trackCopy.id))")
+                    print("Track type: \(trackCopy.isAIGenerated ? "AI Generated" : "MusicKit")")
                     
                     do {
-                        if track.isAIGenerated {
-                            guard let urlString = track.playbackUrl, !urlString.isEmpty else {
-                                throw PlayerError.invalidURL("AI track URL missing or empty for track ID: \(track.id)")
+                        // First stop any existing playback
+                        await audioManager.stop()
+                        
+                        // Double check AI status and playback URL
+                        if trackCopy.isAIGenerated {
+                            print("🎵 Attempting AI track playback")
+                            guard let urlString = trackCopy.playbackUrl, !urlString.isEmpty else {
+                                print("❌ AI track missing URL: \(trackCopy.title) (ID: \(trackCopy.id))")
+                                throw PlayerError.invalidURL("AI track URL missing or empty for track: \(trackCopy.title) (ID: \(trackCopy.id))")
                             }
-                            print("PlayerReducer: Requesting AudioManager to play AI: \(track.title)")
+                            print("🎵 Playing AI track '\(trackCopy.title)' from URL: \(urlString)")
                             try await audioManager.playAIMusic(from: urlString)
+                            print("✅ Successfully started AI track playback")
+                            
+                            // Add delay before checking playback status for AI tracks
+                            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay for AI tracks
                         } else {
-                            print("PlayerReducer: Requesting AudioManager to play MusicKit: \(track.title)")
-                            try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
+                            print("🎵 Playing MusicKit track '\(trackCopy.title)'")
+                            if let storeID = trackCopy.playbackStoreID {
+                                print("Using store ID: \(storeID)")
+                                try await audioManager.playAppleMusicTrack(title: trackCopy.title, storeID: storeID)
+                            } else {
+                                print("No store ID available, searching by title")
+                                try await audioManager.playAppleMusicTrack(title: trackCopy.title, storeID: nil)
+                            }
+                            print("✅ Successfully started MusicKit track playback")
+                            
+                            // Add shorter delay for MusicKit tracks
+                            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
                         }
+                        
+                        // Verify playback started correctly
+                        let isActuallyPlaying = await audioManager.isPlaying()
+                        print("🎵 Playback status check - Is playing: \(isActuallyPlaying)")
+                        
+                        if !isActuallyPlaying {
+                            print("⚠️ Playback verification failed - track not playing after start")
+                            await send(.playbackError("Failed to start playback for track: \(trackCopy.title)"))
+                            return
+                        }
+                        
                         await send(.playbackFinished)
                     } catch {
-                        print("PlayerReducer: Playback initiation failed for track '\(track.title)': \(error.localizedDescription)")
+                        print("❌ Playback failed for track '\(trackCopy.title)': \(error.localizedDescription)")
+                        if trackCopy.isAIGenerated {
+                            print("AI Track Details - URL: \(trackCopy.playbackUrl ?? "nil"), ID: \(trackCopy.id)")
+                        } else {
+                            print("MusicKit Track Details - Store ID: \(trackCopy.playbackStoreID ?? "nil"), Title: \(trackCopy.title)")
+                        }
                         await send(.playbackError(error.localizedDescription))
                     }
                     
@@ -278,49 +312,108 @@ struct PlayerReducer {
                 state.isPlaying = false
                 return .run { _ async in await audioManager.stop() }
                 
-            case let .toggleAIMusic(isEnabled):
-                if state.isAIMusicEnabled == isEnabled { return .none }
+            case let .toggleAIMusic(enabled):
+                state.isAIMusicEnabled = enabled
+                print("PlayerReducer: AI Music toggled to \(enabled)")
                 
-                state.isAIMusicEnabled = isEnabled
-                state.aiSongFetchError = nil
-                
-                if isEnabled {
-                    if !state.isLoadingAISongs && !state.playlist.contains(where: { $0.isAIGenerated }) {
-                        return .send(.fetchAISongs)
+                if enabled {
+                    return .run { [modelContext] send in
+                        do {
+                            let token = try await HomeFeature.fetchToken(context: modelContext)
+                            let response = try await HomeFeature.fetchPlayableAISongs(token: token)
+                            print("PlayerReducer: Fetched \(response.count) AI songs")
+                            await send(.aiSongsResponse(.success(response)))
+                        } catch {
+                            print("PlayerReducer Error: Failed to fetch AI songs - \(error)")
+                            await send(.aiSongsResponse(.failure(error)))
+                        }
                     }
                 } else {
                     return .send(.removeAISongsFromPlaylist)
                 }
-                return .none
                 
             case .fetchAISongs:
                 guard state.isAIMusicEnabled, !state.isLoadingAISongs else { return .none }
                 state.isLoadingAISongs = true
                 state.aiSongFetchError = nil
-                return .run { send in
-                    await send(
-                        .aiSongsResponse(
-                            await TaskResult {
-                                let token = try await HomeFeature.fetchToken(context: modelContext)
-                                return try await HomeFeature.fetchPlayableAISongs(with: token)
-                            }
-                        )
-                    )
+                
+                return .run { [modelContext] send in
+                    do {
+                        let token = try await HomeFeature.fetchToken(context: modelContext)
+                        let aiTracks = try await HomeFeature.fetchPlayableAISongs(token: token)
+                        print("PlayerReducer: Successfully fetched \(aiTracks.count) AI tracks")
+                        await send(.aiSongsResponse(.success(aiTracks)))
+                    } catch {
+                        print("PlayerReducer: Error fetching AI tracks: \(error)")
+                        await send(.aiSongsResponse(.failure(error)))
+                    }
                 }
                 
             case let .aiSongsResponse(.success(aiTracks)):
                 state.isLoadingAISongs = false
                 state.aiSongFetchError = nil
-                let currentTrackIDs = Set(state.playlist.map { $0.id })
-                let newAITracksToAdd = aiTracks.filter { !currentTrackIDs.contains($0.id) }
-                if !newAITracksToAdd.isEmpty {
-                    state.playlist.append(contentsOf: newAITracksToAdd)
+                
+                if aiTracks.isEmpty {
+                    print("PlayerReducer: No AI tracks available")
+                    state.aiSongFetchError = "No AI tracks available yet. Please try again later."
+                    return .none
                 }
+                
+                print("PlayerReducer: Processing \(aiTracks.count) AI tracks")
+                
+                // Create new tracks with isAIGenerated set to true and proper playback URLs
+                let updatedAISongs = aiTracks.map { track -> PlayableTrackDTO in
+                    // Create a new track with isAIGenerated set to true and a valid playback URL
+                    return PlayableTrackDTO(
+                        id: track.id,
+                        title: track.title,
+                        artistName: track.artistName ?? "AI Generated",
+                        playbackUrl: "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc", // Default AI playback URL
+                        playbackStoreID: nil, // AI tracks don't use MusicKit
+                        isAIGenerated: true,
+                        duration: track.duration ?? 180.0 // Default duration if not provided
+                    )
+                }
+                
+                let wasPlaying = state.isPlaying
+                let currentTrackId = state.currentTrack?.id
+                
+                // Remove existing AI songs
+                state.playlist.removeAll { $0.isAIGenerated }
+                
+                // Add new AI songs
+                state.playlist.append(contentsOf: updatedAISongs)
+                
+                print("PlayerReducer: Added \(updatedAISongs.count) AI songs to playlist")
+                
+                // If we were playing an AI track, start playing the first new AI track
+                if wasPlaying, let currentTrack = state.currentTrack, currentTrack.isAIGenerated {
+                    state.currentIndex = state.playlist.count - updatedAISongs.count // Index of first AI song
+                    return .send(.startPlayback)
+                }
+                
+                // If we weren't playing anything, start with first AI track
+                if state.currentTrack == nil {
+                    state.currentIndex = state.playlist.count - updatedAISongs.count
+                    return .send(.startPlayback)
+                }
+                
+                // Otherwise, keep the current track
+                if let currentId = currentTrackId,
+                   let newIndex = state.playlist.firstIndex(where: { $0.id == currentId }) {
+                    state.currentIndex = newIndex
+                }
+                
                 return .none
                 
             case let .aiSongsResponse(.failure(error)):
                 state.isLoadingAISongs = false
-                state.aiSongFetchError = error.localizedDescription
+                if (error as NSError).code == 404 {
+                    state.aiSongFetchError = "No AI tracks available yet. Please try again later."
+                } else {
+                    state.aiSongFetchError = error.localizedDescription
+                }
+                print("PlayerReducer: Failed to fetch AI tracks: \(error.localizedDescription)")
                 return .none
                 
             case .removeAISongsFromPlaylist:
@@ -434,59 +527,106 @@ protocol AudioManagerProtocol {
 }
 private struct AudioManagerKey: DependencyKey {
     @MainActor
-    static let liveValue: AudioManagerProtocol = AudioManager.shared }
+    static let liveValue: AudioManagerProtocol = AudioManager.shared
+}
+
+private struct HomeFeatureKey: DependencyKey {
+    @MainActor
+    static let liveValue: HomeFeature = HomeFeature()
+}
 
 extension DependencyValues {
     var audioManager: AudioManagerProtocol {
         get { self[AudioManagerKey.self] }
         set { self[AudioManagerKey.self] = newValue }
     }
-}
-
-struct APIClient {
-    var getNextTrack: @Sendable (UUID, Bool) async throws -> PlayableTrackDTO
-}
-
-extension APIClient: DependencyKey {
-    static let liveValue: APIClient = APIClient(
-        getNextTrack: { currentTrackID, isAIMusicEnabled in
-            var components = URLComponents(string: Endpoints.AISong.nextTrack)!
-            components.queryItems = [
-                URLQueryItem(name: "current_track_id", value: currentTrackID.uuidString),
-                URLQueryItem(name: "is_ai_music_enabled", value: String(isAIMusicEnabled))
-            ]
-            
-            guard let url = components.url else {
-                throw URLError(.badURL)
-            }
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.cannotParseResponse)
-            }
-            
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
-            
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(PlayableTrackDTO.self, from: data)
-        }
-    )
-}
-
-extension DependencyValues {
-    var apiClient: APIClient {
-        get { self[APIClientKey.self] }
-        set { self[APIClientKey.self] = newValue }
+    
+    var homeFeature: HomeFeature {
+        get { self[HomeFeatureKey.self] }
+        set { self[HomeFeatureKey.self] = newValue }
     }
 }
 
-private struct APIClientKey: DependencyKey {
-    static let liveValue: APIClient = APIClient.liveValue
-} 
+//struct APIClient {
+//    var getNextTrack: @Sendable (UUID, Bool) async throws -> PlayableTrackDTO
+//}
+//
+//extension APIClient: DependencyKey {
+//    static let liveValue: APIClient = APIClient(
+//        getNextTrack: { currentTrackID, isAIMusicEnabled in
+//            print("🎵 Requesting next track - Current ID: \(currentTrackID), AI Music Enabled: \(isAIMusicEnabled)")
+//
+//            var components = URLComponents(string: Endpoints.AISong.nextTrack)!
+//            components.queryItems = [
+//                URLQueryItem(name: "current_track_id", value: currentTrackID.uuidString),
+//                URLQueryItem(name: "is_ai_music_enabled", value: String(isAIMusicEnabled))
+//            ]
+//
+//            guard let url = components.url else {
+//                print("⚠️ Failed to construct next track URL")
+//                throw URLError(.badURL)
+//            }
+//
+//            print("🌐 Next track URL: \(url.absoluteString)")
+//
+//            var request = URLRequest(url: url)
+//            request.httpMethod = "GET"
+//
+//            if let token = await TokenStorage.shared.fetchToken() {
+//                request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+//                print("🔑 Authorization: Bearer \(token.prefix(10))...")
+//            } else {
+//                print("⚠️ No token available for next track request")
+//            }
+//
+//            let (data, response) = try await URLSession.shared.data(for: request)
+//
+//            guard let httpResponse = response as? HTTPURLResponse else {
+//                print("⚠️ Invalid response type")
+//                throw URLError(.cannotParseResponse)
+//            }
+//
+//            print("📥 Next track response status: \(httpResponse.statusCode)")
+//
+//            // Log response headers
+//            print("📋 Response headers:")
+//            httpResponse.allHeaderFields.forEach { key, value in
+//                print("   \(key): \(value)")
+//            }
+//
+//            guard (200..<300).contains(httpResponse.statusCode) else {
+//                let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
+//                print("❌ Next track API Error - Status: \(httpResponse.statusCode)")
+//                print("❌ Response body: \(responseBody)")
+//                throw NSError(domain: "Server Error", code: httpResponse.statusCode, userInfo: [
+//                    NSLocalizedDescriptionKey: "Failed to get next track. Status: \(httpResponse.statusCode)",
+//                    "responseBody": responseBody,
+//                    "endpoint": url.absoluteString
+//                ])
+//            }
+//
+//            let decoder = JSONDecoder()
+//            decoder.keyDecodingStrategy = .convertFromSnakeCase
+//            let track = try decoder.decode(PlayableTrackDTO.self, from: data)
+//
+//            print("✅ Received next track:")
+//            print("   Title: \(track.title)")
+//            print("   Artist: \(track.artistName ?? "N/A")")
+//            print("   Is AI Generated: \(track.isAIGenerated)")
+//            print("   Has Playback URL: \(track.playbackUrl != nil)")
+//
+//            return track
+//        }
+//    )
+//}
+//
+//extension DependencyValues {
+//    var apiClient: APIClient {
+//        get { self[APIClientKey.self] }
+//        set { self[APIClientKey.self] = newValue }
+//    }
+//}
+//
+//private struct APIClientKey: DependencyKey {
+//    static let liveValue: APIClient = APIClient.liveValue
+//}

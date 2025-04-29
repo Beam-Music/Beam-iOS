@@ -17,6 +17,16 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
         case duration
     }
     
+    init(id: UUID, title: String, artistName: String?, playbackUrl: String?, playbackStoreID: String?, isAIGenerated: Bool, duration: TimeInterval?) {
+        self.id = id
+        self.title = title
+        self.artistName = artistName
+        self.playbackUrl = playbackUrl
+        self.playbackStoreID = playbackStoreID
+        self.isAIGenerated = isAIGenerated
+        self.duration = duration
+    }
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
