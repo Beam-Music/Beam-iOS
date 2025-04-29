@@ -121,15 +121,31 @@ struct HomeFeature {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "Invalid Response", code: 400, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid response type"
+            ])
         }
+        
+        guard httpResponse.statusCode == 200 else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
+            throw NSError(domain: "Server Error", code: httpResponse.statusCode, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to fetch playlist. Status: \(httpResponse.statusCode)",
+                "responseBody": responseBody
+            ])
+        }
+        
         do {
             let playlist = try JSONDecoder().decode([PlayableTrackDTO].self, from: data)
+            print("Successfully decoded playlist with \(playlist.count) tracks")
             return playlist
         } catch let decodingError as DecodingError {
-            throw decodingError
+            print("Decoding error: \(decodingError)")
+            throw NSError(domain: "Decoding Error", code: 400, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to decode playlist data: \(decodingError.localizedDescription)"
+            ])
         } catch {
+            print("Unexpected error: \(error)")
             throw error
         }
     }

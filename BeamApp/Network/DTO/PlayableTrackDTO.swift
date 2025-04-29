@@ -1,31 +1,3 @@
-//
-//  PlaylistItem.swift
-//  BeamApp
-//
-//  Created by freed on 10/10/24.
-//
-import Foundation
-
-struct PlaylistTrack: Codable, Identifiable, Equatable {
-    let id: UUID
-    let title: String
-    let genre: String
-    let releaseDate: String
-    let duration: Int
-}
-
-struct UserPlaylist: Codable, Equatable, Identifiable {
-    let id: String
-    let name: String
-    let userID: String
-}
-
-struct PlaylistSummaryDTO: Codable, Identifiable, Equatable {
-    let id: UUID?
-    let name: String
-    let description: String?
-}
-
 struct PlayableTrackDTO: Equatable, Identifiable, Codable {
     let id: UUID
     let title: String
@@ -55,4 +27,4 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
         isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
         duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
     }
-}
+} 

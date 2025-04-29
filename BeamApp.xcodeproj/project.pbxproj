@@ -134,6 +134,8 @@
 		B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPreferenceClient.swift; sourceTree = "<group>"; };
 		B7641C6A2DACCFAE005C3FFC /* GeneratorFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorFeature.swift; sourceTree = "<group>"; };
 		B7641C6E2DADF795005C3FFC /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
+		B7CAFEC42DC0A52B00ECE0BE /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
+		B7CAFEC52DC0A57A00ECE0BE /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -293,6 +295,7 @@
 		0FB328212C91841800F5675B /* AudioProcessing */ = {
 			isa = PBXGroup;
 			children = (
+				B7CAFEC42DC0A52B00ECE0BE /* Untitled.swift */,
 				0FB328222C918A0D00F5675B /* AudioProcessing.swift */,
 				9F1F57292CA05BF400DA564A /* AudioManager.swift */,
 			);
@@ -393,6 +396,7 @@
 		0FC873E02C9006BC00D809E9 /* Network */ = {
 			isa = PBXGroup;
 			children = (
+				B7CAFEC52DC0A57A00ECE0BE /* Untitled.swift */,
 				0FB15EFE2C9D60FE003718C3 /* DTO */,
 				0FB15EEA2C9BE8C8003718C3 /* Endpoints.swift */,
 			);
