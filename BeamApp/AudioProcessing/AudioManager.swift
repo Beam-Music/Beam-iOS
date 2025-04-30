@@ -41,6 +41,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     private var playbackStateObserver: NSObjectProtocol?
     private var avPlayerItemObserver: NSObjectProtocol?
     private var timeObserver: Any?
+    private var durationObserver: NSKeyValueObservation?
     
     private var isPlayingAIMusic: Bool = false
     var isAIPlaying: Bool {
@@ -122,31 +123,32 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         if !isPlayingMusic {
             if isPlayingAIMusic {
                 if let player = avPlayer, player.rate == 0 {
-                    print("AudioManager: Resuming paused AI track.")
+                    print("AudioManager: Resuming paused AI track")
                     player.play()
                     isPlayingMusic = true
                     return true
                 }
             } else {
                 if musicPlayerController.playbackState == .paused {
-                    print("AudioManager: Resuming paused MusicKit track.")
+                    print("AudioManager: Resuming paused MusicKit track")
                     musicPlayerController.play()
+                    isPlayingMusic = true
                     return true
                 }
             }
         }
-        print("AudioManager: tryResume failed - already playing or cannot resume.")
+        print("AudioManager: tryResume failed - already playing or cannot resume")
         return false
     }
     
     func pause() async {
         if isPlayingMusic {
             if isPlayingAIMusic {
+                print("AudioManager: Pausing AI playback")
                 avPlayer?.pause()
-                print("AudioManager: Pausing AI playback.")
             } else {
+                print("AudioManager: Pausing MusicKit playback")
                 musicPlayerController.pause()
-                print("AudioManager: Pausing MusicKit playback.")
             }
             isPlayingMusic = false
         }
@@ -178,151 +180,131 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         return self.isPlayingMusic
     }
     
-    func playAppleMusicTrack(title: String? = nil, storeID: String? = nil) async throws {
-        print("AudioManager: playAppleMusicTrack called with storeID: \(storeID ?? "nil"), title: \(title ?? "nil")")
+    func playAppleMusicTrack(title: String?, storeID: String?) async throws {
+        print("🎵 AudioManager: Attempting to play Apple Music track")
+        print("   Title: \(title ?? "nil")")
+        print("   Store ID: \(storeID ?? "nil - will search by title")")
+        
+        // Stop any existing playback
+        await stop()
+        
         do {
-            let authorizationStatus = await MusicAuthorization.request()
-            guard authorizationStatus == .authorized else { throw PlayerError.musicAuthorizationFailed }
-            
-            var trackStoreID: String? = storeID
-            
-            if (trackStoreID == nil || trackStoreID!.isEmpty), let searchTitle = title, !searchTitle.isEmpty {
-                print("AudioManager: StoreID missing. Searching catalog by title: \(searchTitle)")
-                var catalogSearchRequest = MusicCatalogSearchRequest(term: searchTitle, types: [MusicKit.Song.self])
-                catalogSearchRequest.limit = 1
-                let response = try await catalogSearchRequest.response()
-                guard let song = response.songs.first else {
-                    print("AudioManager Error: Track not found by title: \(searchTitle)")
-                    throw PlayerError.trackNotFound(searchTitle)
-                }
-                trackStoreID = song.id.rawValue
-                print("AudioManager: Found storeID by title: \(trackStoreID ?? "N/A")")
-            }
-            
-            guard let finalStoreID = trackStoreID, !finalStoreID.isEmpty else {
-                print("AudioManager Error: Could not determine valid MusicKit Store ID.")
-                throw PlayerError.trackNotFound("MusicKit track ID missing.")
-            }
-            
-            if isPlayingAIMusic {
-                print("AudioManager: Cleaning up AI playback before starting MusicKit.")
-                cleanupAIPlayback()
-                try? await Task.sleep(nanoseconds: 100_000_000)
-            }
-            
-            print("AudioManager: Setting MusicKit queue with Store ID: \(finalStoreID)")
-            if musicPlayerController.nowPlayingItem?.playbackStoreID != finalStoreID || musicPlayerController.playbackState != .playing {
-                musicPlayerController.setQueue(with: [finalStoreID])
+            if let storeID = storeID {
+                // Try to play using store ID
+                print("🎵 Playing with store ID: \(storeID)")
+                musicPlayerController.setQueue(with: [storeID])
                 musicPlayerController.play()
-            } else {
-                print("AudioManager: Track \(finalStoreID) already in queue/playing.")
-                if musicPlayerController.playbackState != .playing { musicPlayerController.play() }
-            }
-            
-            Task.detached {
-                do {
-                    var request = MusicCatalogResourceRequest<MusicKit.Song>(matching: \.id, equalTo: MusicItemID(finalStoreID))
-                    request.limit = 1
-                    let response = try await request.response()
-                    if let fetchedSong = response.items.first {
-                        await self.updateTrackMetadata(song: fetchedSong)
-                    }
-                } catch {
-                    print("AudioManager Error: Failed fetching full Song details for \(finalStoreID): \(error)")
+            } else if let title = title {
+                // Search and play by title
+                print("🎵 Searching for track: \(title)")
+                let request = MusicCatalogSearchRequest(term: title, types: [MusicKit.Song.self])
+                let response = try await request.response()
+                
+                if let song = response.songs.first {
+                    print("🎵 Found track: \(song.title)")
+                    musicPlayerController.setQueue(with: [song.id.rawValue])
+                    musicPlayerController.play()
+                } else {
+                    print("⚠️ No matching track found")
+                    throw PlayerError.trackNotFound(title)
                 }
+            } else {
+                print("⚠️ No title or store ID provided")
+                throw PlayerError.invalidTrackTitle
             }
             
-            self.isPlayingAIMusic = false
-            
+            // Start playback
+            musicPlayerController.play()
+            isPlayingMusic = true
+            isPlayingAIMusic = false
+            print("✅ Playback started successfully")
         } catch {
-            print("AudioManager Error in playAppleMusicTrack: \(error)")
-            await handlePlaybackError(error)
+            print("❌ Failed to start playback: \(error)")
+            isPlayingMusic = false
+            isPlayingAIMusic = false
             throw error
         }
     }
     
     func playAIMusic(from urlString: String) async throws {
-        print("AudioManager: Setting up AI music playback from URL: \(urlString)")
+        print("🎵 Starting AI music playback with file URL: \(urlString)")
         
         guard let url = URL(string: urlString) else {
-            print("AudioManager Error: Invalid URL for AI music: \(urlString)")
+            print("❌ Invalid AI music URL: \(urlString)")
             throw PlayerError.invalidURL(urlString)
         }
         
-        // Clean up existing playback
-        if isPlayingAIMusic {
-            print("AudioManager: Cleaning up existing AI playback")
-            cleanupAIPlayback()
-        } else {
-            print("AudioManager: Pausing MusicKit playback before starting AI")
-            musicPlayerController.stop() // Use stop instead of pause to ensure complete cleanup
-        }
+        // Stop any existing playback
+        await stop()
         
-        // AVPlayer setup
+        // Create a new player item
         let playerItem = AVPlayerItem(url: url)
-        let player = AVPlayer(playerItem: playerItem)
+        avPlayerItem = playerItem
         
-        // Remove previous observers
-        removeAVPlayerObservers()
-        
-        // Add status change observer
-        statusObserver = playerItem.observe(\.status, options: [.new]) { [weak self] item, _ in
+        // Add observers for player item status and duration
+        statusObserver = playerItem.observe(\.status) { [weak self] item, _ in
             guard let self = self else { return }
-            Task { @MainActor in
-                switch item.status {
-                case .readyToPlay:
-                    print("AudioManager: AI track ready to play")
-                    self.duration = item.duration.seconds
-                    player.play()
-                    self.isPlayingMusic = true
-                    self.isPlayingAIMusic = true
-                    
-                    // Update metadata
-                    await self.updateAITrackMetadata(title: "AI Generated Music", artist: "AI Composer")
-                    
-                case .failed:
-                    print("AudioManager Error: AI track failed to load: \(String(describing: item.error))")
-                    if let error = item.error {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("AudioPlaybackError"),
-                            object: nil,
-                            userInfo: ["error": error]
-                        )
-                    }
-                    self.isPlayingMusic = false
-                    self.isPlayingAIMusic = false
-                default:
-                    break
-                }
+            switch item.status {
+            case .readyToPlay:
+                print("✅ AVPlayerItem is ready to play")
+                self.duration = item.duration.seconds
+            case .failed:
+                print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
+            case .unknown:
+                print("⚠️ AVPlayerItem status is unknown")
+            @unknown default:
+                break
             }
         }
         
-        // Add playback completion observer
-        avPlayerItemObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem,
-            queue: .main
-        ) { [weak self] _ in
+        durationObserver = playerItem.observe(\.duration) { [weak self] item, _ in
             guard let self = self else { return }
-            Task { @MainActor in
-                print("AudioManager: AI track finished playing")
-                self.isPlayingMusic = false
-                self.currentTime = 0
-                NotificationCenter.default.post(name: AudioManager.audioDidFinishNotification, object: nil)
+            if item.duration.isValid {
+                self.duration = item.duration.seconds
+                print("📊 Updated AI track duration: \(self.duration) seconds")
             }
         }
+        
+        // Create and configure the player
+        avPlayer = AVPlayer(playerItem: playerItem)
         
         // Add time observer
-        let timeScale = CMTimeScale(NSEC_PER_SEC)
-        let time = CMTime(seconds: 0.5, preferredTimescale: timeScale)
-        timeObserver = player.addPeriodicTimeObserver(forInterval: time, queue: .main) { [weak self] time in
-            self?.currentTime = time.seconds
+        let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        timeObserver = avPlayer?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+            guard let self = self else { return }
+            self.currentTime = time.seconds
         }
         
-        self.avPlayerItem = playerItem
-        self.avPlayer = player
+        // Add observer for playback completion
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerItemDidReachEnd),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem
+        )
         
-        print("AudioManager: AI music playback setup complete")
+        // Wait for player item to be ready
+        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        
+        guard playerItem.status == .readyToPlay else {
+            print("❌ AVPlayerItem is not ready to play")
+            throw PlayerError.playbackError("AI music playback failed to start - item not ready")
+        }
+        
+        // Start playback
+        avPlayer?.play()
+        isPlayingMusic = true
+        isPlayingAIMusic = true
+        
+        // Verify playback started
+        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        
+        guard await isPlaying() else {
+            print("❌ AI music playback failed to start")
+            throw PlayerError.playbackError("AI music playback failed to start")
+        }
+        
+        print("✅ AI music playback started successfully")
     }
     
     private func updateAITrackMetadata(title: String, artist: String) async {
@@ -349,6 +331,8 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         avPlayerItem = nil
         removeAVPlayerObservers()
         removePeriodicTimeObserver()
+        durationObserver?.invalidate()
+        durationObserver = nil
         isPlayingAIMusic = false
         currentTime = 0
         duration = 0
@@ -498,5 +482,21 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
 
     deinit {
         print("AudioManager: deinit called.")
+    }
+
+    @objc private func playerItemDidReachEnd() {
+        print("AudioManager: AI music playback finished")
+        isPlayingMusic = false
+        isPlayingAIMusic = false
+        currentTime = 0
+        
+        // Clean up the player
+        cleanupAIPlayback()
+        
+        // Notify that playback has finished
+        NotificationCenter.default.post(
+            name: AudioManager.audioDidFinishNotification,
+            object: nil
+        )
     }
 }

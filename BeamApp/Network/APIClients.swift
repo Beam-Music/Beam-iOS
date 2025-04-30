@@ -70,7 +70,8 @@ struct APIClient {
             }
         },
         getPlayableAISongs: { token in
-            guard let url = URL(string: Endpoints.AISong.playable) else {
+            let urlString = Endpoints.AISong.playable
+            guard let url = URL(string: urlString) else {
                 throw APIError.invalidURL
             }
             
@@ -92,7 +93,23 @@ struct APIClient {
                 
                 let decoder = JSONDecoder()
                 decoder.keyDecodingStrategy = .convertFromSnakeCase
-                return try decoder.decode([PlayableTrackDTO].self, from: data)
+                var tracks = try decoder.decode([PlayableTrackDTO].self, from: data)
+                
+                // Create new tracks with isAIGenerated set to true
+                tracks = tracks.map { track in
+                    PlayableTrackDTO(
+                        id: track.id,
+                        title: track.title,
+                        artistName: track.artistName,
+                        playbackUrl: track.playbackUrl,
+                        playbackStoreID: track.playbackStoreID,
+                        isAIGenerated: true,
+                        duration: track.duration,
+                        fileUrl: track.fileUrl
+                    )
+                }
+                
+                return tracks
             } catch let error as APIError {
                 throw error
             } catch {
@@ -115,4 +132,5 @@ extension DependencyValues {
 
 private struct APIClientKey: DependencyKey {
     static let liveValue: APIClient = APIClient.liveValue
-} 
+}
+

@@ -130,12 +130,19 @@ struct PlayerReducer {
                 }
                 
             case .nextTrack:
-                guard !state.playlist.isEmpty, !state.isTransitioning else { return .none }
+                guard !state.playlist.isEmpty, !state.isTransitioning else {
+                    print("PlayerReducer: Cannot move to next track - playlist empty or transitioning")
+                    return .none
+                }
+                
                 if let nextIndex = findNextTrackIndexSequentially(
                     currentIndex: state.currentIndex,
                     playlistCount: state.playlist.count
                 ) {
-                    return .send(.updateCurrentIndex(nextIndex))
+                    print("PlayerReducer: Moving to next track at index \(nextIndex)")
+                    state.isTransitioning = true
+                    state.currentIndex = nextIndex
+                    return .send(.startPlayback)
                 }
                 return .none
                 
@@ -171,12 +178,14 @@ struct PlayerReducer {
                 print("PlayerReducer: Audio finished, checking for next track")
                 state.isTransitioning = true
                 
+                // Find the next track
                 if let nextIndex = findNextTrackIndexSequentially(
                     currentIndex: state.currentIndex,
                     playlistCount: state.playlist.count
                 ) {
                     print("PlayerReducer: Found next track at index \(nextIndex)")
                     state.currentIndex = nextIndex
+                    state.isPlaying = true // Ensure playback continues
                     return .merge(
                         .send(.startPlayback),
                         .send(.playbackFinished)
@@ -209,96 +218,43 @@ struct PlayerReducer {
                 
             case .startPlayback:
                 guard let track = state.currentTrack else {
+                    print("PlayerReducer: No current track to play")
                     state.isPlaying = false
                     state.isTransitioning = false
-                    return .run { _ async in await audioManager.stop() }
+                    return .run { send in
+                        await audioManager.stop()
+                    }
                 }
                 
-                // Add detailed logging for track information
-                print("🔍 Track Details:")
-                print("   Title: \(track.title)")
-                print("   ID: \(track.id)")
-                print("   Is AI Generated: \(track.isAIGenerated)")
-                print("   Playback URL: \(track.playbackUrl ?? "nil")")
-                print("   Store ID: \(track.playbackStoreID ?? "nil")")
+                // Start a background task to ensure playback continues
+                let backgroundTaskID = UIApplication.shared.beginBackgroundTask { }
                 
-                // Set state before the effect
-                state.isPlaying = true
-                let trackCopy = track // Capture the track value
-                
-                return .run { send async in
-                    var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-                    var taskIDForHandler = UIBackgroundTaskIdentifier.invalid
-                    
-                    backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
-                        print("⚠️ Background task expired for playback start. Task ID: \(taskIDForHandler)")
-                        if taskIDForHandler != .invalid {
-                            UIApplication.shared.endBackgroundTask(taskIDForHandler)
-                        }
-                    }
-                    taskIDForHandler = backgroundTaskID
-                    
-                    print("Started background task: \(backgroundTaskID)")
-                    print("PlayerReducer: Starting playback for track '\(trackCopy.title)' (ID: \(trackCopy.id))")
-                    print("Track type: \(trackCopy.isAIGenerated ? "AI Generated" : "MusicKit")")
-                    
+                return .run { send in
                     do {
-                        // First stop any existing playback
-                        await audioManager.stop()
-                        
-                        // Double check AI status and playback URL
-                        if trackCopy.isAIGenerated {
-                            print("🎵 Attempting AI track playback")
-                            guard let urlString = trackCopy.playbackUrl, !urlString.isEmpty else {
-                                print("❌ AI track missing URL: \(trackCopy.title) (ID: \(trackCopy.id))")
-                                throw PlayerError.invalidURL("AI track URL missing or empty for track: \(trackCopy.title) (ID: \(trackCopy.id))")
-                            }
-                            print("🎵 Playing AI track '\(trackCopy.title)' from URL: \(urlString)")
-                            try await audioManager.playAIMusic(from: urlString)
-                            print("✅ Successfully started AI track playback")
-                            
-                            // Add delay before checking playback status for AI tracks
-                            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay for AI tracks
-                        } else {
-                            print("🎵 Playing MusicKit track '\(trackCopy.title)'")
-                            if let storeID = trackCopy.playbackStoreID {
-                                print("Using store ID: \(storeID)")
-                                try await audioManager.playAppleMusicTrack(title: trackCopy.title, storeID: storeID)
+                        if track.isAIGenerated {
+                            if let fileUrl = track.fileUrl {
+                                print("🎵 Starting AI track playback with file URL: \(fileUrl)")
+                                try await audioManager.playAIMusic(from: fileUrl)
+                                await send(.internalPlaybackStateResponse(true))
+                                await send(.playbackFinished)
                             } else {
-                                print("No store ID available, searching by title")
-                                try await audioManager.playAppleMusicTrack(title: trackCopy.title, storeID: nil)
+                                print("⚠️ AI track missing file URL: \(track.title)")
+                                await send(.playbackError("Missing file URL for AI track"))
                             }
-                            print("✅ Successfully started MusicKit track playback")
-                            
-                            // Add shorter delay for MusicKit tracks
-                            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
-                        }
-                        
-                        // Verify playback started correctly
-                        let isActuallyPlaying = await audioManager.isPlaying()
-                        print("🎵 Playback status check - Is playing: \(isActuallyPlaying)")
-                        
-                        if !isActuallyPlaying {
-                            print("⚠️ Playback verification failed - track not playing after start")
-                            await send(.playbackError("Failed to start playback for track: \(trackCopy.title)"))
-                            return
-                        }
-                        
-                        await send(.playbackFinished)
-                    } catch {
-                        print("❌ Playback failed for track '\(trackCopy.title)': \(error.localizedDescription)")
-                        if trackCopy.isAIGenerated {
-                            print("AI Track Details - URL: \(trackCopy.playbackUrl ?? "nil"), ID: \(trackCopy.id)")
                         } else {
-                            print("MusicKit Track Details - Store ID: \(trackCopy.playbackStoreID ?? "nil"), Title: \(trackCopy.title)")
+                            // MusicKit track - try to play even if playbackStoreID is nil
+                            print("🎵 Attempting Apple Music playback. Title: \(track.title), Store ID: \(track.playbackStoreID ?? "nil - AudioManager will search")")
+                            try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
+                            await send(.internalPlaybackStateResponse(true))
+                            await send(.playbackFinished)
                         }
+                    } catch {
+                        print("❌ Failed to start playback: \(error)")
                         await send(.playbackError(error.localizedDescription))
                     }
                     
-                    if backgroundTaskID != .invalid {
-                        print("Ending background task: \(backgroundTaskID)")
-                        await UIApplication.shared.endBackgroundTask(backgroundTaskID)
-                    }
+                    // End the background task
+                    UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 }
                 
             case .playbackFinished:
@@ -361,17 +317,24 @@ struct PlayerReducer {
                 
                 print("PlayerReducer: Processing \(aiTracks.count) AI tracks")
                 
-                // Create new tracks with isAIGenerated set to true and proper playback URLs
-                let updatedAISongs = aiTracks.map { track -> PlayableTrackDTO in
-                    // Create a new track with isAIGenerated set to true and a valid playback URL
+                // Create new tracks with unique IDs and proper playback URLs
+                let updatedAISongs = aiTracks.enumerated().map { index, track -> PlayableTrackDTO in
+                    // Generate a new UUID for each track to avoid duplicates
+                    let newId = UUID()
+                    print("PlayerReducer: Creating AI track with new ID: \(newId)")
+                    
+                    // Use playbackUrl as fileUrl for AI tracks
+                    let fileUrl = track.playbackUrl ?? "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
+                    
                     return PlayableTrackDTO(
-                        id: track.id,
+                        id: newId,
                         title: track.title,
                         artistName: track.artistName ?? "AI Generated",
-                        playbackUrl: "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc", // Default AI playback URL
-                        playbackStoreID: nil, // AI tracks don't use MusicKit
+                        playbackUrl: fileUrl,
+                        playbackStoreID: nil,
                         isAIGenerated: true,
-                        duration: track.duration ?? 180.0 // Default duration if not provided
+                        duration: track.duration ?? 180.0,
+                        fileUrl: fileUrl // Use the same URL for both playbackUrl and fileUrl
                     )
                 }
                 
@@ -389,12 +352,14 @@ struct PlayerReducer {
                 // If we were playing an AI track, start playing the first new AI track
                 if wasPlaying, let currentTrack = state.currentTrack, currentTrack.isAIGenerated {
                     state.currentIndex = state.playlist.count - updatedAISongs.count // Index of first AI song
+                    state.isTransitioning = false // Reset transitioning state
                     return .send(.startPlayback)
                 }
                 
                 // If we weren't playing anything, start with first AI track
                 if state.currentTrack == nil {
                     state.currentIndex = state.playlist.count - updatedAISongs.count
+                    state.isTransitioning = false // Reset transitioning state
                     return .send(.startPlayback)
                 }
                 
@@ -402,6 +367,7 @@ struct PlayerReducer {
                 if let currentId = currentTrackId,
                    let newIndex = state.playlist.firstIndex(where: { $0.id == currentId }) {
                     state.currentIndex = newIndex
+                    state.isTransitioning = false // Reset transitioning state
                 }
                 
                 return .none
