@@ -226,8 +226,10 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         }
     }
     
-    func playAIMusic(from urlString: String) async throws {
+    func playAIMusic(from urlString: String, title: String, artist: String) async throws {
         print("🎵 Starting AI music playback with file URL: \(urlString)")
+        print("   Title: \(title)")
+        print("   Artist: \(artist)")
         
         guard let url = URL(string: urlString) else {
             print("❌ Invalid AI music URL: \(urlString)")
@@ -248,6 +250,8 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             case .readyToPlay:
                 print("✅ AVPlayerItem is ready to play")
                 self.duration = item.duration.seconds
+                // Update metadata when item is ready
+                self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
             case .failed:
                 print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
             case .unknown:
@@ -295,6 +299,9 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         avPlayer?.play()
         isPlayingMusic = true
         isPlayingAIMusic = true
+        
+        // Update metadata
+        currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
         
         // Verify playback started
         try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay

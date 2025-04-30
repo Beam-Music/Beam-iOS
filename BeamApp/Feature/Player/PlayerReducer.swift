@@ -234,7 +234,11 @@ struct PlayerReducer {
                         if track.isAIGenerated {
                             if let fileUrl = track.fileUrl {
                                 print("🎵 Starting AI track playback with file URL: \(fileUrl)")
-                                try await audioManager.playAIMusic(from: fileUrl)
+                                try await audioManager.playAIMusic(
+                                    from: fileUrl,
+                                    title: track.title,
+                                    artist: track.artistName ?? "AI Generated"
+                                )
                                 await send(.internalPlaybackStateResponse(true))
                                 await send(.playbackFinished)
                             } else {
@@ -485,7 +489,7 @@ protocol AudioManagerProtocol {
     func pause() async
     func stop() async
     func playAppleMusicTrack(title: String?, storeID: String?) async throws
-    func playAIMusic(from urlString: String) async throws
+    func playAIMusic(from urlString: String, title: String, artist: String) async throws
     func isPlaying() async -> Bool
     func tryResume() async -> Bool
     func seek(to seconds: Double) async
