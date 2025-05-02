@@ -90,9 +90,13 @@ struct APIClient {
                 
                 // Set isAIGenerated to true for all tracks
                 tracks = tracks.map { track in
-                    var updatedTrack = track
-                    updatedTrack.isAIGenerated = true
-                    return updatedTrack
+                    return PlayableTrackDTO(
+                        id: track.id,
+                        title: track.title,
+                        artist: track.artist,
+                        duration: track.duration,
+                        isAIGenerated: true
+                    )
                 }
                 
                 return tracks
