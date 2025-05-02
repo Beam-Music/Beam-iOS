@@ -23,7 +23,12 @@ struct UserPlaylist: Codable, Equatable, Identifiable {
 struct PlaylistSummaryDTO: Codable, Identifiable, Equatable {
     let id: UUID?
     let name: String
-    let description: String?
+    var user: User?
+    
+    struct User: Codable, Equatable {
+        let id: UUID
+        let username: String
+    }
 }
 
 //struct PlayableTrackDTO: Equatable, Identifiable, Codable {

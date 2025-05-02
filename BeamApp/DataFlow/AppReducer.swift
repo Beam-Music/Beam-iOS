@@ -63,39 +63,44 @@ struct AppReducer: Reducer {
                 state.loginState.token = token
                 return .none
                 
-            case .signup(.signupResponse(.success)):
-                state.isLoggedIn = true
+            case .login(.loginResponse(.failure)):
+                // 로그인 실패 시 isLoggedIn 상태는 변경하지 않음
                 return .none
                 
-            case .tabBar, .home, .login:
+            case .login(.usernameChanged),
+                 .login(.passwordChanged),
+                 .login(.loginButtonTapped):
+                // 로그인 관련 다른 액션들은 LoginFeature에서 처리
                 return .none
-            
-            case .signup(.usernameChanged(_)):
+                
+            case .signup(.signupResponse(.success)):
+                // 회원가입 요청 성공 시에는 isLoggedIn을 변경하지 않음
+                // 이메일 인증이 완료되어야 로그인 상태가 됨
                 return .none
-            case .signup(.emailChanged(_)):
-                return .none
-            case .signup(.passwordChanged(_)):
-                return .none
-            case .signup(.verificationCodeChanged(_)):
-                return .none
-            case .signup(.signupButtonTapped):
-                return .none
-            case .signup(.verifyButtonTapped):
-                return .none
-            case .signup(.signupResponse(.failure(_))):
-                return .none
-            case .signup(.verifyResponse(_)):
-                return .none
-            case let .signup(.setIsLoggedIn(isLoggedIn)):
-                state.isLoggedIn = isLoggedIn
-                if !isLoggedIn {
-                    // 회원가입 화면에서의 로그아웃도 처리
-                    return .run { _ in
-                        try await tokenStorage.deleteAllTokens()
-                        await AudioManager.shared.stop()
-                        await AudioManager.shared.reset()
-                    }
+                
+            case .signup(.verifyResponse(.success(let response))):
+                switch response {
+                case .success:
+                    state.isLoggedIn = true
                 }
+                return .none
+                
+            case .signup(.usernameChanged),
+                 .signup(.emailChanged),
+                 .signup(.passwordChanged),
+                 .signup(.verificationCodeChanged),
+                 .signup(.signupButtonTapped),
+                 .signup(.verifyButtonTapped),
+                 .signup(.signupResponse(.failure)),
+                 .signup(.verifyResponse(.failure)):
+                return .none
+                
+            case .signup(.setIsLoggedIn(let isLoggedIn)):
+                state.isLoggedIn = isLoggedIn
+                return .none
+                
+            // home과 tabBar 액션은 각각의 Scope에서 처리됨
+            case .home, .tabBar:
                 return .none
             }
         }
