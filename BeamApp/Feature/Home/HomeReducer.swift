@@ -159,14 +159,24 @@ struct HomeReducer {
                 
             case let .startPlayback(playlistTracks):
                 guard let firstTrack = playlistTracks.first else {
+                  
                     return .none
                 }
                 
-                return .run { [title = firstTrack.title] send async in
+                
+                let trackTitle = firstTrack.title
+                
+                let trackStoreID = firstTrack.playbackStoreID
+                
+                
+                return .run { send async in // 캡처 리스트 제거, 직접 변수 사용
                     do {
-                        try await AudioManager.shared.playAppleMusicTrack(with: title)
+                        
+                        try await AudioManager.shared.playAppleMusicTrack(title: trackTitle, storeID: trackStoreID)
                         
                     } catch {
+                       
+                        
                         await send(.playlistFailed("Playback failed: \(error.localizedDescription)"))
                     }
                 }

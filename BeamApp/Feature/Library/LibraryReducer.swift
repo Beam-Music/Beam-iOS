@@ -46,7 +46,7 @@ struct LibraryReducer: Reducer {
                 
             case let .selectPlaylist(playlist):
                 guard let playlistID = playlist.id else {
-                    return .none
+                    return .send(.playlistFetchFailed("Invalid playlist ID"))
                 }
                 let playlistIDString = playlistID.uuidString
                 return .run { send in
@@ -61,18 +61,26 @@ struct LibraryReducer: Reducer {
                 
             case let .playlistLoaded(tracks):
                 state.playlist = tracks
+                state.errorMessage = nil
                 return .send(.startPlayback(tracks))
                 
             case let .startPlayback(tracks):
                 guard let firstTrack = tracks.first else {
                     return .none
                 }
-             
-                return .run { [title = firstTrack.title] send async in
+                
+                let trackTitle = firstTrack.title
+                let trackStoreID = firstTrack.playbackStoreID
+                
+                print("LibraryReducer: Requesting startPlayback for track: \(trackTitle), StoreID: \(trackStoreID ?? "nil")")
+                
+                return .run { send in
                     do {
-                        try await AudioManager.shared.playAppleMusicTrack(with: title)
+                        try await AudioManager.shared.playAppleMusicTrack(title: trackTitle, storeID: trackStoreID)
+                        print("LibraryReducer: playAppleMusicTrack call potentially successful for \(trackTitle)")
                     } catch {
-                        print("Failed to initiate playback for track '\(title)': \(error)")
+                        print("LibraryReducer Error: Failed to initiate playback for track '\(trackTitle)': \(error)")
+                        await send(.playlistFetchFailed("Playback failed: \(error.localizedDescription)"))
                     }
                 }
                 

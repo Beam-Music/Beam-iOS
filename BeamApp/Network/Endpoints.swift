@@ -7,10 +7,10 @@
 import Foundation
 
 struct Endpoints {
-//    static let baseURL = "https://beammusicserver-a12dff0f2245.herokuapp.com"
-    static let baseURL = "http://192.168.1.31:8080"
+    static let baseURL = "https://web-production-9874.up.railway.app"
+//    static let baseURL = "http://192.168.1.31:8080"
     struct Auth {
-        static let login = "\(baseURL)/users/login"
+        static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/users/register"
         static let verify = "\(baseURL)/users/verify"
     }
@@ -22,6 +22,7 @@ struct Endpoints {
     struct AISong {
         static let register = "\(baseURL)/api/ai-songs/register"
         static let playable = "\(baseURL)/api/ai-songs/playable"
+        static let nextTrack = "\(baseURL)/api/ai-songs/next-track"
     }
 
     struct Playlist {
