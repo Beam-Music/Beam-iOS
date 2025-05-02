@@ -18,6 +18,8 @@ struct SignupFeature: Reducer {
         var isVerified: Bool = false
         var isLoggedIn: Bool = false
         var errorMessage: String? = nil
+        var showVerificationSection: Bool = false
+        var token: String? = nil
     }
     
     enum Action: Equatable {
@@ -27,24 +29,47 @@ struct SignupFeature: Reducer {
         case verificationCodeChanged(String)
         case signupButtonTapped
         case verifyButtonTapped
-        case signupResponse(Result<Bool, SignupError>)
-        case verifyResponse(Result<Bool, SignupError>)
+        case signupResponse(Result<SignupResponseType, SignupError>)
+        case verifyResponse(Result<VerifyResponseType, SignupError>)
         case setIsLoggedIn(Bool)
     }
     
-    struct Environment {
-        var signupRequest: (String, String, String) async throws -> Bool
-        var verifyRequest: (String, String, String) async throws -> Bool
+    enum SignupResponseType: Equatable {
+        case newUser
+        case existingUnverifiedUser
+    }
+    
+    enum VerifyResponseType: Equatable {
+        case success(token: String)
     }
     
     enum SignupError: Error, Equatable {
         case invalidResponse
         case serverError(String)
+        case internalServerError(String)
+        case emailServiceError
+        
+        var localizedDescription: String {
+            switch self {
+            case .invalidResponse:
+                return "서버 응답이 올바르지 않습니다."
+            case .serverError(let message):
+                return message
+            case .internalServerError(let message):
+                if message.contains("SendGrid") {
+                    return "현재 이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요."
+                }
+                return "서버 내부 오류가 발생했습니다.\n잠시 후 다시 시도해주세요."
+            case .emailServiceError:
+                return "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요."
+            }
+        }
     }
     
     @Dependency(\.signupRequest) var signupRequest
-    @Dependency(\.verifyRequest) var verifyRequest: (String, String) async throws -> Bool
-
+    @Dependency(\.verifyRequest) var verifyRequest
+    @Dependency(\.tokenStorage) var tokenStorage
+    
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
@@ -62,7 +87,7 @@ struct SignupFeature: Reducer {
                 
             case let .verificationCodeChanged(code):
                 state.verificationCode = code
-                return .none  
+                return .none
                 
             case .signupButtonTapped:
                 state.isLoading = true
@@ -70,17 +95,25 @@ struct SignupFeature: Reducer {
                 
                 return .run { [username = state.username, email = state.email, password = state.password] send in
                     do {
-                        let success = try await signupRequest(username, email, password)
-                        await send(.signupResponse(.success(success)))
+                        let response = try await signupRequest(username, email, password)
+                        await send(.signupResponse(.success(response)))
                     } catch {
-                        await send(.signupResponse(.failure(.serverError(error.localizedDescription))))
+                        if let signupError = error as? SignupError {
+                            await send(.signupResponse(.failure(signupError)))
+                        } else {
+                            await send(.signupResponse(.failure(.serverError(error.localizedDescription))))
+                        }
                     }
                 }
                 
-            case let .signupResponse(.success(success)):
+            case let .signupResponse(.success(response)):
                 state.isLoading = false
-                if success {
-                    // 회원가입 성공 시 필요한 로직 추가 가능
+                state.showVerificationSection = true
+                switch response {
+                case .newUser:
+                    state.errorMessage = "인증 메일이 발송되었습니다. 이메일을 확인해주세요."
+                case .existingUnverifiedUser:
+                    state.errorMessage = "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요."
                 }
                 return .none
                 
@@ -95,20 +128,33 @@ struct SignupFeature: Reducer {
                 
                 return .run { [email = state.email, code = state.verificationCode] send in
                     do {
-                        let success = try await verifyRequest(email, code)
-                        await send(.verifyResponse(.success(success)))
+                        let response = try await verifyRequest(email, code)
+                        await send(.verifyResponse(.success(response)))
                     } catch {
-                        await send(.verifyResponse(.failure(.serverError(error.localizedDescription))))
+                        if let verifyError = error as? SignupError {
+                            await send(.verifyResponse(.failure(verifyError)))
+                        } else {
+                            await send(.verifyResponse(.failure(.serverError(error.localizedDescription))))
+                        }
                     }
                 }
                 
-            case let .verifyResponse(.success(success)):
+            case let .verifyResponse(.success(response)):
                 state.isLoading = false
-                if success {
+                switch response {
+                case let .success(token):
                     state.isVerified = true
-                    return .send(.setIsLoggedIn(true))
+                    state.token = token
+                    state.errorMessage = "이메일 인증이 완료되었습니다."
+                    
+                    return .run { [token] send in
+                        do {
+                            try await tokenStorage.saveToken(token)
+                        } catch {
+                            await send(.verifyResponse(.failure(.serverError("토큰 저장에 실패했습니다: \(error.localizedDescription)"))))
+                        }
+                    }
                 }
-                return .none
                 
             case let .verifyResponse(.failure(error)):
                 state.isLoading = false
@@ -117,25 +163,38 @@ struct SignupFeature: Reducer {
                 
             case let .setIsLoggedIn(isLoggedIn):
                 state.isLoggedIn = isLoggedIn
+                if isLoggedIn, let token = state.token {
+                    return .run { _ in
+                        try await tokenStorage.saveToken(token)
+                    }
+                }
                 return .none
             }
         }
     }
 }
 
+// MARK: - API Response Types
+private struct ErrorResponse: Decodable {
+    let reason: String
+    let error: Bool?
+    let status: Int?
+}
+
 extension DependencyValues {
-    var signupRequest: (String, String, String) async throws -> Bool {
+    var signupRequest: (String, String, String) async throws -> SignupFeature.SignupResponseType {
         get { self[SignupRequestKey.self] }
         set { self[SignupRequestKey.self] = newValue }
     }
-    var verifyRequest: (String, String) async throws -> Bool {
-            get { self[VerifyRequestKey.self] }
-            set { self[VerifyRequestKey.self] = newValue }
-        }
+    
+    var verifyRequest: (String, String) async throws -> SignupFeature.VerifyResponseType {
+        get { self[VerifyRequestKey.self] }
+        set { self[VerifyRequestKey.self] = newValue }
+    }
 }
 
 private struct SignupRequestKey: DependencyKey {
-    static var liveValue: (String, String, String) async throws -> Bool = { username, email, password in
+    static var liveValue: (String, String, String) async throws -> SignupFeature.SignupResponseType = { username, email, password in
         var request = URLRequest(url: URL(string: Endpoints.Auth.register)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -149,16 +208,37 @@ private struct SignupRequestKey: DependencyKey {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
-            throw URLError(.badServerResponse)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SignupFeature.SignupError.invalidResponse
         }
         
-        return true
+        switch httpResponse.statusCode {
+        case 201:
+            return .newUser
+        case 200:
+            return .existingUnverifiedUser
+        case 500:
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                let errorMessage = errorResponse.reason
+                if errorMessage.contains("SendGrid") {
+                    throw SignupFeature.SignupError.emailServiceError
+                }
+                throw SignupFeature.SignupError.internalServerError(errorMessage)
+            }
+            throw SignupFeature.SignupError.internalServerError("알 수 없는 서버 오류가 발생했습니다.")
+        default:
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                throw SignupFeature.SignupError.serverError(errorResponse.reason)
+            } else {
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
+            }
+        }
     }
 }
 
 private struct VerifyRequestKey: DependencyKey {
-    static var liveValue: (String, String) async throws -> Bool = { email, code in
+    static let liveValue: (String, String) async throws -> SignupFeature.VerifyResponseType = { email, code in
         var request = URLRequest(url: URL(string: Endpoints.Auth.verify)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -171,11 +251,34 @@ private struct VerifyRequestKey: DependencyKey {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw URLError(.badServerResponse)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SignupFeature.SignupError.invalidResponse
         }
         
-        return true
+        switch httpResponse.statusCode {
+        case 200:
+            struct TokenResponse: Decodable {
+                let token: String
+            }
+            let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+            return .success(token: tokenResponse.token)
+        case 500:
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                let errorMessage = errorResponse.reason
+                if errorMessage.contains("SendGrid") {
+                    throw SignupFeature.SignupError.emailServiceError
+                }
+                throw SignupFeature.SignupError.internalServerError(errorMessage)
+            }
+            throw SignupFeature.SignupError.internalServerError("알 수 없는 서버 오류가 발생했습니다.")
+        default:
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                throw SignupFeature.SignupError.serverError(errorResponse.reason)
+            } else {
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
+            }
+        }
     }
 }
 

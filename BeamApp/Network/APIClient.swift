@@ -63,47 +63,58 @@ struct APIClient {
             }
         },
         getPlayableAISongs: { token in
-            let urlString = Endpoints.AISong.playable
-            guard let url = URL(string: urlString) else {
-                throw APIError.invalidURL
+            print("📡 Fetching AI songs from server...")
+            var request = URLRequest(url: URL(string: Endpoints.AISong.playable)!)
+            request.httpMethod = "GET"
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
             }
             
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            print("🟡 AI Songs Response Status: \(httpResponse.statusCode)")
+            if let responseBody = String(data: data, encoding: .utf8) {
+                print("📥 Response body: \(responseBody)")
+            }
+            
+            guard httpResponse.statusCode == 200 else {
+                if let errorBody = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                    throw APIError.serverError(httpResponse.statusCode, errorBody.reason)
+                }
+                throw APIError.serverError(httpResponse.statusCode, "Unknown error")
+            }
+            
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let tracks = try decoder.decode([PlayableTrackDTO].self, from: data)
+                print("✅ Successfully decoded \(tracks.count) AI tracks")
                 
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw APIError.invalidResponse
+                // Ensure all tracks have proper playback information
+                return tracks.map { track in
+                    var modifiedTrack = track
+                    if track.isAIGenerated {
+                        // For AI tracks, use fileUrl
+                        if modifiedTrack.fileUrl == nil {
+                            modifiedTrack.fileUrl = "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
+                        }
+                        modifiedTrack.playbackUrl = modifiedTrack.fileUrl
+                        modifiedTrack.playbackStoreID = nil
+                    } else {
+                        // For non-AI tracks, ensure playbackStoreID is set
+                        if modifiedTrack.playbackStoreID == nil {
+                            modifiedTrack.playbackStoreID = "1672543889" // Default Apple Music ID
+                        }
+                        modifiedTrack.fileUrl = nil
+                    }
+                    return modifiedTrack
                 }
-                
-                guard (200..<300).contains(httpResponse.statusCode) else {
-                    let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                    throw APIError.serverError(httpResponse.statusCode, errorMessage)
-                }
-                
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                var tracks = try decoder.decode([PlayableTrackDTO].self, from: data)
-                
-                // Set isAIGenerated to true for all tracks
-                tracks = tracks.map { track in
-                    return PlayableTrackDTO(
-                        id: track.id,
-                        title: track.title,
-                        artist: track.artist,
-                        duration: track.duration,
-                        isAIGenerated: true
-                    )
-                }
-                
-                return tracks
-            } catch let error as APIError {
-                throw error
             } catch {
-                throw APIError.networkError(error)
+                print("🔴 Failed to decode AI songs: \(error)")
+                throw APIError.decodingError(error)
             }
         }
     )

@@ -123,8 +123,15 @@ struct HomeReducer {
                     do {
                         let recommendPlaylists = try await HomeFeature.fetchRecommendPlaylists()
                         await send(.recommendPlaylistsLoaded(recommendPlaylists))
+                    } catch let error as APIError {
+                        switch error {
+                        case .serverError(404, _):
+                            await send(.recommendPlaylistsLoaded([]))
+                        default:
+                            await send(.recommendPlaylistsFailed(error.localizedDescription))
+                        }
                     } catch {
-                        await send(.recommendPlaylistsFailed(error.localizedDescription))
+                        await send(.recommendPlaylistsFailed("Failed to load recommended playlists. Please try again later."))
                     }
                 }
             case .fetchRecommendPlaylistSongs(let playlistID):
@@ -139,13 +146,15 @@ struct HomeReducer {
                 
             case let .recommendPlaylistsLoaded(playlists):
                 state.recommendedPlaylists = playlists
-                if let firstPlaylist = playlists.first, let playlistID = firstPlaylist.id {
+                state.errorMessage = nil
+                if playlists.isEmpty {
+                    state.errorMessage = "No recommended playlists available yet."
+                } else if let firstPlaylist = playlists.first, let playlistID = firstPlaylist.id {
                     let playlistIDString = playlistID.uuidString
                     state.selectedPlaylistID = playlistIDString
                     return .send(.fetchRecommendPlaylistSongs(playlistIDString))
                 }
                 return .none
-                
                 
             case let .recommendPlaylistsFailed(error):
                 state.errorMessage = error

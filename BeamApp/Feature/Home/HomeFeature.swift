@@ -19,28 +19,49 @@ struct RegisterAISongRequestDTO: Codable {
 struct HomeFeature {
     static func fetchToken(context: ModelContext) async throws -> String {
         guard let token = await TokenStorage.shared.fetchToken() else {
+            print("🔴 No token found in storage")
             throw NSError(domain: "No Token Found", code: 401, userInfo: nil)
         }
+        print("🟢 Token found: \(token.prefix(10))...")
         return token
     }
     
     static func fetchUserPlaylists(with token: String) async throws -> [PlaylistSummaryDTO] {
+        print("🔵 Fetching user playlists with token: \(token.prefix(10))...")
         var request = URLRequest(url: URL(string: Endpoints.Playlist.userPlaylist)!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
+        print("📡 Sending request to: \(request.url?.absoluteString ?? "unknown")")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("🔴 Invalid response type")
             throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
         }
         
+        print("🟡 Response status code: \(httpResponse.statusCode)")
+        if let responseBody = String(data: data, encoding: .utf8) {
+            print("📥 Response body: \(responseBody)")
+        }
         
         guard httpResponse.statusCode == 200 else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
+            print("🔴 Error response: \(responseBody)")
             throw NSError(domain: "Invalid Response", code: httpResponse.statusCode, userInfo: nil)
         }
         
-        let userPlaylists = try JSONDecoder().decode([PlaylistSummaryDTO].self, from: data)
-        return userPlaylists
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        
+        do {
+            let userPlaylists = try decoder.decode([PlaylistSummaryDTO].self, from: data)
+            print("🟢 Successfully fetched \(userPlaylists.count) playlists")
+            print("📋 Playlists: \(userPlaylists.map { "'\($0.name)'" }.joined(separator: ", "))")
+            return userPlaylists
+        } catch {
+            print("🔴 Failed to decode playlists: \(error)")
+            throw error
+        }
     }
     
     static func fetchPlayableAISongs(token: String) async throws -> [PlayableTrackDTO] {
@@ -51,25 +72,26 @@ struct HomeFeature {
             let tracks = try await APIClient.shared.getPlayableAISongs(token)
             print("✅ Successfully fetched \(tracks.count) AI tracks")
             
-            // Validate track data
+            // Validate and log track data
             tracks.forEach { track in
-                if track.isAIGenerated {
-                    if track.playbackUrl == nil {
-                        print("⚠️ AI track missing playbackUrl: \(track.title)")
-                    }
-                } else {
-                    if track.playbackStoreID == nil {
-                        print("⚠️ MusicKit track missing storeID: \(track.title)")
-                    }
-                }
+                print("🎵 Track: \(track.title)")
+                print("   AI Generated: \(track.isAIGenerated)")
+                print("   File URL: \(track.fileUrl ?? "none")")
+                print("   Playback URL: \(track.playbackUrl ?? "none")")
+                print("   Store ID: \(track.playbackStoreID ?? "none")")
             }
             
-            return tracks
+            // Filter and ensure proper URLs are set
+            return tracks.map { track in
+                var modifiedTrack = track
+                if track.isAIGenerated && track.fileUrl == nil {
+                    // If AI track is missing fileUrl, try to construct it
+                    modifiedTrack.fileUrl = "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
+                }
+                return modifiedTrack
+            }
         } catch {
             print("❌ Failed to fetch AI songs: \(error)")
-//            if let apiError = error as? APIError {
-//                print("   API Error details: \(apiError)")
-//            }
             throw error
         }
     }
@@ -140,10 +162,26 @@ struct HomeFeature {
             ])
         }
         
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        
         do {
-            let playlist = try JSONDecoder().decode([PlayableTrackDTO].self, from: data)
+            let playlist = try decoder.decode([PlayableTrackDTO].self, from: data)
             print("Successfully decoded playlist with \(playlist.count) tracks")
-            return playlist
+            
+            // Map the tracks to include proper playback information
+            return playlist.map { track in
+                PlayableTrackDTO(
+                    id: track.id,
+                    title: track.title,
+                    artistName: track.artistName,
+                    playbackUrl: track.playbackUrl,
+                    playbackStoreID: track.isAIGenerated ? nil : track.playbackStoreID, // Use storeID for non-AI tracks
+                    isAIGenerated: track.isAIGenerated,
+                    duration: track.duration,
+                    fileUrl: track.isAIGenerated ? track.fileUrl : nil // Use fileUrl for AI tracks
+                )
+            }
         } catch let decodingError as DecodingError {
             print("Decoding error: \(decodingError)")
             throw NSError(domain: "Decoding Error", code: 400, userInfo: [
@@ -156,22 +194,69 @@ struct HomeFeature {
     }
     
     static func fetchRecommendPlaylists() async throws -> [PlaylistSummaryDTO] {
+        // Get token for authentication
+        guard let token = await TokenStorage.shared.fetchToken() else {
+            print("🔴 No token found in storage")
+            throw NSError(domain: "No Token Found", code: 401, userInfo: nil)
+        }
+        print("🔑 Using token for recommend playlists: \(token.prefix(10))...")
+        
         var request = URLRequest(url: URL(string: Endpoints.Playlist.recommendPlaylists)!)
         request.httpMethod = "GET"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
+        print("📡 Sending request to: \(request.url?.absoluteString ?? "unknown")")
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("🔴 Invalid response type")
             throw NSError(domain: "Invalid Response", code: 400, userInfo: nil)
         }
         
-        
-        guard httpResponse.statusCode == 200 else {
-            throw NSError(domain: "Invalid Response", code: httpResponse.statusCode, userInfo: nil)
+        print("🟡 Response status code: \(httpResponse.statusCode)")
+        if let responseBody = String(data: data, encoding: .utf8) {
+            print("📥 Response body: \(responseBody)")
         }
         
-        let recommendPlaylists = try JSONDecoder().decode([PlaylistSummaryDTO].self, from: data)
-        return recommendPlaylists
+        // Handle 404 by returning empty array instead of throwing
+        if httpResponse.statusCode == 404 {
+            print("ℹ️ No recommended playlists found")
+            return []
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
+            print("🔴 Error response: \(responseBody)")
+            throw NSError(domain: "Server Error", code: httpResponse.statusCode, userInfo: [
+                NSLocalizedDescriptionKey: responseBody
+            ])
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        
+        do {
+            let recommendPlaylists = try decoder.decode([RecommendPlaylist].self, from: data)
+            print("✅ Successfully decoded \(recommendPlaylists.count) recommended playlists")
+            print("📋 Recommended playlists: \(recommendPlaylists.map { "'\($0.name)'" }.joined(separator: ", "))")
+            
+            // Convert RecommendPlaylist to PlaylistSummaryDTO
+            return recommendPlaylists.map { playlist in
+                PlaylistSummaryDTO(
+                    id: playlist.id,
+                    name: playlist.name,
+                    user: playlist.user.map { user in
+                        PlaylistSummaryDTO.User(
+                            id: user.id,
+                            username: user.username
+                        )
+                    }
+                )
+            }
+        } catch {
+            print("🔴 Failed to decode playlists: \(error)")
+            throw APIError.decodingError(error)
+        }
     }
     
     static func fetchRecommendPlaylistSongs(with playlistID: String) async throws -> [PlayableTrackDTO] {

@@ -10,100 +10,128 @@ import ComposableArchitecture
 
 struct SignupView: View {
     let store: StoreOf<SignupFeature>
-    @State private var navigateToHome = false
     @Environment(\.presentationMode) var presentationMode
-    
-    var backButton: some View {
-        Button {
-            self.presentationMode.wrappedValue.dismiss()
-        } label: {
-            HStack {
-                Image(systemName: "chevron.left")
-                    .aspectRatio(contentMode: .fit)
-                Text("뒤로")
-                    .foregroundColor(.white)
-            }
-        }
-        .foregroundColor(.white)
-    }
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        NavigationView {
-            WithViewStore(self.store, observe: { $0 }) { viewStore in
-                VStack {
-                    TextField("usename", text: viewStore.binding(
-                        get: \.username,
-                        send: SignupFeature.Action.usernameChanged
-                    ))
-                    .padding()
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(8)
-                    .padding(.horizontal, 30)
-                    
-                    TextField("Email address", text: viewStore.binding(
-                        get: \.email,
-                        send: SignupFeature.Action.emailChanged
-                    ))
-                    .padding()
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(8)
-                    .padding(.horizontal, 30)
-                    
-                    SecureField("Password", text: viewStore.binding(
-                        get: \.password,
-                        send: SignupFeature.Action.passwordChanged
-                    ))
-                    .padding()
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(8)
-                    .padding(.horizontal, 30)
-                    
-                    Button("Sign up") {
-                        viewStore.send(.signupButtonTapped)
-                    }
-                    .disabled(viewStore.isLoading)
-                    .padding()
-                    .background(Color.purple)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .padding(.horizontal, 30)
-                    .padding(.top, 50)
-                    
-                    if viewStore.isLoading {
-                        ProgressView()
-                    }
-                    
-                    if let errorMessage = viewStore.errorMessage {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                    }
-                    if viewStore.isVerified == false {
-                        TextField("Verification Code", text: viewStore.binding(
-                            get: \.verificationCode,
-                            send: SignupFeature.Action.verificationCodeChanged
-                        ))
+        WithViewStore(self.store, observe: { $0 }) { viewStore in
+            VStack(spacing: 20) {
+                Text("회원가입")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .padding(.bottom, 20)
+
+                // --- 회원가입 입력 필드 ---
+                TextField("사용자 이름", text: viewStore.binding(
+                    get: \.username,
+                    send: SignupFeature.Action.usernameChanged
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .textContentType(.username)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+                .disabled(viewStore.isVerified)
+                .padding(.horizontal, 30)
+
+                TextField("이메일", text: viewStore.binding(
+                    get: \.email,
+                    send: SignupFeature.Action.emailChanged
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .keyboardType(.emailAddress)
+                .textContentType(.emailAddress)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+                .disabled(viewStore.isVerified)
+                .padding(.horizontal, 30)
+
+                SecureField("비밀번호", text: viewStore.binding(
+                    get: \.password,
+                    send: SignupFeature.Action.passwordChanged
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .textContentType(.newPassword)
+                .disabled(viewStore.isVerified)
+                .padding(.horizontal, 30)
+
+                // 회원가입 요청 버튼
+                Button(action: { viewStore.send(.signupButtonTapped) }) {
+                    Text("가입 요청 및 인증 메일 받기")
+                        .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.white.opacity(0.2))
-                        .cornerRadius(8)
-                        .padding(.horizontal, 30)
-                        
-                        Button("Verify Code") {
-                            viewStore.send(.verifyButtonTapped)
-                        }
-                        .disabled(viewStore.verificationCode.isEmpty || viewStore.isLoading)
-                        .padding()
-                        .background(Color.blue)
+                        .background(Color.purple)
                         .foregroundColor(.white)
                         .cornerRadius(10)
-                        .padding(.horizontal, 30)
-                    }
                 }
-                .padding()
+                .disabled(
+                    viewStore.isLoading || 
+                    viewStore.username.isEmpty || 
+                    viewStore.email.isEmpty || 
+                    viewStore.password.isEmpty || 
+                    viewStore.isVerified
+                )
+                .padding(.horizontal, 30)
+                .padding(.top, 20)
+
+                // --- 이메일 인증 섹션 ---
+                if !viewStore.isVerified {
+                    Divider()
+                        .padding(.vertical)
+                        .padding(.horizontal, 30)
+
+                    Text("이메일로 전송된 인증 코드를 입력하세요.")
+                        .font(.headline)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+
+                    TextField("인증 코드", text: viewStore.binding(
+                        get: \.verificationCode,
+                        send: SignupFeature.Action.verificationCodeChanged
+                    ))
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .keyboardType(.numberPad)
+                    .disabled(viewStore.isLoading)
+                    .padding(.horizontal, 30)
+
+                    Button(action: { viewStore.send(.verifyButtonTapped) }) {
+                        Text("이메일 인증")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .disabled(viewStore.isLoading || viewStore.verificationCode.isEmpty)
+                    .padding(.horizontal, 30)
+                }
+
+                // --- 상태 표시 ---
+                if viewStore.isLoading {
+                    ProgressView("처리 중...")
+                        .tint(.purple)
+                }
+
+                if let errorMessage = viewStore.errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding(.top)
+                }
+
+                if viewStore.isLoggedIn {
+                    Text("회원가입 및 인증 완료!")
+                        .foregroundColor(.green)
+                        .padding(.top)
+                }
+
+                Spacer()
             }
+            .padding()
+            .background(colorScheme == .dark ? Color.black : Color.white)
+            .navigationBarBackButtonHidden(true)
+            .navigationBarItems(leading: BackButton(action: {
+                self.presentationMode.wrappedValue.dismiss()
+            }))
         }
-        .navigationBarBackButtonHidden(true)
-        .navigationBarItems(leading: BackButton(action: {
-            self.presentationMode.wrappedValue.dismiss()
-        }))
     }
 }
