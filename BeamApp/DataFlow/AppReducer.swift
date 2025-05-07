@@ -31,7 +31,7 @@ struct AppReducer: Reducer {
     }
 
     enum Tab: Equatable {
-        case home, library
+        case home, library, settings
     }
     
     @Dependency(\.tokenStorage) var tokenStorage
