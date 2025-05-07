@@ -296,24 +296,26 @@ struct PlayerView: View {
             ZStack {
                 LinearGradient(
                     gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
-                    startPoint: .topLeading, endPoint: .bottomTrailing
+                    startPoint: .top, endPoint: .bottom
                 )
                 .ignoresSafeArea()
                 VStack(spacing: 0) {
-                    HStack {
-                        Button(action: { isMiniPlayerVisible = false }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Playlists")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        Spacer()
-                    }
-                    .padding(.top, 24)
-                    .padding(.horizontal)
-                    Spacer().frame(height: 8)
+                    // HStack {
+                    //     Button(action: { isMiniPlayerVisible = false }) {
+                    //         HStack(spacing: 6) {
+                    //             Image(systemName: "chevron.left")
+                    //                 .font(.system(size: 18, weight: .bold))
+                    //                 .foregroundColor(.white)
+                    //             Text("Playlists")
+                    //                 .font(.system(size: 18, weight: .semibold))
+                    //                 .foregroundColor(.white)
+                    //         }
+                    //     }
+                    //     Spacer()
+                    // }
+                    // .padding(.top, 24)
+                    // .padding(.horizontal)
+                    // Spacer().frame(height: 8)
                     AlbumArtView(albumArt: audioManager.currentTrackMetadata.albumArt)
                         .frame(width: 320, height: 320)
                         .cornerRadius(24)
@@ -436,7 +438,6 @@ struct PlayerView: View {
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 24)
-                // Remix Artist Picker Sheet
                 if isRemixSheetPresented {
                     RemixArtistPickerView(isPresented: $isRemixSheetPresented, selectedArtists: $selectedArtists, allArtists: mockArtists)
                         .transition(.move(edge: .bottom))

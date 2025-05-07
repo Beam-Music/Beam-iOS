@@ -28,7 +28,7 @@ struct TabBarView: View {
                             action: { AppReducer.Action.tabBar(.home($0)) }
                          ))
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("홈", systemImage: "house.fill")
                 }
                 .tag(AppReducer.Tab.home)
                 
@@ -38,9 +38,18 @@ struct TabBarView: View {
                 ),
                             isMiniPlayerVisible: $isMiniPlayerVisible)
                 .tabItem {
-                    Label("Library", systemImage: "books.vertical.fill")
+                    Label("플레이리스트", systemImage: "music.note.list")
                 }
                 .tag(AppReducer.Tab.library)
+
+                SettingsView(isLoggedIn: viewStore.binding(
+                    get: \.isLoggedIn,
+                    send: { .setLoggedIn($0) }
+                ))
+                .tabItem {
+                    Label("설정", systemImage: "gearshape.fill")
+                }
+                .tag(AppReducer.Tab.settings)
             }
             .accentColor(Color.purple)
             .background(colorScheme == .dark ? Color.black : Color.white)

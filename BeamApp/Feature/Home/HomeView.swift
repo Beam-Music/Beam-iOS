@@ -8,7 +8,7 @@
 import SwiftUI
 import ComposableArchitecture
 
-// MARK: - Playlist Row View
+
 struct PlaylistRowView: View {
     let playlist: PlaylistSummaryDTO
     let onPlayTapped: () -> Void
@@ -75,34 +75,46 @@ struct HomeView: View {
     let store: StoreOf<HomeReducer>
     @Environment(\.colorScheme) var colorScheme
     
+    @State private var selectedTab: Int = 0
+    @State private var searchText: String = ""
+   
+    
     var body: some View {
-        WithViewStore(self.store, observe: { $0 }) { viewStore in
-            NavigationView {
-                VStack(spacing: 12) {
-                    PlaylistListView(
-                        playlists: viewStore.recommendedPlaylists,
-                        onPlaylistSelected: { playlist in
-                            viewStore.send(.selectPlaylist(playlist))
-                            isMiniPlayerVisible = true
-                        }
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
+                startPoint: .top, endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            VStack(spacing: 0) {
+               
+                HStack {
+                    TextField("노래/가수 검색하기", text: $searchText)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .stroke(Color.white.opacity(0.7), lineWidth: 1.2)
+                        )
+                        .foregroundColor(.white)
+                        .font(.system(size: 17, weight: .medium))
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 32)
+                Spacer()
+                HStack {
+                    Spacer(minLength: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white)
+                            .shadow(color: Color.black.opacity(0.08), radius: 2, x: 1, y: 2)
                     )
+                    .padding(.leading, 24)
+                    Spacer()
                 }
-                .padding()
-                .background(colorScheme == .dark ? Color.black : Color.white)
-                .navigationBarItems(trailing: HomeNavigationBarView(isLoggedIn: $isLoggedIn))
-                .onAppear {
-                    viewStore.send(.fetchUserPlaylists)
-                    viewStore.send(.fetchRecommendPlaylists)
-                    if let selectedPlaylistID = viewStore.selectedPlaylistID {
-                        viewStore.send(.fetchPlaylist(selectedPlaylistID))
-                        viewStore.send(.fetchRecommendPlaylistSongs(selectedPlaylistID))
-                    }
-                }
-                .onChange(of: viewStore.playlist) { _ in
-                    isMiniPlayerVisible = !viewStore.playlist.isEmpty
-                }
+                Spacer()
+                
             }
-            .background(colorScheme == .dark ? Color.black : Color.white)
         }
     }
 }
