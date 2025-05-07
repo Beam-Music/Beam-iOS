@@ -164,6 +164,92 @@ struct RemixAIToggle: View {
     }
 }
 
+struct Artist: Identifiable, Equatable {
+    let id: UUID = UUID()
+    let name: String
+    let imageName: String // asset name or URL
+}
+
+struct RemixArtistPickerView: View {
+    @Binding var isPresented: Bool
+    @Binding var selectedArtists: [Artist]
+    @State private var searchText: String = ""
+    let allArtists: [Artist]
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(Color.black.opacity(0.18))
+                    .frame(width: 80, height: 8)
+                    .padding(.top, 16)
+                    .padding(.bottom, 12)
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.white.opacity(0.7))
+                    TextField("아티스트 검색", text: $searchText)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
+                    Spacer()
+                    Button("완료") {
+                        isPresented = false
+                    }
+                    .foregroundColor(.purple)
+                    .font(.system(size: 16, weight: .bold))
+                }
+                .padding(.horizontal)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(16)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(allArtists.filter { searchText.isEmpty ? true : $0.name.localizedCaseInsensitiveContains(searchText) }) { artist in
+                            Button(action: {
+                                if selectedArtists.contains(artist) {
+                                    selectedArtists.removeAll { $0 == artist }
+                                } else {
+                                    selectedArtists.append(artist)
+                                }
+                            }) {
+                                HStack(spacing: 16) {
+                                    Image(artist.imageName)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 40, height: 40)
+                                        .clipShape(Circle())
+                                    Text(artist.name)
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 18, weight: .medium))
+                                    Spacer()
+                                    if selectedArtists.contains(artist) {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                .padding(.vertical, 14)
+                                .padding(.horizontal, 18)
+                                .background(selectedArtists.contains(artist) ? Color.purple.opacity(0.6) : Color.clear)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 320)
+                Spacer(minLength: 0)
+            }
+            .background(
+                LinearGradient(gradient: Gradient(colors: [Color.black.opacity(0.85), Color.purple.opacity(0.7)]), startPoint: .top, endPoint: .bottom)
+                    .cornerRadius(24)
+            )
+            .padding(.horizontal, 24)
+            .padding(.vertical, 60)
+        }
+        .onTapGesture {
+            isPresented = false
+        }
+    }
+}
+
 // MARK: - Main Player View
 struct PlayerView: View {
     let store: StoreOf<PlayerReducer>
@@ -171,7 +257,14 @@ struct PlayerView: View {
     @State private var isDetailViewPresented = false
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var audioManager = AudioManager.shared
-    @State private var isAIVersion = false
+    @State private var isRemixSheetPresented = false
+    @State private var selectedArtists: [Artist] = []
+    let mockArtists: [Artist] = [
+        Artist(name: "Dua Lipa", imageName: "artist_dualipa"),
+        Artist(name: "BlackPink", imageName: "artist_blackpink"),
+        Artist(name: "H.E.R", imageName: "artist_her"),
+        Artist(name: "Rihanna", imageName: "artist_rihanna")
+    ]
     
     struct ViewState: Equatable {
         let isPlaying: Bool
@@ -187,6 +280,15 @@ struct PlayerView: View {
             self.playlist = state.playlist
             self.currentIndex = state.currentIndex
         }
+    }
+    
+    var combinedArtistLabel: String {
+        let base = audioManager.currentTrackMetadata.artist ?? ""
+        let baseArtists = base.split(separator: "+").map { $0.trimmingCharacters(in: .whitespaces) }
+        let remixNames = selectedArtists.map { $0.name }
+        let all = (baseArtists + remixNames).filter { !$0.isEmpty }
+        let unique = Array(NSOrderedSet(array: all)) as? [String] ?? all
+        return unique.joined(separator: " + ")
     }
     
     var body: some View {
@@ -234,7 +336,7 @@ struct PlayerView: View {
                             }
                         }
                         .padding(.horizontal)
-                        Text(audioManager.currentTrackMetadata.artist ?? "Unknown Artist")
+                        Text(combinedArtistLabel)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white.opacity(0.8))
                             .padding(.horizontal)
@@ -297,7 +399,7 @@ struct PlayerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 18)
                     HStack(spacing: 18) {
-                        Button(action: {/* TODO: Remix */}) {
+                        Button(action: { isRemixSheetPresented = true }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "music.note")
                                 Text("Remix")
@@ -306,11 +408,21 @@ struct PlayerView: View {
                             .foregroundColor(.white)
                             .padding(.vertical, 10)
                             .padding(.horizontal, 28)
-                            .background(Color.purple.opacity(0.7))
-                            .clipShape(Capsule())
+                            .background(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(Color.white.opacity(viewStore.isAIMusicEnabled ? 0.7 : 0.25), lineWidth: 2)
+                                    .background(
+                                        viewStore.isAIMusicEnabled ? Color.purple.opacity(0.7).cornerRadius(24) : Color.clear.cornerRadius(24)
+                                    )
+                            )
                         }
-                        RemixAIToggle(isAIVersion: $isAIVersion)
-                            .frame(width: 180)
+                        .disabled(!viewStore.isAIMusicEnabled)
+                        .opacity(viewStore.isAIMusicEnabled ? 1 : 0.4)
+                        RemixAIToggle(isAIVersion: Binding(
+                            get: { viewStore.isAIMusicEnabled },
+                            set: { newValue in viewStore.send(.toggleAIMusic(newValue)) }
+                        ))
+                        .frame(width: 180)
                     }
                     .padding(.bottom, 28)
                     PlayerControlsView(
@@ -324,6 +436,12 @@ struct PlayerView: View {
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 24)
+                // Remix Artist Picker Sheet
+                if isRemixSheetPresented {
+                    RemixArtistPickerView(isPresented: $isRemixSheetPresented, selectedArtists: $selectedArtists, allArtists: mockArtists)
+                        .transition(.move(edge: .bottom))
+                        .zIndex(10)
+                }
             }
             .onAppear {
                 viewStore.send(.syncPlaybackState)

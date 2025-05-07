@@ -76,10 +76,10 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
     let title: String
     let artistName: String?
     let playbackUrl: String?
-    let playbackStoreID: String? // MusicKit Store ID for Apple Music tracks
+    let playbackStoreID: String? 
     let isAIGenerated: Bool
     let duration: TimeInterval?
-    let fileUrl: String? // URL for AI-generated music files
+    var fileUrl: String?
     
     enum CodingKeys: String, CodingKey {
         case id
