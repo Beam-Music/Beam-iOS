@@ -85,8 +85,6 @@ Beam은 AI 음악 생성과 Apple Music 통합을 제공하는 iOS 음악 스트
 ## 필수 설정
 
 ```bash
-# 프로젝트 클론
-git clone https://github.com/your-username/Beam-iOS.git
 
 # 의존성 설치
 cd Beam-iOS
@@ -113,8 +111,6 @@ cp .env.example .env
 JWT_SECRET=your_jwt_secret_here
 MUSIC_KIT_KEY=your_music_kit_key_here
 
-# API Endpoints
-API_BASE_URL=http://localhost:8080
 API_VERSION=v1
 
 # Feature Flags
@@ -123,7 +119,6 @@ ENABLE_APPLE_MUSIC=true
 
 # Analytics
 ENABLE_ANALYTICS=false
-ANALYTICS_KEY=your_analytics_key_here
 ```
 
 2. 환경 변수 사용:
