@@ -1,4 +1,11 @@
 //
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  OnboardVisionView2.swift
 //  BeamApp
 //
@@ -38,4 +45,4 @@ struct OnboardVisionView: View {
         }
         .padding()
     }
-} 
+}

@@ -1,3 +1,4 @@
+
 //
 //  OnboardFinalView2.swift
 //  BeamApp
@@ -12,7 +13,7 @@ struct OnboardFinalView: View {
     var body: some View {
         VStack(spacing: 40) {
             Spacer()
-            Image("onboard_final") // 실제 이미지 리소스명에 맞게 교체
+            Image("onboard_final") 
                 .resizable()
                 .scaledToFit()
                 .frame(height: 220)
@@ -34,4 +35,4 @@ struct OnboardFinalView: View {
         }
         .padding()
     }
-} 
+}

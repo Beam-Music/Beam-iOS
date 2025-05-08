@@ -61,6 +61,7 @@ struct AppReducer: Reducer {
             case .login(.loginResponse(.success(let token))):
                 state.isLoggedIn = true
                 state.loginState.token = token
+                state.selectedTab = .home
                 return .none
                 
             case .login(.loginResponse(.failure)):

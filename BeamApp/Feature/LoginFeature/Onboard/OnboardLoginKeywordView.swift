@@ -1,4 +1,11 @@
 //
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  OnboardKeywordView2.swift
 //  BeamApp
 //
@@ -50,4 +57,4 @@ struct OnboardKeywordView: View {
             .padding()
         }
     }
-} 
+}

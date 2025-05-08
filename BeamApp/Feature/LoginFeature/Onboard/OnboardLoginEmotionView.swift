@@ -1,4 +1,11 @@
 //
+//  OnboardLoginEmotionView.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  OnboardEmotionView2.swift
 //  BeamApp
 //
@@ -39,4 +46,4 @@ struct OnboardEmotionView: View {
         }
         .padding()
     }
-} 
+}

@@ -1,4 +1,11 @@
 //
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  OnboardTasteView2.swift
 //  BeamApp
 //
@@ -78,4 +85,4 @@ struct OnboardTasteView: View {
     }
 }
 
-// FlexibleView는 Chip/Tag 레이아웃을 위한 유틸리티입니다. (구현 필요) 
+// FlexibleView는 Chip/Tag 레이아웃을 위한 유틸리티입니다. (구현 필요)

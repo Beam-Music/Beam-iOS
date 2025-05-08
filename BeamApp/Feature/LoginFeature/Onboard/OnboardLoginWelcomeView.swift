@@ -1,4 +1,11 @@
 //
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  OnboardWelcomeVie2.swift
 //  BeamApp
 //
@@ -53,4 +60,4 @@ struct OnboardWelcomeView: View {
             LoginView(store: loginStore)
         }
     }
-} 
+}

@@ -1,4 +1,11 @@
 //
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  OnboardVoiceView2.swift
 //  BeamApp
 //
@@ -39,4 +46,4 @@ struct OnboardVoiceView: View {
         }
         .padding()
     }
-} 
+}

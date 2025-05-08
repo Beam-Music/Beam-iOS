@@ -1,3 +1,10 @@
+//
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
 import SwiftUI
 
 struct OnboardMusicView: View {
@@ -31,4 +38,4 @@ struct OnboardMusicView: View {
         }
         .padding()
     }
-} 
+}

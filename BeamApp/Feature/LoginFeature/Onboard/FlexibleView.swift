@@ -1,4 +1,11 @@
 //
+//  Untitled.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/8/25.
+//
+
+//
 //  FlexibleView2.swift
 //  BeamApp
 //
@@ -81,4 +88,4 @@ WrapHStack(items: artists, spacing: 8, alignment: .leading) { artist in
             }
         }
 }
-*/ 
+*/

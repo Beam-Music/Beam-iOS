@@ -47,6 +47,7 @@ struct RootView: View {
                                     action: AppReducer.Action.signup
                                 ),
                                 onOnboardingFinished: {
+                                    viewStore.send(.setSelectedTab(.home))
                                     viewStore.send(.setLoggedIn(true))
                                 }
                             )
