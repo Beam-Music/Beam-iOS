@@ -1,4 +1,3 @@
-
 //
 //  OnboardFinalView2.swift
 //  BeamApp
@@ -10,29 +9,42 @@ import SwiftUI
 
 struct OnboardFinalView: View {
     let onFinish: () -> Void
+
     var body: some View {
-        VStack(spacing: 40) {
-            Spacer()
-            Image("onboard_final") 
+        ZStack {
+            Image("onboard_final")
                 .resizable()
-                .scaledToFit()
-                .frame(height: 220)
-            Text("오늘 하루, 내 마음 한구석을 살짝 채워줄 무언가가 있다면 충분할 텐데.")
-                .font(.title2)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Spacer()
-            Button("시작하기 →", action: onFinish)
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.white.opacity(0.7))
-                .foregroundColor(.purple)
-                .cornerRadius(12)
-                .padding(.horizontal, 32)
-            Spacer()
+                .scaledToFill()
+                .ignoresSafeArea()
+
+            VStack {
+                Spacer().frame(height: 80)
+
+                Text("오늘 하루,\n네 마음 한구석을 살짝\n채워줄 무언가가 있다면\n좋을 텐데.")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 24)
+
+                Spacer()
+
+                HStack {
+                    Spacer()
+                    Button("다음 →", action: onFinish)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.trailing, 32)
+                }
+                Spacer().frame(height: 24)
+            }
         }
-        .padding()
+        .ignoresSafeArea(edges: .top)
+    }
+}
+
+struct OnboardFinalView_Previews: PreviewProvider {
+    static var previews: some View {
+        OnboardFinalView(onFinish: { print("Finished") })
     }
 }

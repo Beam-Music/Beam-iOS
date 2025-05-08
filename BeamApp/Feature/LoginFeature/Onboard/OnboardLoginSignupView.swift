@@ -88,12 +88,6 @@ struct OnboardSignupView: View {
                         ProgressView("처리 중...")
                             .tint(.purple)
                     }
-                    if let errorMessage = viewStore.errorMessage {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .font(.caption)
-                            .padding(.top)
-                    }
                     Spacer(minLength: 40)
                 }
                 .padding()

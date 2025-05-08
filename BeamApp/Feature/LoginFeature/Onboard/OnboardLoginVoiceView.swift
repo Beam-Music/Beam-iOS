@@ -17,21 +17,27 @@ import SwiftUI
 struct OnboardVoiceView: View {
     let onNext: () -> Void
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            Image(systemName: "person.crop.circle")
+        VStack(spacing: 0) {
+            Spacer(minLength: 150)
+            Image("person_woman")
                 .resizable()
-                .scaledToFit()
-                .frame(height: 120)
-                .foregroundColor(.white)
+                .scaledToFill()
+                .frame(width: 362, height: 362)
+                .clipped()
+            Spacer(minLength: 32)
             Text("당신의 감성, 목소리로 입히다")
                 .font(.title)
                 .bold()
                 .foregroundColor(.white)
-            Text("당신만의 목소리를 AI가 분석, 새로운 음악 경험을 드려요.")
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 24)
+            Text("좋아하는 노래를, 사랑하는 목소리로.\n AI가 당신의 취향을 닮은 새로운 음악을 만들어 드려\n요.")
                 .font(.body)
                 .foregroundColor(.white.opacity(0.9))
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 24)
                 .padding(.horizontal, 24)
             Spacer()
             Button("다음 →", action: onNext)
@@ -42,8 +48,8 @@ struct OnboardVoiceView: View {
                 .foregroundColor(.purple)
                 .cornerRadius(12)
                 .padding(.horizontal, 32)
-            Spacer()
+            Spacer(minLength: 24)
         }
-        .padding()
+        .ignoresSafeArea(edges: .top)
     }
 }
