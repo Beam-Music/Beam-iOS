@@ -1,0 +1,82 @@
+disabled_rules:
+  - trailing_whitespace
+  - multiple_closures_with_trailing_closure
+  - todo
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - explicit_init
+  - closure_spacing
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - private_outlet
+  - nimble_operator
+  - attributes
+  - operator_usage_whitespace
+  - closure_end_indentation
+  - first_where
+  - sorted_imports
+  - object_literal
+  - number_separator
+  - prohibited_super_call
+  - fatal_error_message
+  - vertical_parameter_alignment_on_call
+  - let_var_whitespace
+  - unneeded_parentheses_in_closure_argument
+  - extension_access_modifier
+  - pattern_matching_keywords
+  - array_init
+  - literal_expression_end_indentation
+
+excluded:
+  - Carthage
+  - Pods
+  - Generated
+  - vendor
+  - BeamApp/Generated
+
+force_cast: warning
+force_try:
+  severity: warning
+line_length:
+  warning: 120
+  error: 200
+  ignores_function_declarations: true
+  ignores_comments: true
+  ignores_urls: true
+function_body_length:
+  warning: 300
+  error: 500
+function_parameter_count:
+  warning: 6
+  error: 8
+type_body_length:
+  warning: 300
+  error: 500
+file_length:
+  warning: 1000
+  error: 1500
+  ignore_comment_only_lines: true
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+reporter: "xcode"
+
+custom_rules:
+  array_constructor:
+    name: "Array/Dictionary initializer"
+    regex: '[let,var] .+ = \[.+\]\(\)'
+    capture_group: 0
+    message: "Use explicit type annotation when initializing empty arrays"
+    severity: warning
+  comments_space:
+    name: "Space After Comment"
+    regex: '//\S'
+    message: "There should be a space after //"
+    severity: warning
+  empty_first_line:
+    name: "Empty First Line"
+    regex: '(?-m)^(?!\n)'
+    message: "There should be an empty line at the beginning of the file"
+    severity: warning

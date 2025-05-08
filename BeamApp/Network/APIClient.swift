@@ -68,12 +68,12 @@ struct APIClient {
             request.httpMethod = "GET"
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.invalidResponse
-            }
-            
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw APIError.invalidResponse
+                }
+                
             print("🟡 AI Songs Response Status: \(httpResponse.statusCode)")
             if let responseBody = String(data: data, encoding: .utf8) {
                 print("📥 Response body: \(responseBody)")
@@ -84,10 +84,10 @@ struct APIClient {
                     throw APIError.serverError(httpResponse.statusCode, errorBody.reason)
                 }
                 throw APIError.serverError(httpResponse.statusCode, "Unknown error")
-            }
-            
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
+                }
+                
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
             
             do {
                 let tracks = try decoder.decode([PlayableTrackDTO].self, from: data)
