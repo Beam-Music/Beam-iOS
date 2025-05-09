@@ -21,7 +21,7 @@ struct OnboardFinalView: View {
                 Spacer().frame(height: 80)
 
                 Text("오늘 하루,\n네 마음 한구석을 살짝\n채워줄 무언가가 있다면\n좋을 텐데.")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -36,7 +36,7 @@ struct OnboardFinalView: View {
                         .foregroundColor(.white)
                         .padding(.trailing, 32)
                 }
-                Spacer().frame(height: 24)
+                Spacer().frame(height: 40)
             }
         }
         .ignoresSafeArea(edges: .top)

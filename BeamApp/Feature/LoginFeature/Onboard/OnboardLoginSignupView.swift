@@ -15,11 +15,16 @@
 import SwiftUI
 import ComposableArchitecture
 
+enum Agreement {
+    case none, agree, disagree
+}
+
 struct OnboardSignupView: View {
     let store: StoreOf<SignupFeature>
     let onNext: () -> Void
     @Environment(\.colorScheme) var colorScheme
     @State private var didAutoAdvance = false
+    @State private var agreement: Agreement = .none
     
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
@@ -44,9 +49,18 @@ struct OnboardSignupView: View {
                         ))
                     }
                     .padding(.horizontal, 24)
-                    HStack(spacing: 16) {
-                        CustomToggle(label: "이용약관 동의", isOn: .constant(true))
-                        CustomToggle(label: "개인정보 동의", isOn: .constant(true))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("프라이버시 및 이용약관 동의")
+                            .foregroundColor(.white)
+                            .font(.subheadline)
+                        HStack(spacing: 24) {
+                            CheckBox(isChecked: agreement == .agree, label: "동의") {
+                                agreement = .agree
+                            }
+                            CheckBox(isChecked: agreement == .disagree, label: "비동의") {
+                                agreement = .disagree
+                            }
+                        }
                     }
                     .padding(.horizontal, 24)
                     GradientButton(
@@ -59,7 +73,8 @@ struct OnboardSignupView: View {
                         viewStore.username.isEmpty ||
                         viewStore.email.isEmpty ||
                         viewStore.password.isEmpty ||
-                        viewStore.isVerified
+                        viewStore.isVerified ||
+                        agreement != .agree
                     )
                     .padding(.horizontal, 30)
                     .padding(.top, 10)
@@ -89,6 +104,14 @@ struct OnboardSignupView: View {
                             .tint(.purple)
                     }
                     Spacer(minLength: 40)
+                    // Button("다음 →", action: onNext)
+                    //     .font(.headline)
+                    //     .frame(maxWidth: .infinity)
+                    //     .padding()
+                    //     .background(Color.white.opacity(0.7))
+                    //     .foregroundColor(.purple)
+                    //     .cornerRadius(12)
+                    //     .padding(.horizontal, 32)
                 }
                 .padding()
                 .background(Color.clear)
@@ -206,5 +229,24 @@ extension View {
             placeholder().opacity(shouldShow ? 1 : 0)
             self
         }
+    }
+}
+
+struct CheckBox: View {
+    var isChecked: Bool
+    var label: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .foregroundColor(isChecked ? .purple : .white)
+                Text(label)
+                    .foregroundColor(.white)
+                    .font(.subheadline)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
