@@ -68,32 +68,50 @@ struct OnboardWelcomeView: View {
                 .multilineTextAlignment(.center)
             Spacer()
             VStack(spacing: 16) {
-                Button("가입하기 →") {
+                ZStack {
+                    HStack {
+                        Spacer()
+                        Text("가입하기 →")
+                            .font(.headline)
+                            .foregroundColor(.purple)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding()
+                .background(Color.white.opacity(0.7))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.purple.opacity(0.5), lineWidth: 1)
+                )
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
                     onNext()
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
+                ZStack {
+                    HStack {
+                        Spacer()
+                        Text("로그인하기 →")
+                            .font(.headline)
+                            .foregroundColor(.purple)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                }
                 .padding()
-                .background(Color.white.opacity(0.7))
-                .foregroundColor(.purple)
+                .background(Color.white.opacity(0.95))
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.purple.opacity(0.5), lineWidth: 1)
                 )
-                Button("로그인하기 →") {
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
                     showLogin = true
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.white.opacity(0.7))
-                .foregroundColor(.purple)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.purple.opacity(0.5), lineWidth: 1)
-                )
             }
             .padding(.horizontal, 32)
             Spacer()

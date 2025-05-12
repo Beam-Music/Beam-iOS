@@ -19,7 +19,6 @@ struct OnboardView: View {
     
     var body: some View {
         ZStack {
-            // Background that covers the entire screen
             LinearGradient(
                 gradient: Gradient(colors: [Color.pink.opacity(0.7), Color.purple.opacity(0.7), Color.orange.opacity(0.7)]),
                 startPoint: .topLeading,
@@ -64,7 +63,8 @@ struct OnboardView: View {
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .animation(.easeInOut, value: page)
-            .edgesIgnoringSafeArea(.all) // Apply to TabView as well
+            .edgesIgnoringSafeArea(.all)
+            .highPriorityGesture(DragGesture())
         }
         .edgesIgnoringSafeArea(.all) // Apply to root view
     }

@@ -35,15 +35,26 @@ struct OnboardVoiceView: View {
                 .padding(.bottom, 100)
                 Spacer()
             }
-            Button("다음 →", action: onNext)
-                .font(.headline)
+            ZStack {
+                HStack {
+                    Spacer()
+                    Text("다음 →")
+                        .font(.headline)
+                        .foregroundColor(.purple)
+                    Spacer()
+                }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.white.opacity(0.7))
-                .foregroundColor(.purple)
-                .cornerRadius(12)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 20)
+            }
+            .padding()
+            .background(Color.white.opacity(0.7))
+            .cornerRadius(12)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 20)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onNext()
+            }
         }
         .padding(.top, 0)
         .ignoresSafeArea(edges: .top)
