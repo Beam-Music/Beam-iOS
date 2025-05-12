@@ -16,6 +16,7 @@ struct RootView: View {
     @GestureState private var dragOffset: CGFloat = 0
     @State private var isLoading = true
     @Dependency(\.tokenStorage) var tokenStorage
+    let libraryStore = Store(initialState: LibraryReducer.State(), reducer: { LibraryReducer() })
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
@@ -34,7 +35,7 @@ struct RootView: View {
                 } else {
                     ZStack {
                         if viewStore.isLoggedIn {
-                            TabBarView(store: store, isMiniPlayerVisible: $isMiniPlayerVisible)
+                            TabBarView(store: store, libraryStore: libraryStore, isMiniPlayerVisible: $isMiniPlayerVisible)
                             .zIndex(0)
                         } else {
                             OnboardView(
@@ -77,7 +78,7 @@ struct RootView: View {
                         PlayerView(store: store.scope(
                             state: \.tabBarState.playerState,
                             action: { AppReducer.Action.tabBar(.player($0)) }
-                        ), isMiniPlayerVisible: $isMiniPlayerVisible)
+                        ), isMiniPlayerVisible: $isMiniPlayerVisible, libraryStore: libraryStore)
                         .background(Color.black)
                         .offset(y: calculatePlayerOffset())
                         .gesture(

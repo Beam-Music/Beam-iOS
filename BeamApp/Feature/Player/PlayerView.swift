@@ -254,17 +254,25 @@ struct RemixArtistPickerView: View {
 struct PlayerView: View {
     let store: StoreOf<PlayerReducer>
     @Binding var isMiniPlayerVisible: Bool
+    let libraryStore: StoreOf<LibraryReducer>
     @State private var isDetailViewPresented = false
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var audioManager = AudioManager.shared
     @State private var isRemixSheetPresented = false
     @State private var selectedArtists: [Artist] = []
+    @State private var isAddToPlaylistSheetPresented = false
     let mockArtists: [Artist] = [
         Artist(name: "Dua Lipa", imageName: "artist_dualipa"),
         Artist(name: "BlackPink", imageName: "artist_blackpink"),
         Artist(name: "H.E.R", imageName: "artist_her"),
         Artist(name: "Rihanna", imageName: "artist_rihanna")
     ]
+    
+    init(store: StoreOf<PlayerReducer>, isMiniPlayerVisible: Binding<Bool>, libraryStore: StoreOf<LibraryReducer>) {
+        self.store = store
+        self._isMiniPlayerVisible = isMiniPlayerVisible
+        self.libraryStore = libraryStore
+    }
     
     struct ViewState: Equatable {
         let isPlaying: Bool
@@ -333,7 +341,7 @@ struct PlayerView: View {
                                     Image(systemName: "heart")
                                         .foregroundColor(.white)
                                 }
-                                Button(action: {/* TODO: Add */}) {
+                                Button(action: { isAddToPlaylistSheetPresented = true }) {
                                     Image(systemName: "plus")
                                         .foregroundColor(.white)
                                 }
@@ -477,6 +485,15 @@ struct PlayerView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
+            }
+            .sheet(isPresented: $isAddToPlaylistSheetPresented) {
+                AddToPlaylistSheet(
+                    currentTrack: viewStore.currentTrack,
+                    store: libraryStore,
+                    onAdd: { playlist in
+                        // TODO: 곡 추가 액션 호출
+                    }
+                )
             }
         }
     }

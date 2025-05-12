@@ -10,6 +10,7 @@ import ComposableArchitecture
 
 struct TabBarView: View {
     let store: StoreOf<AppReducer>
+    let libraryStore: StoreOf<LibraryReducer>
     @Binding var isMiniPlayerVisible: Bool
     @Environment(\.colorScheme) var colorScheme
     
@@ -26,7 +27,8 @@ struct TabBarView: View {
                          store: store.scope(
                             state: \.tabBarState.homeState,
                             action: { AppReducer.Action.tabBar(.home($0)) }
-                         ))
+                         ),
+                         libraryStore: libraryStore)
                 .tabItem {
                     Label("홈", systemImage: "house.fill")
                 }

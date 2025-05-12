@@ -121,15 +121,17 @@ struct HomeView: View {
     @Binding var isLoggedIn: Bool
     @Binding var isMiniPlayerVisible: Bool
     let store: StoreOf<HomeReducer>
+    let libraryStore: StoreOf<LibraryReducer>
     @ObservedObject var viewStore: ViewStore<HomeReducer.State, HomeReducer.Action>
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
     
-    init(isLoggedIn: Binding<Bool>, isMiniPlayerVisible: Binding<Bool>, store: StoreOf<HomeReducer>) {
+    init(isLoggedIn: Binding<Bool>, isMiniPlayerVisible: Binding<Bool>, store: StoreOf<HomeReducer>, libraryStore: StoreOf<LibraryReducer>) {
         self._isLoggedIn = isLoggedIn
         self._isMiniPlayerVisible = isMiniPlayerVisible
         self.store = store
+        self.libraryStore = libraryStore
         self.viewStore = ViewStore(store, observe: { $0 })
     }
     
@@ -269,7 +271,11 @@ struct HomeView: View {
                 // 필요시 미니플레이어 등 상태 처리
             }
         ) { playerStore in
-            PlayerView(store: playerStore, isMiniPlayerVisible: $isMiniPlayerVisible)
+            PlayerView(
+                store: playerStore,
+                isMiniPlayerVisible: $isMiniPlayerVisible,
+                libraryStore: libraryStore
+            )
         }
     }
 }
