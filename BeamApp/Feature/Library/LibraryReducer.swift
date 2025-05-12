@@ -5,6 +5,7 @@
 //  Created by freed on 10/10/24.
 //
 
+import Foundation
 import ComposableArchitecture
 
 struct LibraryReducer: Reducer {
