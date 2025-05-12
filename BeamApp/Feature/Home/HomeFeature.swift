@@ -57,7 +57,7 @@ struct HomeFeature {
             let userPlaylists = try decoder.decode([PlaylistSummaryDTO].self, from: data)
             print("🟢 Successfully fetched \(userPlaylists.count) playlists")
             print("📋 Playlists: \(userPlaylists.map { "'\($0.name)'" }.joined(separator: ", "))")
-            return userPlaylists
+        return userPlaylists
         } catch {
             print("🔴 Failed to decode playlists: \(error)")
             throw error

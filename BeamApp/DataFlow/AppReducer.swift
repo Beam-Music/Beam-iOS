@@ -61,6 +61,7 @@ struct AppReducer: Reducer {
             case .login(.loginResponse(.success(let token))):
                 state.isLoggedIn = true
                 state.loginState.token = token
+                state.selectedTab = .home
                 return .none
                 
             case .login(.loginResponse(.failure)):
@@ -78,11 +79,8 @@ struct AppReducer: Reducer {
                 // 이메일 인증이 완료되어야 로그인 상태가 됨
                 return .none
                 
-            case .signup(.verifyResponse(.success(let response))):
-                switch response {
-                case .success:
-                    state.isLoggedIn = true
-                }
+            case .signup(.verifyResponse(.success)):
+                // 온보딩 플로우에서는 isLoggedIn을 변경하지 않음
                 return .none
                 
             case .signup(.usernameChanged),
@@ -95,9 +93,9 @@ struct AppReducer: Reducer {
                  .signup(.verifyResponse(.failure)):
                 return .none
                 
-            case .signup(.setIsLoggedIn(let isLoggedIn)):
-                state.isLoggedIn = isLoggedIn
-                return .none
+             case .signup(.setIsLoggedIn(let isLoggedIn)):
+//                 state.isLoggedIn = isLoggedIn
+                 return .none
                 
             // home과 tabBar 액션은 각각의 Scope에서 처리됨
             case .home, .tabBar:

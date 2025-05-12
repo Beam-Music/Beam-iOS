@@ -17,38 +17,38 @@ extension AuthService: DependencyKey {
     static let liveValue: Self = {
         AuthService(
             login: { username, password in
-                guard let url = URL(string: Endpoints.Auth.login) else {
-                    throw LoginError.invalidURL
-                }
-                
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-                
-                let body: [String: Any] = ["username": username, "password": password]
-                request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-                
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode) else {
-                    throw LoginError.invalidResponse
-                }
+            guard let url = URL(string: Endpoints.Auth.login) else {
+                throw LoginError.invalidURL
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let body: [String: Any] = ["username": username, "password": password]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                throw LoginError.invalidResponse
+            }
                 
                 struct TokenResponse: Decodable {
                     let token: String
                 }
-                
-                let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
-                @Dependency(\.tokenStorage) var tokenStorage
-                do {
-                    try await tokenStorage.saveToken(tokenResponse.token)
-                    print("토큰 저장 성공:")
-                } catch {
-                    print("토큰 저장 실패: \(error)")
-                }
-                return tokenResponse.token
+            
+            let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+            @Dependency(\.tokenStorage) var tokenStorage
+            do {
+                try await tokenStorage.saveToken(tokenResponse.token)
+                print("토큰 저장 성공:")
+            } catch {
+                print("토큰 저장 실패: \(error)")
             }
+            return tokenResponse.token
+        }
         )
     }()
 }
