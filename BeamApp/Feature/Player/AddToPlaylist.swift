@@ -8,65 +8,169 @@
 import SwiftUI
 import ComposableArchitecture
 import Foundation
+import MusicKit
 
 struct AddToPlaylistSheet: View {
-    let currentTrack: PlayableTrackDTO?
-    let store: StoreOf<LibraryReducer>
-    let onAdd: (PlaylistSummaryDTO) -> Void
+    let playlist: PlaylistSummaryDTO
+    let onAdd: () -> Void
+
+    @State private var searchText: String = ""
+    @State private var searchResults: [MusicSearchResult] = []
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
+    @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
-        WithViewStore(self.store, observe: { $0 }) { viewStore in
-            NavigationView {
-                VStack {
-                    if viewStore.playlists.isEmpty {
-                        Spacer()
-                        Text("보유 중인 재생목록이 없습니다.")
-                            .font(.headline)
-                            .padding()
-                        Spacer()
-                    } else {
-                        List(viewStore.playlists) { playlist in
-                            Button(action: {
-                                guard let playlistID = playlist.id?.uuidString, let songID = currentTrack?.playbackStoreID else { return }
-                                let urlString = Endpoints.Playlist.userPlaylistSongs(playlistID: playlistID)
-                                guard let token = TokenStorage.shared.fetchToken() else {
-                                    print("토큰이 없습니다. 로그인 필요")
-                                    return
-                                }
-                                let body: [String: String] = [
-                                    "songId": songID,
-                                    "title": currentTrack?.title ?? "",
-                                    "artistName": currentTrack?.artistName ?? ""
-                                ]
-                                print("플레이리스트ID: \(playlistID), 곡ID: \(songID), title: \(currentTrack?.title ?? ""), artist: \(currentTrack?.artistName ?? "")")
-                                addSongToPlaylist(urlString: urlString, body: body, token: token) { result in
-                                    DispatchQueue.main.async {
-                                        switch result {
-                                        case .success:
-                                            print("곡이 재생목록에 추가되었습니다!")
-                                            onAdd(playlist)
-                                        case .failure(let error):
-                                            print("추가 실패: \(error.localizedDescription)")
-                                        }
-                                    }
-                                }
-                            }) {
-                                Text(playlist.name)
-                            }
+        NavigationView {
+            VStack {
+                HStack {
+                    TextField("노래/가수 검색하기", text: $searchText)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 8)
+                        .focused($isTextFieldFocused)
+                        .onSubmit { searchSongs() }
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            searchResults = []
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
                         }
                     }
                 }
-                .navigationTitle("재생목록에 추가")
-                .navigationBarTitleDisplayMode(.inline)
+                .padding(.horizontal)
+                .padding(.top, 12)
+
+                if isLoading {
+                    ProgressView()
+                        .padding()
+                } else if let error = errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .padding()
+                } else if !searchResults.isEmpty {
+                    List(searchResults) { result in
+                        Button(action: {
+                            addSongToPlaylist(result: result)
+                        }) {
+                            HStack(spacing: 12) {
+                                if let url = result.artworkURL {
+                                    AsyncImage(url: url) { image in
+                                        image.resizable()
+                                    } placeholder: {
+                                        Color.gray.opacity(0.3)
+                                    }
+                                    .frame(width: 50, height: 50)
+                                    .cornerRadius(8)
+                                } else {
+                                    Image(systemName: "music.note")
+                                        .foregroundColor(.gray)
+                                        .background(Color.gray.opacity(0.2))
+                                        .frame(width: 50, height: 50)
+                                        .cornerRadius(8)
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(result.title)
+                                            .font(.headline)
+                                            .lineLimit(1)
+                                        if result.isExplicit {
+                                            Text("E")
+                                                .font(.caption2)
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 2)
+                                                .background(Color.gray.opacity(0.5))
+                                                .cornerRadius(3)
+                                        }
+                                    }
+                                    Text(result.artist)
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                } else if !searchText.isEmpty {
+                    Text("검색 결과가 없습니다.")
+                        .foregroundColor(.gray)
+                        .padding()
+                } else {
+                    Text("노래를 검색해 추가하세요.")
+                        .foregroundColor(.gray)
+                        .padding()
+                }
+                Spacer()
             }
-            .onAppear {
-                viewStore.send(.fetchUserPlaylists)
+            .navigationTitle("노래 추가")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .onAppear {
+            isTextFieldFocused = true
+        }
+        .onChange(of: searchText) { newValue in
+            if !newValue.isEmpty {
+                searchSongs()
+            } else {
+                searchResults = []
+            }
+        }
+    }
+
+    func searchSongs() {
+        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        isLoading = true
+        errorMessage = nil
+        Task {
+            do {
+                let results = try await MusicSearchService().searchMusic(query: searchText)
+                await MainActor.run {
+                    self.searchResults = results
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+
+    func addSongToPlaylist(result: MusicSearchResult) {
+        guard let playlistID = playlist.id?.uuidString else {
+            errorMessage = "플레이리스트 정보가 올바르지 않습니다."
+            return
+        }
+        let urlString = Endpoints.Playlist.userPlaylistSongs(playlistID: playlistID)
+        guard let token = TokenStorage.shared.fetchToken() else {
+            errorMessage = "토큰이 없습니다. 로그인 필요"
+            return
+        }
+        let body: [String: String] = [
+            "songId": result.id,
+            "title": result.title,
+            "artistName": result.artist
+        ]
+        isLoading = true
+        addSongToPlaylistAPI(urlString: urlString, body: body, token: token) { result in
+            DispatchQueue.main.async {
+                isLoading = false
+                switch result {
+                case .success:
+                    onAdd()
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                }
             }
         }
     }
 }
 
-func addSongToPlaylist(urlString: String, body: [String: String], token: String, completion: @escaping (Result<Void, Error>) -> Void) {
+func addSongToPlaylistAPI(urlString: String, body: [String: String], token: String, completion: @escaping (Result<Void, Error>) -> Void) {
     guard let url = URL(string: urlString) else {
         completion(.failure(NSError(domain: "Invalid URL", code: 0)))
         return

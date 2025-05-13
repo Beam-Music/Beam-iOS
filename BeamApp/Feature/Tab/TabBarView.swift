@@ -34,11 +34,13 @@ struct TabBarView: View {
                 }
                 .tag(AppReducer.Tab.home)
                 
-                LibraryView(store: store.scope(
-                    state: \.tabBarState.libraryState,
-                    action: { AppReducer.Action.tabBar(.library($0)) }
-                ),
-                            isMiniPlayerVisible: $isMiniPlayerVisible)
+                NavigationStack {
+                    LibraryView(store: store.scope(
+                        state: \.tabBarState.libraryState,
+                        action: { AppReducer.Action.tabBar(.library($0)) }
+                    ),
+                    isMiniPlayerVisible: $isMiniPlayerVisible)
+                }
                 .tabItem {
                     Label("플레이리스트", systemImage: "music.note.list")
                 }

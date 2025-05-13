@@ -278,4 +278,29 @@ struct HomeFeature {
             throw error
         }
     }
+    
+    static func createUserPlaylist(with token: String, name: String) async throws -> PlaylistSummaryDTO {
+        guard let url = URL(string: Endpoints.Playlist.userPlaylist) else {
+            throw NSError(domain: "InvalidURL", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid playlist creation endpoint URL"])
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: String] = ["name": name]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "Invalid Response", code: 0, userInfo: [NSLocalizedDescriptionKey: "Did not receive HTTPURLResponse"])
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
+            throw NSError(domain: "Server Error", code: httpResponse.statusCode, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to create playlist. Status: \(httpResponse.statusCode)",
+                "responseBody": responseBody
+            ])
+        }
+        let playlist = try JSONDecoder().decode(PlaylistSummaryDTO.self, from: data)
+        return playlist
+    }
 }

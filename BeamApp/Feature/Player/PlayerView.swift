@@ -487,11 +487,12 @@ struct PlayerView: View {
                 viewStore.send(.audioDidFinish)
             }
             .sheet(isPresented: $isAddToPlaylistSheetPresented) {
+                // TODO: 실제로는 사용자의 기본/첫 번째 플레이리스트를 넘겨야 함
+                let dummyPlaylist = PlaylistSummaryDTO(id: UUID(), name: "내 플레이리스트", user: nil)
                 AddToPlaylistSheet(
-                    currentTrack: viewStore.currentTrack,
-                    store: libraryStore,
-                    onAdd: { playlist in
-                        // TODO: 곡 추가 액션 호출
+                    playlist: dummyPlaylist,
+                    onAdd: {
+                        // TODO: 곡 추가 후 처리 (예: 알림, UI 갱신 등)
                     }
                 )
             }
