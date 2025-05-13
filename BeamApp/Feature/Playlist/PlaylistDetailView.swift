@@ -12,12 +12,14 @@ struct PlaylistDetailView: View {
     let playlist: PlaylistSummaryDTO
     let songs: [PlayableTrackDTO]
     let onPlayAll: () -> Void
-    var fetchSongs: (() -> Void)? = nil
+    var fetchSongs: ((@escaping ([PlayableTrackDTO]) -> Void) -> Void)? = nil
     @State private var isAddingSong = false
     @State private var errorMessage: String? = nil
     @State private var showDeleteAlert = false
     @State private var isDeleting = false
     @Environment(\.dismiss) private var dismiss
+    @State private var isLoading = true
+    @State private var displaySongs: [PlayableTrackDTO] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +35,11 @@ struct PlaylistDetailView: View {
                     .padding(.bottom, 8)
             }
 
-            if songs.isEmpty {
+            if isLoading {
+                Spacer()
+                ProgressView()
+                Spacer()
+            } else if displaySongs.isEmpty {
                 Spacer()
                 Text("이 플레이리스트에 노래가 없습니다.")
                     .foregroundColor(.gray)
@@ -49,6 +55,7 @@ struct PlaylistDetailView: View {
                 }
                 Spacer()
             } else {
+                // Fixed line 94 - proper call to onPlayAll closure
                 Button(action: onPlayAll) {
                     Label("전체 재생", systemImage: "play.fill")
                         .font(.headline)
@@ -60,7 +67,7 @@ struct PlaylistDetailView: View {
                 }
                 .padding(.bottom, 8)
                 List {
-                    ForEach(songs) { song in
+                    ForEach(displaySongs) { song in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(song.title)
                                 .font(.headline)
@@ -72,7 +79,7 @@ struct PlaylistDetailView: View {
                     }
                     .onDelete { indexSet in
                         for index in indexSet {
-                            let song = songs[index]
+                            let song = displaySongs[index]
                             print("삭제 시도 곡: \(song.title), playbackStoreID: \(song.playbackStoreID ?? "nil")")
                             if let _ = song.playbackStoreID {
                                 deleteSong(song)
@@ -86,7 +93,18 @@ struct PlaylistDetailView: View {
             }
         }
         .sheet(isPresented: $isAddingSong, onDismiss: {
-            fetchSongs?()
+            // 곡 추가 시트가 닫힐 때 플레이리스트 데이터 다시 로드
+            print("Sheet dismissed, reloading songs")
+            if let fetchSongs = fetchSongs {
+                isLoading = true
+                fetchSongs { loadedSongs in
+                    DispatchQueue.main.async {
+                        self.displaySongs = loadedSongs
+                        self.isLoading = false
+                        print("Songs reloaded after sheet dismissal: \(loadedSongs.count)")
+                    }
+                }
+            }
         }) {
             AddToPlaylistSheet(
                 playlist: playlist,
@@ -103,17 +121,6 @@ struct PlaylistDetailView: View {
             )
             .ignoresSafeArea()
         )
-        .toolbar {
-            ToolbarItem(placement: .bottomBar) {
-                Button(role: .destructive, action: {
-                    showDeleteAlert = true
-                }) {
-                    Label("플레이리스트 삭제", systemImage: "trash")
-                        .foregroundColor(.red)
-                }
-                .disabled(isDeleting)
-            }
-        }
         .alert("플레이리스트를 삭제하시겠습니까?", isPresented: $showDeleteAlert) {
             Button("삭제", role: .destructive) {
                 deletePlaylist()
@@ -123,6 +130,25 @@ struct PlaylistDetailView: View {
             Text("이 작업은 되돌릴 수 없습니다.")
         }
         .onAppear {
+            isLoading = true
+            print("PlaylistDetailView appeared, loading songs for playlist: \(playlist.name)")
+            
+            if let fetchSongs = fetchSongs {
+                fetchSongs { loadedSongs in
+                    DispatchQueue.main.async {
+                        self.displaySongs = loadedSongs
+                        self.isLoading = false
+                        print("Songs loaded: \(loadedSongs.count), setting isLoading to false")
+                    }
+                }
+            } else {
+                // 초기화 시 전달된 songs로 설정
+                DispatchQueue.main.async {
+                    self.displaySongs = self.songs
+                    self.isLoading = false
+                    print("No fetchSongs provided, using initial songs: \(self.songs.count), setting isLoading to false")
+                }
+            }
             print(playlist.id?.uuidString ?? "nil", "playlistID", TokenStorage.shared.fetchToken() ?? "nil", "token")
         }
     }
@@ -152,7 +178,17 @@ struct PlaylistDetailView: View {
             if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
                 DispatchQueue.main.async {
                     errorMessage = nil
-                    fetchSongs?()
+                    // 노래 삭제 후 플레이리스트 데이터 다시 로드
+                    if let fetchSongs = fetchSongs {
+                        isLoading = true
+                        fetchSongs { loadedSongs in
+                            DispatchQueue.main.async {
+                                self.displaySongs = loadedSongs
+                                self.isLoading = false
+                                print("Songs reloaded after deletion: \(loadedSongs.count)")
+                            }
+                        }
+                    }
                 }
             } else {
                 DispatchQueue.main.async {
@@ -199,4 +235,3 @@ struct PlaylistDetailView: View {
         }.resume()
     }
 }
-

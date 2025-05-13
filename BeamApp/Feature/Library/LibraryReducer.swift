@@ -9,6 +9,7 @@ import Foundation
 import ComposableArchitecture
 
 struct LibraryReducer: Reducer {
+    @ObservableState
     struct State: Equatable {
         var playlists: [PlaylistSummaryDTO] = []
         var playlist: [PlayableTrackDTO] = []
@@ -18,6 +19,7 @@ struct LibraryReducer: Reducer {
         var isCreatingPlaylist: Bool = false
         var selectedPlaylist: PlaylistSummaryDTO? = nil
         var selectedPlaylistSongs: [PlayableTrackDTO] = []
+        var selectedPlaylistSongsVersion: Int = 0
         var isShowingDetail: Bool = false
         var isAddingSong: Bool = false
     }
@@ -158,7 +160,8 @@ struct LibraryReducer: Reducer {
                     }
                 }
             case .playlistSongsLoaded(let tracks):
-                state.selectedPlaylistSongs = tracks
+                state.selectedPlaylistSongs = Array(tracks)
+                state.selectedPlaylistSongsVersion += 1
                 state.errorMessage = nil
                 return .none
             case .addSongToPlaylist:

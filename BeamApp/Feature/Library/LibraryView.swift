@@ -9,9 +9,6 @@ import SwiftUI
 import ComposableArchitecture
 import Foundation
 
-// 별 데이터 모델, StarFieldView, ScrollOffsetPreferenceKey가 HomeView.swift에 있다면 import해서 사용하거나, 중복 정의를 피하세요.
-// 여기서는 예시로 별 관련 코드가 이미 프로젝트에 있다고 가정합니다.
-
 struct PlaylistRow: View {
     let playlist: PlaylistSummaryDTO
     let onSelect: () -> Void
@@ -69,69 +66,100 @@ struct LibraryView: View {
     @Binding var isMiniPlayerVisible: Bool
     @State private var scrollOffset: CGFloat = 0
     @State private var selectedPlaylist: PlaylistSummaryDTO? = nil
+    @State private var fetchSongsCompletion: (([PlayableTrackDTO]) -> Void)? = nil
 
     var body: some View {
         NavigationStack {
             ZStack {
+                // 배경 그라데이션
                 LinearGradient(
                     gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
                     startPoint: .top, endPoint: .bottom
                 )
                 .ignoresSafeArea()
+                
+                // 별 필드 뷰
                 StarFieldView(starCount: 40, scrollOffset: scrollOffset)
-                WithViewStore(self.store, observe: { $0 }) { viewStore in
-                    let createSheetBinding = viewStore.binding(
-                        get: \.isPresentingCreateSheet,
-                        send: LibraryReducer.Action.showCreatePlaylistSheet
-                    )
-                    VStack(spacing: 20) {
-                        if let errorMessage = viewStore.errorMessage {
-                            Text("Error: \(errorMessage)")
-                                .foregroundColor(.red)
-                        } else {
-                            playlistListView(viewStore: viewStore)
-                        }
-                    }
-                    .onAppear {
-                        viewStore.send(.fetchUserPlaylists)
-                    }
-                    .onChange(of: viewStore.playlist) { _ in
-                        isMiniPlayerVisible = !viewStore.playlist.isEmpty
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button(action: { viewStore.send(.showCreatePlaylistSheet(true)) }) {
-                                Image(systemName: "plus")
-                                    .font(.title2)
-                            }
-                        }
-                    }
-                    .sheet(isPresented: createSheetBinding) {
-                        CreatePlaylistSheet(viewStore: viewStore)
-                    }
-                    .navigationDestination(item: $selectedPlaylist) { playlist in
-                        PlaylistDetailView(
-                            playlist: playlist,
-                            songs: viewStore.selectedPlaylistSongs,
-                            onPlayAll: { viewStore.send(.playAllInPlaylist) },
-                            fetchSongs: { viewStore.send(.fetchPlaylistSongs(playlist)) }
-                        )
-                    }
-                }
+                
+                // 메인 콘텐츠
+                mainContentView
+            }
+        }
+        .navigationDestination(item: $selectedPlaylist) { playlist in
+            playlistDetailDestination(playlist: playlist)
+        }
+        .onChange(of: store.state.selectedPlaylistSongsVersion) { _, _ in
+            // 플레이리스트 곡이 로드되면 콜백 실행
+            if let completion = fetchSongsCompletion {
+                completion(store.state.selectedPlaylistSongs)
+                fetchSongsCompletion = nil
             }
         }
     }
+    
+    // 메인 콘텐츠 뷰로 분리
+    private var mainContentView: some View {
+        VStack(spacing: 20) {
+            // 에러 메시지 표시
+            if let errorMessage = store.state.errorMessage {
+                Text("Error: \(errorMessage)")
+                    .foregroundColor(.red)
+            } else {
+                // 플레이리스트 목록 표시
+                playlistListView()
+            }
+        }
+        .onAppear {
+            store.send(.fetchUserPlaylists)
+        }
+        .onChange(of: store.state.playlist) { _, newPlaylist in
+            isMiniPlayerVisible = !newPlaylist.isEmpty
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    store.send(.showCreatePlaylistSheet(true))
+                }) {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                }
+            }
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { store.state.isPresentingCreateSheet },
+                set: { store.send(.showCreatePlaylistSheet($0)) }
+            )
+        ) {
+            CreatePlaylistSheet(viewStore: ViewStore(store, observe: { $0 }))
+        }
+    }
 
-    private func playlistListView(viewStore: ViewStoreOf<LibraryReducer>) -> some View {
+    @ViewBuilder
+    private func playlistDetailDestination(playlist: PlaylistSummaryDTO) -> some View {
+        PlaylistDetailView(
+            playlist: playlist,
+            songs: store.state.selectedPlaylistSongs,
+            onPlayAll: {
+                store.send(.playAllInPlaylist)
+            },
+            fetchSongs: { completion in
+                fetchSongsCompletion = completion
+                store.send(.fetchPlaylistSongs(playlist))
+            }
+        )
+    }
+
+    private func playlistListView() -> some View {
         List {
-            ForEach(viewStore.playlists) { playlist in
+            ForEach(store.state.playlists) { playlist in
                 PlaylistRow(playlist: playlist) {
                     selectedPlaylist = playlist
-                    viewStore.send(.selectPlaylist(playlist))
+                    store.send(.selectPlaylist(playlist))
                 }
             }
             .onDelete { indexSet in
-                viewStore.send(.deletePlaylist(indexSet))
+                store.send(.deletePlaylist(indexSet))
             }
         }
         .listStyle(.plain)
