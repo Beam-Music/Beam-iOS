@@ -88,10 +88,9 @@ struct LibraryView: View {
         .navigationDestination(item: $selectedPlaylist) { playlist in
             playlistDetailDestination(playlist: playlist)
         }
-        .onChange(of: store.state.selectedPlaylistSongsVersion) { _, _ in
-            // 플레이리스트 곡이 로드되면 콜백 실행
+        .onChange(of: store.state.selectedPlaylistSongs) { _, newSongs in
             if let completion = fetchSongsCompletion {
-                completion(store.state.selectedPlaylistSongs)
+                completion(newSongs)
                 fetchSongsCompletion = nil
             }
         }

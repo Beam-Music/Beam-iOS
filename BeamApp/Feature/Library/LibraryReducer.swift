@@ -80,24 +80,8 @@ struct LibraryReducer: Reducer {
                 return .send(.startPlayback(tracks))
                 
             case let .startPlayback(tracks):
-                guard let firstTrack = tracks.first else {
-                    return .none
-                }
-                
-                let trackTitle = firstTrack.title
-                let trackStoreID = firstTrack.playbackStoreID
-                
-                print("LibraryReducer: Requesting startPlayback for track: \(trackTitle), StoreID: \(trackStoreID ?? "nil")")
-                
-                return .run { send in
-                    do {
-                        try await AudioManager.shared.playAppleMusicTrack(title: trackTitle, storeID: trackStoreID)
-                        print("LibraryReducer: playAppleMusicTrack call potentially successful for \(trackTitle)")
-                    } catch {
-                        print("LibraryReducer Error: Failed to initiate playback for track '\(trackTitle)': \(error)")
-                        await send(.playlistFetchFailed("Playback failed: \(error.localizedDescription)"))
-                    }
-                }
+                // PlayerReducer로 위임, 직접 AudioManager 호출하지 않음
+                return .none
                 
             case let .playlistFetchFailed(error):
                 state.errorMessage = error
@@ -163,6 +147,7 @@ struct LibraryReducer: Reducer {
                 state.selectedPlaylistSongs = Array(tracks)
                 state.selectedPlaylistSongsVersion += 1
                 state.errorMessage = nil
+                print("[DEBUG] playlistSongsLoaded: selectedPlaylistSongs = \(state.selectedPlaylistSongs.map { $0.title })")
                 return .none
             case .addSongToPlaylist:
                 state.isAddingSong = true
@@ -174,6 +159,7 @@ struct LibraryReducer: Reducer {
                 }
                 return .none
             case .playAllInPlaylist:
+                print("[DEBUG] LibraryReducer: playAllInPlaylist called, selectedPlaylistSongs.count: \(state.selectedPlaylistSongs.count), titles: \(state.selectedPlaylistSongs.map { $0.title })")
                 guard !state.selectedPlaylistSongs.isEmpty else { return .none }
                 return .send(.startPlayback(state.selectedPlaylistSongs))
             case let .deletePlaylist(indexSet):

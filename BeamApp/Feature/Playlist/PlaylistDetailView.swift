@@ -55,12 +55,20 @@ struct PlaylistDetailView: View {
                 }
                 Spacer()
             } else {
-                // Fixed line 94 - proper call to onPlayAll closure
                 Button(action: onPlayAll) {
                     Label("전체 재생", systemImage: "play.fill")
                         .font(.headline)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 32)
+                        .background(Color.purple.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .padding(.bottom, 8)
+                Button(action: { isAddingSong = true }) {
+                    Label("노래 추가하기", systemImage: "plus")
+                        .font(.headline)
+                        .padding()
                         .background(Color.purple.opacity(0.8))
                         .foregroundColor(.white)
                         .cornerRadius(12)
@@ -87,6 +95,10 @@ struct PlaylistDetailView: View {
                                 errorMessage = "이 곡은 삭제할 수 없습니다."
                             }
                         }
+                    }
+                    .onMove { indices, newOffset in
+                        displaySongs.move(fromOffsets: indices, toOffset: newOffset)
+                        updateSongOrderOnServer()
                     }
                 }
                 .listStyle(.plain)
@@ -151,6 +163,11 @@ struct PlaylistDetailView: View {
             }
             print(playlist.id?.uuidString ?? "nil", "playlistID", TokenStorage.shared.fetchToken() ?? "nil", "token")
         }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                EditButton()
+            }
+        }
     }
 
     private func deleteSong(_ song: PlayableTrackDTO) {
@@ -178,7 +195,6 @@ struct PlaylistDetailView: View {
             if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
                 DispatchQueue.main.async {
                     errorMessage = nil
-                    // 노래 삭제 후 플레이리스트 데이터 다시 로드
                     if let fetchSongs = fetchSongs {
                         isLoading = true
                         fetchSongs { loadedSongs in
@@ -231,6 +247,26 @@ struct PlaylistDetailView: View {
                 DispatchQueue.main.async {
                     errorMessage = "플레이리스트 삭제에 실패했습니다."
                 }
+            }
+        }.resume()
+    }
+
+    private func updateSongOrderOnServer() {
+        guard let playlistID = playlist.id?.uuidString else { return }
+        let orderedSongIDs = displaySongs.map { $0.id.uuidString }
+        guard let token = TokenStorage.shared.fetchToken() else { return }
+        guard let url = URL(string: "\(Endpoints.Playlist.userPlaylist)/order/\(playlistID)") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = ["orderedSongIDs": orderedSongIDs]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error = error {
+                print("곡 순서 변경 실패: \(error)")
+            } else {
+                print("곡 순서 변경 성공")
             }
         }.resume()
     }
