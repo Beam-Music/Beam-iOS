@@ -68,6 +68,11 @@ struct LibraryView: View {
     @State private var selectedPlaylist: PlaylistSummaryDTO? = nil
     @State private var fetchSongsCompletion: (([PlayableTrackDTO]) -> Void)? = nil
 
+    // 디버깅: selectedPlaylist 변화 추적
+    private func debugSelectedPlaylistChange(_ old: PlaylistSummaryDTO?, _ new: PlaylistSummaryDTO?) {
+        print("[DEBUG] selectedPlaylist changed: \(String(describing: old?.name)) -> \(String(describing: new?.name))")
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -88,11 +93,16 @@ struct LibraryView: View {
         .navigationDestination(item: $selectedPlaylist) { playlist in
             playlistDetailDestination(playlist: playlist)
         }
-        .onChange(of: store.state.selectedPlaylistSongs) { _, newSongs in
-            if let completion = fetchSongsCompletion {
+        .onChange(of: store.state.selectedPlaylistSongs) { oldSongs, newSongs in
+           
+            if let completion = fetchSongsCompletion, oldSongs != newSongs {
                 completion(newSongs)
                 fetchSongsCompletion = nil
             }
+        }
+        .onChange(of: selectedPlaylist, debugSelectedPlaylistChange)
+        .onDisappear {
+            fetchSongsCompletion = nil
         }
     }
     
@@ -142,9 +152,18 @@ struct LibraryView: View {
             onPlayAll: {
                 store.send(.playAllInPlaylist)
             },
-            fetchSongs: { completion in
+            fetchSongs: { [weak store] completion in
+                if fetchSongsCompletion != nil {
+                    fetchSongsCompletion = nil
+                }
                 fetchSongsCompletion = completion
-                store.send(.fetchPlaylistSongs(playlist))
+                DispatchQueue.main.async {
+                    if let store = store, selectedPlaylist?.id == playlist.id {
+                        store.send(.fetchPlaylistSongs(playlist))
+                    } else {
+                        print("store.send skipped: View is not visible or store is nil")
+                    }
+                }
             }
         )
     }
