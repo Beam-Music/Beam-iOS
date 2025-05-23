@@ -12,8 +12,8 @@ struct PlayerReducer {
         var playlist: [PlayableTrackDTO] = []
         var currentIndex: Int = 0
         var isPlaying: Bool = false
-        var isTransitioning: Bool = false // 곡 전환(인덱스 변경) 중에만 true
-        var isAIMusicEnabled: Bool = false // 토글 상태는 유지 (AI 곡 추가/제거 기준)
+        var isTransitioning: Bool = false
+        var isAIMusicEnabled: Bool = false
         var isLoadingAISongs: Bool = false
         var aiSongFetchError: String? = nil
         
@@ -130,19 +130,15 @@ struct PlayerReducer {
                 }
                 
             case .nextTrack:
-                print("[DEBUG] PlayerReducer: nextTrack called, currentIndex: \(state.currentIndex), playlist.count: \(state.playlist.count), currentTrack: \(state.currentTrack?.title ?? "nil")")
                 guard !state.playlist.isEmpty, !state.isTransitioning else {
-                    print("PlayerReducer: Cannot move to next track - playlist empty or transitioning")
                     return .none
                 }
                 if let nextIndex = findNextTrackIndexSequentially(
                     currentIndex: state.currentIndex,
                     playlistCount: state.playlist.count
                 ) {
-                    print("PlayerReducer: Moving to next track at index \(nextIndex)")
                     state.isTransitioning = true
                     state.currentIndex = nextIndex
-                    // playlist는 그대로 두고, 현재 곡만 재생
                     let track = state.playlist[nextIndex]
                     return .run { send in
                         do {
@@ -214,7 +210,6 @@ struct PlayerReducer {
                     if state.isPlaying {
                         return .none
                     } else {
-                        // 현재 곡만 재생
                         let track = state.playlist[index]
                         return .run { send in
                             do {
@@ -269,11 +264,9 @@ struct PlayerReducer {
                 }
                 
             case let .startPlayback(tracks):
-                print("[DEBUG] PlayerReducer: startPlayback called, tracks.count: \(tracks.count)")
                 state.playlist = tracks
                 state.currentIndex = 0
                 guard let track = state.currentTrack else {
-                    print("PlayerReducer: No current track to play")
                     state.isPlaying = false
                     state.isTransitioning = false
                     return .run { send in
@@ -281,14 +274,12 @@ struct PlayerReducer {
                     }
                 }
                 
-                // Start a background task to ensure playback continues
                 let backgroundTaskID = UIApplication.shared.beginBackgroundTask { }
                 
                 return .run { send in
                     do {
                         if track.isAIGenerated {
                             if let fileUrl = track.fileUrl {
-                                print("🎵 Starting AI track playback with file URL: \(fileUrl)")
                                 try await audioManager.playAIMusic(
                                     from: fileUrl,
                                     title: track.title,
@@ -297,49 +288,39 @@ struct PlayerReducer {
                                 await send(.internalPlaybackStateResponse(true))
                                 await send(.playbackFinished)
                             } else {
-                                print("⚠️ AI track missing file URL: \(track.title)")
                                 await send(.playbackError("Missing file URL for AI track"))
                             }
                         } else {
-                            // MusicKit track - try to play even if playbackStoreID is nil
-                            print("🎵 Attempting Apple Music playback. Title: \(track.title), Store ID: \(track.playbackStoreID ?? "nil - AudioManager will search")")
                             try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
                             await send(.internalPlaybackStateResponse(true))
                             await send(.playbackFinished)
                         }
                     } catch {
-                        print("❌ Failed to start playback: \(error)")
                         await send(.playbackError(error.localizedDescription))
                     }
                     
-                    // End the background task
                     UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 }
                 
             case .playbackFinished:
                 state.isTransitioning = false
-                print("PlayerReducer: PlaybackFinished received, transition complete.")
                 return .none
                 
             case let .playbackError(errorString):
-                print("PlayerReducer: Playback error received: \(errorString)")
                 state.isTransitioning = false
                 state.isPlaying = false
                 return .run { _ async in await audioManager.stop() }
                 
             case let .toggleAIMusic(enabled):
                 state.isAIMusicEnabled = enabled
-                print("PlayerReducer: AI Music toggled to \(enabled)")
                 
                 if enabled {
                     return .run { [modelContext] send in
                         do {
                             let token = try await HomeFeature.fetchToken(context: modelContext)
                             let response = try await HomeFeature.fetchPlayableAISongs(token: token)
-                            print("PlayerReducer: Fetched \(response.count) AI songs")
                             await send(.aiSongsResponse(.success(response)))
                         } catch {
-                            print("PlayerReducer Error: Failed to fetch AI songs - \(error)")
                             await send(.aiSongsResponse(.failure(error)))
                         }
                     }
@@ -356,10 +337,8 @@ struct PlayerReducer {
                     do {
                         let token = try await HomeFeature.fetchToken(context: modelContext)
                         let aiTracks = try await HomeFeature.fetchPlayableAISongs(token: token)
-                        print("PlayerReducer: Successfully fetched \(aiTracks.count) AI tracks")
                         await send(.aiSongsResponse(.success(aiTracks)))
                     } catch {
-                        print("PlayerReducer: Error fetching AI tracks: \(error)")
                         await send(.aiSongsResponse(.failure(error)))
                     }
                 }
@@ -369,19 +348,12 @@ struct PlayerReducer {
                 state.aiSongFetchError = nil
                 
                 if aiTracks.isEmpty {
-                    print("PlayerReducer: No AI tracks available")
                     state.aiSongFetchError = "No AI tracks available yet. Please try again later."
                     return .none
                 }
                 
-                print("PlayerReducer: Processing \(aiTracks.count) AI tracks")
-                
-                // Create new tracks with unique IDs and proper playback URLs
                 let updatedAISongs = aiTracks.enumerated().map { index, track -> PlayableTrackDTO in
-                    // Generate a new UUID for each track to avoid duplicates
                     let newId = UUID()
-                    print("PlayerReducer: Creating AI track with new ID: \(newId)")
-                    // Use playbackUrl as fileUrl for AI tracks
                     let fileUrl = track.playbackUrl ?? "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
                     return PlayableTrackDTO(
                         id: newId,
@@ -399,33 +371,25 @@ struct PlayerReducer {
                 let wasPlaying = state.isPlaying
                 let currentTrackId = state.currentTrack?.id
                 
-                // Remove existing AI songs
                 state.playlist.removeAll { $0.isAIGenerated }
-                
-                // Add new AI songs
                 state.playlist.append(contentsOf: updatedAISongs)
                 
-                print("PlayerReducer: Added \(updatedAISongs.count) AI songs to playlist")
-                
-                // If we were playing an AI track, start playing the first new AI track
                 if wasPlaying, let currentTrack = state.currentTrack, currentTrack.isAIGenerated {
                     state.currentIndex = state.playlist.count - updatedAISongs.count // Index of first AI song
                     state.isTransitioning = false // Reset transitioning state
                     return .send(.startPlayback([state.playlist[state.currentIndex]]))
                 }
                 
-                // If we weren't playing anything, start with first AI track
                 if state.currentTrack == nil {
                     state.currentIndex = state.playlist.count - updatedAISongs.count
                     state.isTransitioning = false // Reset transitioning state
                     return .send(.startPlayback([state.playlist[state.currentIndex]]))
                 }
                 
-                // Otherwise, keep the current track
                 if let currentId = currentTrackId,
                    let newIndex = state.playlist.firstIndex(where: { $0.id == currentId }) {
                     state.currentIndex = newIndex
-                    state.isTransitioning = false // Reset transitioning state
+                    state.isTransitioning = false
                 }
                 
                 return .none
@@ -437,7 +401,6 @@ struct PlayerReducer {
                 } else {
                     state.aiSongFetchError = error.localizedDescription
                 }
-                print("PlayerReducer: Failed to fetch AI tracks: \(error.localizedDescription)")
                 return .none
                 
             case .removeAISongsFromPlaylist:
@@ -488,14 +451,11 @@ struct PlayerReducer {
                         nextIndex = 0
                         shouldStartPlayback = wasPlaying
                     }
-                    print("Removed AI track. New index: \(nextIndex). Should start playback: \(shouldStartPlayback)")
                 } else {
                     if let indexInNewList = newPlaylist.firstIndex(where: { $0.id == trackBeingPlayed.id }) {
                         nextIndex = indexInNewList
                         shouldStartPlayback = false
-                        print("Kept MusicKit track. New index: \(nextIndex)")
                     } else {
-                        print("Error: Playing MusicKit track not found after filtering AI songs. Resetting to index 0.")
                         nextIndex = 0
                         shouldStartPlayback = wasPlaying
                         state.isTransitioning = false

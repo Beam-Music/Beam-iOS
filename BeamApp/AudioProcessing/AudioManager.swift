@@ -231,7 +231,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             guard let self = self else { return }
             if item.duration.isValid {
                 self.duration = item.duration.seconds
-                print("📊 Updated AI track duration: \(self.duration) seconds")
             }
         }
         
@@ -286,7 +285,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     private func cleanupAIPlayback() {
-        print("AudioManager: Cleaning up AI playback")
         avPlayer?.pause()
         avPlayer = nil
         avPlayerItem = nil
@@ -318,11 +316,9 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     
     func seek(to seconds: Double) async {
         let targetTime = max(0, seconds)
-        print("AudioManager: Seeking to \(targetTime)")
         
         if isPlayingAIMusic {
             guard let player = avPlayer, let item = player.currentItem, item.status == .readyToPlay else {
-                print("AudioManager Seek Error: AVPlayer not ready.")
                 return
             }
             let time = CMTime(seconds: targetTime, preferredTimescale: 600)
@@ -374,7 +370,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         guard !isPlayingAIMusic, isPlayingMusic else { return }
         
         if duration > 0 && (currentTime >= duration - 0.5 || currentTime > duration + 0.1) {
-            print("AudioManager: MusicKit track completion detected by timer.")
             NotificationCenter.default.post(
                 name: AudioManager.audioDidFinishNotification,
                 object: nil
@@ -383,7 +378,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     private func handlePlaybackError(_ error: Error) async {
-        print("AudioManager Error Handler: \(error.localizedDescription)")
         isPlayingMusic = false
         
         if isPlayingAIMusic {
@@ -395,7 +389,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     
     @MainActor
     private func updateTrackMetadata(song: MusicKit.Song) async {
-        print("AudioManager: Updating metadata from fetched MusicKit.Song: \(song.title)")
         self.currentTrackMetadata = (title: song.title, artist: song.artistName, albumArt: nil)
 
         Task.detached {
@@ -419,7 +412,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
 
     func cleanup() {
-        print("AudioManager: cleanup() called.")
         timer?.invalidate()
         timer = nil
         musicPlayerController.endGeneratingPlaybackNotifications()
@@ -438,23 +430,15 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         if musicPlayerController.playbackState != .stopped {
             musicPlayerController.stop()
         }
-        print("AudioManager: Cleanup finished.")
-    }
-
-    deinit {
-        print("AudioManager: deinit called.")
     }
 
     @objc private func playerItemDidReachEnd() {
-        print("AudioManager: AI music playback finished")
         isPlayingMusic = false
         isPlayingAIMusic = false
         currentTime = 0
         
-        // Clean up the player
         cleanupAIPlayback()
         
-        // Notify that playback has finished
         NotificationCenter.default.post(
             name: AudioManager.audioDidFinishNotification,
             object: nil

@@ -123,15 +123,7 @@ struct HomeView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
-    
-    private let hitSongs: [(title: String, artist: String, artworkURL: URL?, isExplicit: Bool)] = [
-        ("Seven", "Jung Kook", URL(string: "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/7e/2e/2d/7e2e2d2e-2e2d-7e2e-2d2e-7e2e2d2e2d2e/cover.jpg/200x200bb.jpg"), false),
-        ("Paint The Town Red", "Doja Cat", nil, true),
-        ("Flowers", "Miley Cyrus", nil, false),
-        ("Rockstar", "Post Malone", nil, true),
-        ("As It Was", "Harry Styles", nil, false),
-        ("Dance The Night", "Dua Lipa", nil, false)
-    ]
+    @State private var hitSongs: [MusicSearchResult] = []
     
     init(isLoggedIn: Binding<Bool>, isMiniPlayerVisible: Binding<Bool>, store: StoreOf<HomeReducer>, libraryStore: StoreOf<LibraryReducer>) {
         self._isLoggedIn = isLoggedIn
@@ -183,29 +175,37 @@ struct HomeView: View {
                 .padding(.top, 32)
                 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 18) {
                         HStack {
                             Text("히트 음악")
                                 .font(.title2).bold()
                                 .foregroundColor(.white)
                             Spacer()
                             Button("전체보기") {
+                                // 전체보기 액션 (필요시)
                             }
                             .foregroundColor(.white.opacity(0.7))
                             .font(.subheadline)
                         }
                         .padding(.horizontal)
-                        
+                        Spacer().frame(height: 10)
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 18) {
+                            HStack(spacing: 28) {
                                 ForEach(hitSongs.indices, id: \.self) { idx in
-                                    makeHitSongCard(song: hitSongs[idx])
+                                    let song = hitSongs[idx]
+                                    HitSongCardView(
+                                        song: song,
+                                        onPlay: {
+                                            viewStore.send(.playMusic(song))
+                                            isMiniPlayerVisible = true
+                                        }
+                                    )
                                 }
                             }
                             .padding(.horizontal)
                         }
                     }
-                    .padding(.top, 12)
+                    .padding(.top, 20)
                     
                     GeometryReader { geo in
                         Color.clear
@@ -284,8 +284,7 @@ struct HomeView: View {
         .navigationBarTitle("", displayMode: .inline)
         .onAppear {
             Task {
-                let status = await MusicAuthorization.request()
-                print("MusicKit authorization status: \(status.rawValue)")
+                await fetchAppleMusicHitSongs()
             }
         }
         .sheet(
@@ -305,33 +304,26 @@ struct HomeView: View {
         }
     }
     
-    // 히트 음악 카드 뷰 생성 함수
-    private func makeHitSongCard(song: (title: String, artist: String, artworkURL: URL?, isExplicit: Bool)) -> some View {
-        HitSongCardView(
-            song: MusicSearchResult(
-                id: UUID().uuidString,
-                title: song.title,
-                artist: song.artist,
-                artworkURL: song.artworkURL,
-                isExplicit: song.isExplicit
-            ),
-            onPlay: {
-                Task {
-                    let service = MusicSearchService()
-                    do {
-                        let results = try await service.searchMusic(query: "\(song.title) \(song.artist)")
-                        if let first = results.first {
-                            viewStore.send(.playMusic(first))
-                            isMiniPlayerVisible = true
-                        } else {
-                            // 곡을 찾지 못함: 에러 처리
-                        }
-                    } catch {
-                        // 에러 처리
-                    }
-                }
+    // 실시간 차트 곡 불러오는 함수
+    private func fetchAppleMusicHitSongs() async {
+        do {
+            var request = MusicCatalogChartsRequest(types: [MusicKit.Song.self])
+            request.limit = 10
+            let response = try await request.response()
+            let topSongs = response.songCharts.first?.items ?? []
+            let results = topSongs.map { song in
+                MusicSearchResult(
+                    id: song.id.rawValue,
+                    title: song.title,
+                    artist: song.artistName,
+                    artworkURL: song.artwork?.url(width: 100, height: 100),
+                    isExplicit: song.contentRating == .explicit
+                )
             }
-        )
+            hitSongs = results
+        } catch {
+            // 에러 처리 (예: 네트워크 오류, 권한 오류 등)
+        }
     }
 }
 
@@ -448,20 +440,23 @@ struct HomeNavigationBarView: View {
 struct HitSongCardView: View {
     let song: MusicSearchResult
     let onPlay: () -> Void
-    
+    @State private var fetchedArtworkURL: URL? = nil
+    @State private var isFetching: Bool = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .bottomTrailing) {
-                if let url = song.artworkURL {
+                if let url = song.artworkURL ?? fetchedArtworkURL {
                     AsyncImage(url: url) { image in
                         image.resizable()
-                            .frame(width: 110, height: 110)
-                            .cornerRadius(16)
                     } placeholder: {
                         Color.gray.opacity(0.3)
-                            .frame(width: 110, height: 110)
-                            .cornerRadius(16)
                     }
+                    .frame(width: 110, height: 110)
+                    .cornerRadius(16)
+                } else if isFetching {
+                    ProgressView()
+                        .frame(width: 110, height: 110)
                 } else {
                     Color.gray.opacity(0.2)
                         .frame(width: 110, height: 110)
@@ -487,6 +482,21 @@ struct HitSongCardView: View {
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.6))
         }
-        .frame(width: 120)
+        .frame(width: 130)
+        .onAppear {
+            if song.artworkURL == nil && !isFetching {
+                isFetching = true
+                Task {
+                    let service = MusicSearchService()
+                    do {
+                        let results = try await service.searchMusic(query: "\(song.title) \(song.artist)")
+                        if let first = results.first, let url = first.artworkURL {
+                            fetchedArtworkURL = url
+                        }
+                    } catch {}
+                    isFetching = false
+                }
+            }
+        }
     }
 }
