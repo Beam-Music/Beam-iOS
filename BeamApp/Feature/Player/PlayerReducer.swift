@@ -29,10 +29,10 @@ struct PlayerReducer {
         case nextTrack
         case previousTrack
         case updateCurrentIndex(Int)
-        case startPlayback // 현재 인덱스의 곡 재생 시작 요청
-        case audioDidFinish // AudioManager로부터 재생 완료 알림 수신
-        case playbackFinished // AudioManager에서 재생 준비/시작 완료됨
-        case playbackError(String) // AudioManager에서 재생 오류 발생
+        case startPlayback([PlayableTrackDTO])
+        case audioDidFinish 
+        case playbackFinished
+        case playbackError(String)
         case toggleAIMusic(Bool)
         case fetchAISongs
         case aiSongsResponse(TaskResult<[PlayableTrackDTO]>)
@@ -116,7 +116,7 @@ struct PlayerReducer {
                         let didResume = await audioManager.tryResume()
                         if !didResume {
                             if currentIndex >= 0 && currentIndex < playlist.count {
-                                await send(.startPlayback)
+                                await send(.startPlayback([playlist[currentIndex]]))
                             } else {
                                 await send(.internalPlaybackStateResponse(false))
                             }
@@ -130,11 +130,11 @@ struct PlayerReducer {
                 }
                 
             case .nextTrack:
+                print("[DEBUG] PlayerReducer: nextTrack called, currentIndex: \(state.currentIndex), playlist.count: \(state.playlist.count), currentTrack: \(state.currentTrack?.title ?? "nil")")
                 guard !state.playlist.isEmpty, !state.isTransitioning else {
                     print("PlayerReducer: Cannot move to next track - playlist empty or transitioning")
                     return .none
                 }
-                
                 if let nextIndex = findNextTrackIndexSequentially(
                     currentIndex: state.currentIndex,
                     playlistCount: state.playlist.count
@@ -142,7 +142,31 @@ struct PlayerReducer {
                     print("PlayerReducer: Moving to next track at index \(nextIndex)")
                     state.isTransitioning = true
                     state.currentIndex = nextIndex
-                    return .send(.startPlayback)
+                    // playlist는 그대로 두고, 현재 곡만 재생
+                    let track = state.playlist[nextIndex]
+                    return .run { send in
+                        do {
+                            if track.isAIGenerated {
+                                if let fileUrl = track.fileUrl {
+                                    try await audioManager.playAIMusic(
+                                        from: fileUrl,
+                                        title: track.title,
+                                        artist: track.artistName ?? "AI Generated"
+                                    )
+                                    await send(.internalPlaybackStateResponse(true))
+                                    await send(.playbackFinished)
+                                } else {
+                                    await send(.playbackError("Missing file URL for AI track"))
+                                }
+                            } else {
+                                try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
+                                await send(.internalPlaybackStateResponse(true))
+                                await send(.playbackFinished)
+                            }
+                        } catch {
+                            await send(.playbackError(error.localizedDescription))
+                        }
+                    }
                 }
                 return .none
                 
@@ -152,7 +176,32 @@ struct PlayerReducer {
                     currentIndex: state.currentIndex,
                     playlistCount: state.playlist.count
                 ) {
-                    return .send(.updateCurrentIndex(prevIndex))
+                    state.isTransitioning = true
+                    state.currentIndex = prevIndex
+                    let track = state.playlist[prevIndex]
+                    return .run { send in
+                        do {
+                            if track.isAIGenerated {
+                                if let fileUrl = track.fileUrl {
+                                    try await audioManager.playAIMusic(
+                                        from: fileUrl,
+                                        title: track.title,
+                                        artist: track.artistName ?? "AI Generated"
+                                    )
+                                    await send(.internalPlaybackStateResponse(true))
+                                    await send(.playbackFinished)
+                                } else {
+                                    await send(.playbackError("Missing file URL for AI track"))
+                                }
+                            } else {
+                                try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
+                                await send(.internalPlaybackStateResponse(true))
+                                await send(.playbackFinished)
+                            }
+                        } catch {
+                            await send(.playbackError(error.localizedDescription))
+                        }
+                    }
                 }
                 return .none
                 
@@ -161,62 +210,68 @@ struct PlayerReducer {
                       index >= 0, index < state.playlist.count,
                       !state.isTransitioning
                 else { return .none }
-                
                 if state.currentIndex == index {
                     if state.isPlaying {
                         return .none
                     } else {
-                        return .send(.startPlayback)
+                        // 현재 곡만 재생
+                        let track = state.playlist[index]
+                        return .run { send in
+                            do {
+                                if track.isAIGenerated {
+                                    if let fileUrl = track.fileUrl {
+                                        try await audioManager.playAIMusic(
+                                            from: fileUrl,
+                                            title: track.title,
+                                            artist: track.artistName ?? "AI Generated"
+                                        )
+                                        await send(.internalPlaybackStateResponse(true))
+                                        await send(.playbackFinished)
+                                    } else {
+                                        await send(.playbackError("Missing file URL for AI track"))
+                                    }
+                                } else {
+                                    try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
+                                    await send(.internalPlaybackStateResponse(true))
+                                    await send(.playbackFinished)
+                                }
+                            } catch {
+                                await send(.playbackError(error.localizedDescription))
+                            }
+                        }
+                    }
+                }
+                state.isTransitioning = true
+                state.currentIndex = index
+                let track = state.playlist[index]
+                return .run { send in
+                    do {
+                        if track.isAIGenerated {
+                            if let fileUrl = track.fileUrl {
+                                try await audioManager.playAIMusic(
+                                    from: fileUrl,
+                                    title: track.title,
+                                    artist: track.artistName ?? "AI Generated"
+                                )
+                                await send(.internalPlaybackStateResponse(true))
+                                await send(.playbackFinished)
+                            } else {
+                                await send(.playbackError("Missing file URL for AI track"))
+                            }
+                        } else {
+                            try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
+                            await send(.internalPlaybackStateResponse(true))
+                            await send(.playbackFinished)
+                        }
+                    } catch {
+                        await send(.playbackError(error.localizedDescription))
                     }
                 }
                 
-                state.isTransitioning = true
-                state.currentIndex = index
-                return .send(.startPlayback)
-                
-            case .audioDidFinish:
-                print("PlayerReducer: Audio finished, checking for next track")
-                state.isTransitioning = true
-                
-                // Find the next track
-                if let nextIndex = findNextTrackIndexSequentially(
-                    currentIndex: state.currentIndex,
-                    playlistCount: state.playlist.count
-                ) {
-                    print("PlayerReducer: Found next track at index \(nextIndex)")
-                    state.currentIndex = nextIndex
-                    state.isPlaying = true // Ensure playback continues
-                    return .merge(
-                        .send(.startPlayback),
-                        .send(.playbackFinished)
-                    )
-                } else {
-                    print("PlayerReducer: No next track found, stopping playback")
-                    state.isPlaying = false
-                    state.isTransitioning = false
-                    return .send(.playbackFinished)
-                }
-                
-            case let .nextTrackResponse(.success(nextTrack)):
-                print("PlayerReducer: Received next track from server: \(nextTrack.title)")
-                if let nextIndex = state.playlist.firstIndex(where: { $0.id == nextTrack.id }) {
-                    print("PlayerReducer: Found next track at index \(nextIndex)")
-                    state.currentIndex = nextIndex
-                    return .send(.startPlayback)
-                } else {
-                    print("PlayerReducer Error: Next track not found in playlist")
-                    state.isTransitioning = false
-                    state.isPlaying = false
-                    return .send(.playbackError("Next track not found in playlist"))
-                }
-                
-            case let .nextTrackResponse(.failure(error)):
-                print("PlayerReducer Error: Failed to get next track: \(error)")
-                state.isTransitioning = false
-                state.isPlaying = false
-                return .send(.playbackError("Failed to get next track"))
-                
-            case .startPlayback:
+            case let .startPlayback(tracks):
+                print("[DEBUG] PlayerReducer: startPlayback called, tracks.count: \(tracks.count)")
+                state.playlist = tracks
+                state.currentIndex = 0
                 guard let track = state.currentTrack else {
                     print("PlayerReducer: No current track to play")
                     state.isPlaying = false
@@ -357,14 +412,14 @@ struct PlayerReducer {
                 if wasPlaying, let currentTrack = state.currentTrack, currentTrack.isAIGenerated {
                     state.currentIndex = state.playlist.count - updatedAISongs.count // Index of first AI song
                     state.isTransitioning = false // Reset transitioning state
-                    return .send(.startPlayback)
+                    return .send(.startPlayback([state.playlist[state.currentIndex]]))
                 }
                 
                 // If we weren't playing anything, start with first AI track
                 if state.currentTrack == nil {
                     state.currentIndex = state.playlist.count - updatedAISongs.count
                     state.isTransitioning = false // Reset transitioning state
-                    return .send(.startPlayback)
+                    return .send(.startPlayback([state.playlist[state.currentIndex]]))
                 }
                 
                 // Otherwise, keep the current track
@@ -453,7 +508,7 @@ struct PlayerReducer {
                 
                 if shouldStartPlayback {
                     state.isPlaying = true
-                    return .send(.startPlayback)
+                    return .send(.startPlayback([state.playlist[state.currentIndex]]))
                 } else {
                     if !wasPlaying {
                         state.isPlaying = false
@@ -468,6 +523,12 @@ struct PlayerReducer {
                 
             case .loadAIPreference:
                 return .none
+            case .audioDidFinish:
+                return .none
+
+            case .nextTrackResponse(_):
+                return .none
+
             }
         }
     }

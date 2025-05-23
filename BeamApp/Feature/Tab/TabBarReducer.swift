@@ -34,17 +34,13 @@ struct TabBarReducer {
             switch action {
             case let .home(.playlistLoaded(playlist)),
                  let .library(.playlistLoaded(playlist)):
-
                 if state.playerState.playlist != playlist {
                     state.playerState.playlist = playlist
                     state.playerState.currentIndex = 0
-                    // 다른 탭의 상태도 필요시 업데이트 (예: home/library 간 동기화)
-                    // state.homeState.playlist = playlist // 필요 여부 확인
-                    // state.libraryState.playlist = playlist // 필요 여부 확인
-                    // 필요하다면 여기서 바로 .player(.startPlayback) 액션 전송 가능
-                    // return .send(.player(.startPlayback))
                 }
                 return .none
+            case let .library(.startPlayback(tracks)):
+                return .send(.player(.startPlayback(tracks)))
             default:
                 return .none
             }

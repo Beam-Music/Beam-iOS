@@ -29,12 +29,12 @@ struct BeamApp: App {
                 ._printChanges()
         }
 
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("❌ Failed to set up audio session: \(error)")
-        }
+        // do {
+        //     try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+        //     try AVAudioSession.sharedInstance().setActive(true)
+        // } catch {
+        //     print("❌ Failed to set up audio session: \(error)")
+        // }
     }
 
     var body: some Scene {

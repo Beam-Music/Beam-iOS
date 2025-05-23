@@ -254,17 +254,25 @@ struct RemixArtistPickerView: View {
 struct PlayerView: View {
     let store: StoreOf<PlayerReducer>
     @Binding var isMiniPlayerVisible: Bool
+    let libraryStore: StoreOf<LibraryReducer>
     @State private var isDetailViewPresented = false
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var audioManager = AudioManager.shared
     @State private var isRemixSheetPresented = false
     @State private var selectedArtists: [Artist] = []
+    @State private var isAddToPlaylistSheetPresented = false
     let mockArtists: [Artist] = [
         Artist(name: "Dua Lipa", imageName: "artist_dualipa"),
         Artist(name: "BlackPink", imageName: "artist_blackpink"),
         Artist(name: "H.E.R", imageName: "artist_her"),
         Artist(name: "Rihanna", imageName: "artist_rihanna")
     ]
+    
+    init(store: StoreOf<PlayerReducer>, isMiniPlayerVisible: Binding<Bool>, libraryStore: StoreOf<LibraryReducer>) {
+        self.store = store
+        self._isMiniPlayerVisible = isMiniPlayerVisible
+        self.libraryStore = libraryStore
+    }
     
     struct ViewState: Equatable {
         let isPlaying: Bool
@@ -316,36 +324,61 @@ struct PlayerView: View {
                     // .padding(.top, 24)
                     // .padding(.horizontal)
                     // Spacer().frame(height: 8)
-                    AlbumArtView(albumArt: audioManager.currentTrackMetadata.albumArt)
-                        .frame(width: 320, height: 320)
-                        .cornerRadius(24)
-                        .shadow(radius: 14)
-                        .padding(.bottom, 8)
-                    VStack(spacing: 2) {
-                        HStack(alignment: .center) {
-                            Text(audioManager.currentTrackMetadata.title ?? "No Track")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            Spacer()
-                            Button(action: {/* TODO: Like */}) {
-                                Image(systemName: "heart")
+                    if let track = viewStore.currentTrack {
+                        AlbumArtView(albumArt: audioManager.currentTrackMetadata.albumArt)
+                            .frame(width: 320, height: 320)
+                            .cornerRadius(24)
+                            .shadow(radius: 14)
+                            .padding(.bottom, 8)
+                        VStack(spacing: 2) {
+                            HStack(alignment: .center) {
+                                Text(track.title)
+                                    .font(.system(size: 22, weight: .bold))
                                     .foregroundColor(.white)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button(action: {/* TODO: Like */}) {
+                                    Image(systemName: "heart")
+                                        .foregroundColor(.white)
+                                }
+                                Button(action: { isAddToPlaylistSheetPresented = true }) {
+                                    Image(systemName: "plus")
+                                        .foregroundColor(.white)
+                                }
                             }
-                            Button(action: {/* TODO: Add */}) {
-                                Image(systemName: "plus")
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .padding(.horizontal)
-                        Text(combinedArtistLabel)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
                             .padding(.horizontal)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(track.artistName ?? "")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.top, 24)
+                        .padding(.bottom, 8)
+                    } else {
+                        AlbumArtView(albumArt: nil)
+                            .frame(width: 320, height: 320)
+                            .cornerRadius(24)
+                            .shadow(radius: 14)
+                            .padding(.bottom, 8)
+                        VStack(spacing: 2) {
+                            HStack(alignment: .center) {
+                                Text("로딩 중...")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            Text("")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.top, 24)
+                        .padding(.bottom, 8)
                     }
-                    .padding(.top, 24)
-                    .padding(.bottom, 8)
                     VStack(spacing: 0) {
                         if audioManager.duration > 0 {
                             Slider(value: $audioManager.currentTime, in: 0...audioManager.duration, onEditingChanged: { editing in
@@ -446,9 +479,22 @@ struct PlayerView: View {
             }
             .onAppear {
                 viewStore.send(.syncPlaybackState)
+                if !viewStore.isPlaying {
+                    viewStore.send(.playPause)
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
+            }
+            .sheet(isPresented: $isAddToPlaylistSheetPresented) {
+                // TODO: 실제로는 사용자의 기본/첫 번째 플레이리스트를 넘겨야 함
+                let dummyPlaylist = PlaylistSummaryDTO(id: UUID(), name: "내 플레이리스트", user: nil)
+                AddToPlaylistSheet(
+                    playlist: dummyPlaylist,
+                    onAdd: {
+                        // TODO: 곡 추가 후 처리 (예: 알림, UI 갱신 등)
+                    }
+                )
             }
         }
     }

@@ -12,7 +12,7 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
         case title
         case artistName = "artist_name"
         case playbackUrl = "playback_url"
-        case playbackStoreID = "playback_store_id"
+        case playbackStoreID
         case isAIGenerated = "is_ai_generated"
         case duration
     }
