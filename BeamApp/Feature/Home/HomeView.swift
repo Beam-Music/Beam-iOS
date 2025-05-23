@@ -56,7 +56,6 @@ struct MusicSearchResultView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Album artwork
             Group {
                 if let artworkURL = result.artworkURL {
                     AsyncImage(url: artworkURL) { image in
@@ -73,7 +72,6 @@ struct MusicSearchResultView: View {
             .frame(width: 50, height: 50)
             .cornerRadius(8)
             
-            // Song info
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(result.title)
@@ -99,7 +97,6 @@ struct MusicSearchResultView: View {
             
             Spacer()
             
-            // Play button
             Button(action: onPlay) {
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 30))
@@ -127,11 +124,13 @@ struct HomeView: View {
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
     
-    // 히트 음악 임시 데이터 (id 제거)
     private let hitSongs: [(title: String, artist: String, artworkURL: URL?, isExplicit: Bool)] = [
-        ("Fall in Love with You", "Montell Fish", URL(string: "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/7e/2e/2d/7e2e2d2e-2e2d-7e2e-2d2e-7e2e2d2e2d2e/cover.jpg/200x200bb.jpg"), false),
-        ("Another Song", "Artist Name", nil, false),
-        ("Sample Hit", "Sample Artist", nil, true)
+        ("Seven", "Jung Kook", URL(string: "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/7e/2e/2d/7e2e2d2e-2e2d-7e2e-2d2e-7e2e2d2e2d2e/cover.jpg/200x200bb.jpg"), false),
+        ("Paint The Town Red", "Doja Cat", nil, true),
+        ("Flowers", "Miley Cyrus", nil, false),
+        ("Rockstar", "Post Malone", nil, true),
+        ("As It Was", "Harry Styles", nil, false),
+        ("Dance The Night", "Dua Lipa", nil, false)
     ]
     
     init(isLoggedIn: Binding<Bool>, isMiniPlayerVisible: Binding<Bool>, store: StoreOf<HomeReducer>, libraryStore: StoreOf<LibraryReducer>) {
