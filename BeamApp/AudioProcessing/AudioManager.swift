@@ -181,45 +181,32 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAppleMusicTrack(title: String?, storeID: String?) async throws {
-        print("🎵 AudioManager: Attempting to play Apple Music track")
-        print("   Title: \(title ?? "nil")")
-        print("   Store ID: \(storeID ?? "nil - will search by title")")
         
         // Stop any existing playback
         await stop()
         
         do {
             if let storeID = storeID {
-                // Try to play using store ID
-                print("🎵 Playing with store ID: \(storeID)")
                 musicPlayerController.setQueue(with: [storeID])
                 musicPlayerController.play()
             } else if let title = title {
-                // Search and play by title
-                print("🎵 Searching for track: \(title)")
                 let request = MusicCatalogSearchRequest(term: title, types: [MusicKit.Song.self])
                 let response = try await request.response()
                 
                 if let song = response.songs.first {
-                    print("🎵 Found track: \(song.title)")
                     musicPlayerController.setQueue(with: [song.id.rawValue])
                     musicPlayerController.play()
                 } else {
-                    print("⚠️ No matching track found")
                     throw PlayerError.trackNotFound(title)
                 }
             } else {
-                print("⚠️ No title or store ID provided")
                 throw PlayerError.invalidTrackTitle
             }
             
-            // Start playback
             musicPlayerController.play()
             isPlayingMusic = true
             isPlayingAIMusic = false
-            print("✅ Playback started successfully")
         } catch {
-            print("❌ Failed to start playback: \(error)")
             isPlayingMusic = false
             isPlayingAIMusic = false
             throw error
@@ -227,35 +214,26 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAIMusic(from urlString: String, title: String, artist: String) async throws {
-        print("🎵 Starting AI music playback with file URL: \(urlString)")
-        print("   Title: \(title)")
-        print("   Artist: \(artist)")
         
         guard let url = URL(string: urlString) else {
-            print("❌ Invalid AI music URL: \(urlString)")
             throw PlayerError.invalidURL(urlString)
         }
         
-        // Stop any existing playback
         await stop()
         
-        // Create a new player item
         let playerItem = AVPlayerItem(url: url)
         avPlayerItem = playerItem
         
-        // Add observers for player item status and duration
         statusObserver = playerItem.observe(\.status) { [weak self] item, _ in
             guard let self = self else { return }
             switch item.status {
             case .readyToPlay:
-                print("✅ AVPlayerItem is ready to play")
                 self.duration = item.duration.seconds
-                // Update metadata when item is ready
                 self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
             case .failed:
                 print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
             case .unknown:
-                print("⚠️ AVPlayerItem status is unknown")
+                break
             @unknown default:
                 break
             }

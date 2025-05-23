@@ -105,7 +105,8 @@ struct APIClient {
                         playbackStoreID: track.playbackStoreID,
                         isAIGenerated: true,
                         duration: track.duration,
-                        fileUrl: track.fileUrl
+                        fileUrl: track.fileUrl,
+                        artworkURL: nil
                     )
                 }
                 

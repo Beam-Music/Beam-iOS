@@ -6,6 +6,8 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
     let playbackStoreID: String?
     let isAIGenerated: Bool
     let duration: TimeInterval?
+    let fileUrl: String?
+    var artworkURL: URL?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -15,9 +17,11 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
         case playbackStoreID
         case isAIGenerated = "is_ai_generated"
         case duration
+        case fileUrl = "file_url"
+        case artworkURL = "artwork_url"
     }
     
-    init(id: UUID, title: String, artistName: String?, playbackUrl: String?, playbackStoreID: String?, isAIGenerated: Bool, duration: TimeInterval?) {
+    init(id: UUID, title: String, artistName: String?, playbackUrl: String?, playbackStoreID: String?, isAIGenerated: Bool, duration: TimeInterval?, fileUrl: String?, artworkURL: URL?) {
         self.id = id
         self.title = title
         self.artistName = artistName
@@ -25,6 +29,8 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
         self.playbackStoreID = playbackStoreID
         self.isAIGenerated = isAIGenerated
         self.duration = duration
+        self.fileUrl = fileUrl
+        self.artworkURL = artworkURL
     }
     
     init(from decoder: Decoder) throws {
@@ -36,5 +42,7 @@ struct PlayableTrackDTO: Equatable, Identifiable, Codable {
         playbackStoreID = try container.decodeIfPresent(String.self, forKey: .playbackStoreID)
         isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
         duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
+        fileUrl = try container.decodeIfPresent(String.self, forKey: .fileUrl)
+        artworkURL = try container.decodeIfPresent(URL.self, forKey: .artworkURL)
     }
 } 

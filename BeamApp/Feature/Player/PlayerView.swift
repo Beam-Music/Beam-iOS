@@ -325,11 +325,23 @@ struct PlayerView: View {
                     // .padding(.horizontal)
                     // Spacer().frame(height: 8)
                     if let track = viewStore.currentTrack {
-                        AlbumArtView(albumArt: audioManager.currentTrackMetadata.albumArt)
+                        if let artworkURL = track.artworkURL {
+                            AsyncImage(url: artworkURL) { image in
+                                image.resizable()
+                            } placeholder: {
+                                Color.gray.opacity(0.2)
+                            }
                             .frame(width: 320, height: 320)
                             .cornerRadius(24)
                             .shadow(radius: 14)
                             .padding(.bottom, 8)
+                        } else {
+                            AlbumArtView(albumArt: audioManager.currentTrackMetadata.albumArt)
+                                .frame(width: 320, height: 320)
+                                .cornerRadius(24)
+                                .shadow(radius: 14)
+                                .padding(.bottom, 8)
+                        }
                         VStack(spacing: 2) {
                             HStack(alignment: .center) {
                                 Text(track.title)

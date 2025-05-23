@@ -381,10 +381,8 @@ struct PlayerReducer {
                     // Generate a new UUID for each track to avoid duplicates
                     let newId = UUID()
                     print("PlayerReducer: Creating AI track with new ID: \(newId)")
-                    
                     // Use playbackUrl as fileUrl for AI tracks
                     let fileUrl = track.playbackUrl ?? "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
-                    
                     return PlayableTrackDTO(
                         id: newId,
                         title: track.title,
@@ -393,7 +391,8 @@ struct PlayerReducer {
                         playbackStoreID: nil,
                         isAIGenerated: true,
                         duration: track.duration ?? 180.0,
-                        fileUrl: fileUrl // Use the same URL for both playbackUrl and fileUrl
+                        fileUrl: fileUrl,
+                        artworkURL: nil
                     )
                 }
                 

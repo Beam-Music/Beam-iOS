@@ -86,7 +86,7 @@ struct HomeFeature {
                 var modifiedTrack = track
                 if track.isAIGenerated && track.fileUrl == nil {
                     // If AI track is missing fileUrl, try to construct it
-                    modifiedTrack.fileUrl = "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
+//                    modifiedTrack.fileUrl = "https://audio.jukehost.co.uk/gcP4CuiFEBSG8rTyRl0vwSWqRVP1XgTc"
                 }
                 return modifiedTrack
             }
@@ -179,7 +179,8 @@ struct HomeFeature {
                     playbackStoreID: track.isAIGenerated ? nil : track.playbackStoreID, // Use storeID for non-AI tracks
                     isAIGenerated: track.isAIGenerated,
                     duration: track.duration,
-                    fileUrl: track.isAIGenerated ? track.fileUrl : nil // Use fileUrl for AI tracks
+                    fileUrl: track.isAIGenerated ? track.fileUrl : nil, // Use fileUrl for AI tracks
+                    artworkURL: nil // 추가
                 )
             }
         } catch let decodingError as DecodingError {
