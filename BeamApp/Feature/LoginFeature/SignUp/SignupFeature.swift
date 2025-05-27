@@ -13,6 +13,7 @@ struct SignupFeature: Reducer {
         var username: String = ""
         var email: String = ""
         var password: String = ""
+        var phone: String = ""
         var verificationCode: String = ""
         var isLoading: Bool = false
         var isVerified: Bool = false
@@ -26,6 +27,7 @@ struct SignupFeature: Reducer {
         case usernameChanged(String)
         case emailChanged(String)
         case passwordChanged(String)
+        case phoneChanged(String)
         case verificationCodeChanged(String)
         case signupButtonTapped
         case verifyButtonTapped
@@ -83,6 +85,10 @@ struct SignupFeature: Reducer {
                 
             case let .passwordChanged(password):
                 state.password = password
+                return .none
+                
+            case let .phoneChanged(phone):
+                state.phone = phone
                 return .none
                 
             case let .verificationCodeChanged(code):

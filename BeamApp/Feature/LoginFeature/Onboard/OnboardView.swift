@@ -10,7 +10,7 @@ import ComposableArchitecture
 
 struct OnboardView: View {
     @State private var page: Int = 0
-    let totalPages = 7
+    let totalPages = 8
     let loginStore: StoreOf<LoginFeature>
     let signupStore: StoreOf<SignupFeature>
     let onOnboardingFinished: () -> Void
@@ -53,12 +53,12 @@ struct OnboardView: View {
                     .tag(6)
                     .edgesIgnoringSafeArea(.all)
                 
-//                OnboardKeywordView(onNext: { page += 1 })
-//                    .tag(7)
-//                    .edgesIgnoringSafeArea(.all)
+                OnboardLoginDoneSignupView(onNext: { page += 1 })
+                    .tag(7)
+                    .edgesIgnoringSafeArea(.all)
                 
                 OnboardFinalView(onFinish: { onOnboardingFinished() })
-                    .tag(7)
+                    .tag(8)
                     .edgesIgnoringSafeArea(.all)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
