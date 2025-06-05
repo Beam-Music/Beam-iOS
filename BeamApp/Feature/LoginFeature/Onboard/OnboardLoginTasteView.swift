@@ -79,7 +79,7 @@ struct OnboardTasteView: View {
 
                 Text("아티스트 & 곡 선택")
                     .font(.headline)
-                    .foregroundColor(Color(hex: "5C1769"))
+                    .foregroundColor(Color("5C1769"))
                     .padding(.top, 16)
                     .padding(.horizontal, 24)
 

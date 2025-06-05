@@ -125,7 +125,11 @@ struct SignupFeature: Reducer {
                 
             case let .signupResponse(.failure(error)):
                 state.isLoading = false
-                state.errorMessage = error.localizedDescription
+                if error.localizedDescription.contains("이미 인증된 이메일") {
+                    state.errorMessage = "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
+                } else {
+                    state.errorMessage = error.localizedDescription
+                }
                 return .none
                 
             case .verifyButtonTapped:

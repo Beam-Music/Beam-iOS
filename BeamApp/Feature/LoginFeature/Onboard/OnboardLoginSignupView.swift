@@ -122,11 +122,12 @@ struct OnboardSignupView: View {
                                     send: SignupFeature.Action.emailChanged
                                 ), keyboardType: .emailAddress)
                                 Button("인증하기") {
-                                    if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." {
+                                    if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." ||
+                                       viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
+                                       viewStore.errorMessage == "이미 인증된 이메일입니다." {
                                         return
                                     }
                                     viewStore.send(.signupButtonTapped)
-                                    showVerificationModal = true
                                 }
                                 .padding(.vertical, 10)
                                 .padding(.horizontal, 16)
@@ -135,8 +136,16 @@ struct OnboardSignupView: View {
                                 .cornerRadius(8)
                                 .disabled(viewStore.email.isEmpty || viewStore.isLoading)
                             }
-                            if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." {
-                                Text(viewStore.errorMessage ?? "")
+                            if let errorMessage = viewStore.errorMessage,
+                               errorMessage.contains("이미 가입된 이메일") {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                                    .padding(.top, 4)
+                            }
+                            if let errorMessage = viewStore.errorMessage,
+                               errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." {
+                                Text("유효하지 않은 이메일입니다. 이메일을 다시 확인해주세요.")
                                     .foregroundColor(.red)
                                     .font(.caption)
                                     .padding(.top, 4)
@@ -222,23 +231,42 @@ struct OnboardSignupView: View {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
             }
-            .sheet(isPresented: $showVerificationModal) {
+            .sheet(isPresented: $showVerificationModal, onDismiss: {
+                if let errorMessage = viewStore.errorMessage, errorMessage.contains("이미 가입된 이메일") {
+                    // errorMessage를 nil로 리셋하는 액션이 있다면 아래처럼 사용
+                    // viewStore.send(.resetErrorMessage)
+                    // 없으면 아래처럼 직접 리셋 (Binding이 아니므로 State로 관리 필요)
+                }
+            }) {
                 VerificationCodeModal(
                     code: $codeDigits,
+                    errorMessage: viewStore.errorMessage,
                     onClose: { showVerificationModal = false },
                     onVerify: {
                         let code = codeDigits.joined()
                         viewStore.send(.verificationCodeChanged(code))
                         viewStore.send(.verifyButtonTapped)
-                        showVerificationModal = false
+                        // showVerificationModal = false  // 인증 성공 시에만 닫히도록 변경
                     }
                 )
+            }
+            .onChange(of: viewStore.errorMessage) { newValue in
+                if newValue == "인증 메일이 발송되었습니다. 이메일을 확인해주세요." ||
+                   newValue == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." {
+                    showVerificationModal = true
+                } else if newValue == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
+                          newValue == "이미 인증된 이메일입니다." {
+                    showVerificationModal = false
+                }
+            }
+            .onChange(of: viewStore.isVerified) { isVerified in
+                if isVerified {
+                    showVerificationModal = false
+                }
             }
         }
     }
 }
-
-// MARK: - Custom Components
 
 struct CustomTextField: View {
     let placeholder: String
@@ -425,12 +453,13 @@ extension View {
     }
 }
 
-// 인증 코드 입력 모달
 struct VerificationCodeModal: View {
     @Binding var code: [String]
+    var errorMessage: String?
     var onClose: () -> Void
     var onVerify: () -> Void
     @FocusState private var focusedIndex: Int?
+    @State private var attempted: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -451,7 +480,7 @@ struct VerificationCodeModal: View {
                 .scaledToFit()
                 .frame(height: 120)
                 .padding(.vertical, 12)
-            Text("vertification code를 입력해주세요.")
+            Text("verification code를 입력해주세요.")
                 .foregroundColor(.gray)
                 .padding(.bottom, 16)
             HStack(spacing: 12) {
@@ -459,8 +488,24 @@ struct VerificationCodeModal: View {
                     TextField("", text: Binding(
                         get: { code[idx] },
                         set: { newValue in
-                            if newValue.count <= 1 && newValue.allSatisfy({ $0.isNumber }) {
-                                code[idx] = newValue
+                            let old = code[idx]
+                            let filtered = newValue.filter { $0.isNumber }
+                            if filtered.count > 1 {
+                                code[idx] = String(filtered.prefix(1))
+                            } else {
+                                code[idx] = filtered
+                            }
+                            if !filtered.isEmpty && idx < 5 {
+                                focusedIndex = idx + 1
+                            }
+                            if filtered.isEmpty && old != "" && code.allSatisfy({ $0.isEmpty }) == false {
+                                for i in 0..<code.count {
+                                    code[i] = ""
+                                }
+                                focusedIndex = 0
+                            }
+                            if filtered.isEmpty && old != "" && idx > 0 {
+                                focusedIndex = idx - 1
                             }
                         }
                     ))
@@ -474,10 +519,18 @@ struct VerificationCodeModal: View {
                 }
             }
             .padding(.bottom, 24)
-            .onAppear {
-                focusedIndex = 0
+            .onAppear { focusedIndex = 0 }
+            if attempted, let errorMessage = errorMessage, !errorMessage.isEmpty {
+                let displayMessage = errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." ? "인증 번호가 일치하지 않습니다." : errorMessage
+                Text(displayMessage)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .padding(.top, 4)
             }
-            Button("확인", action: onVerify)
+            Button("확인") {
+                attempted = true
+                onVerify()
+            }
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.purple)
