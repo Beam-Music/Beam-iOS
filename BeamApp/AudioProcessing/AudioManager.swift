@@ -68,7 +68,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .allowAirPlay])
             try AVAudioSession.sharedInstance().setActive(true)
-            print("AudioManager: AVAudioSession configured.")
         } catch {
             print("AudioManager Error: Failed setting audio session category: \(error)")
         }
@@ -106,13 +105,10 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         if !isPlayingMusic {
             if isPlayingAIMusic {
                 avPlayer?.play()
-                print("AudioManager: Resuming AI playback.")
             } else {
                 if avPlayer != nil {
-                    print("AudioManager: Cleaning up AI playback before starting MusicKit.")
                     cleanupAIPlayback()
                 }
-                print("AudioManager: Playing MusicKit.")
                 musicPlayerController.play()
             }
             isPlayingMusic = true
@@ -123,31 +119,26 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         if !isPlayingMusic {
             if isPlayingAIMusic {
                 if let player = avPlayer, player.rate == 0 {
-                    print("AudioManager: Resuming paused AI track")
                     player.play()
                     isPlayingMusic = true
                     return true
                 }
             } else {
                 if musicPlayerController.playbackState == .paused {
-                    print("AudioManager: Resuming paused MusicKit track")
                     musicPlayerController.play()
                     isPlayingMusic = true
                     return true
                 }
             }
         }
-        print("AudioManager: tryResume failed - already playing or cannot resume")
         return false
     }
     
     func pause() async {
         if isPlayingMusic {
             if isPlayingAIMusic {
-                print("AudioManager: Pausing AI playback")
                 avPlayer?.pause()
             } else {
-                print("AudioManager: Pausing MusicKit playback")
                 musicPlayerController.pause()
             }
             isPlayingMusic = false
@@ -155,7 +146,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func stop() async {
-        print("AudioManager: stop() called.")
         if isPlayingAIMusic {
             cleanupAIPlayback()
         } else {
@@ -169,7 +159,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func reset() async {
-        print("AudioManager: reset() called.")
         await stop()
         avPlayer = nil
         removeAVPlayerObservers()
@@ -181,45 +170,31 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAppleMusicTrack(title: String?, storeID: String?) async throws {
-        print("🎵 AudioManager: Attempting to play Apple Music track")
-        print("   Title: \(title ?? "nil")")
-        print("   Store ID: \(storeID ?? "nil - will search by title")")
         
-        // Stop any existing playback
         await stop()
         
         do {
             if let storeID = storeID {
-                // Try to play using store ID
-                print("🎵 Playing with store ID: \(storeID)")
                 musicPlayerController.setQueue(with: [storeID])
                 musicPlayerController.play()
             } else if let title = title {
-                // Search and play by title
-                print("🎵 Searching for track: \(title)")
                 let request = MusicCatalogSearchRequest(term: title, types: [MusicKit.Song.self])
                 let response = try await request.response()
                 
                 if let song = response.songs.first {
-                    print("🎵 Found track: \(song.title)")
                     musicPlayerController.setQueue(with: [song.id.rawValue])
                     musicPlayerController.play()
                 } else {
-                    print("⚠️ No matching track found")
                     throw PlayerError.trackNotFound(title)
                 }
             } else {
-                print("⚠️ No title or store ID provided")
                 throw PlayerError.invalidTrackTitle
             }
             
-            // Start playback
             musicPlayerController.play()
             isPlayingMusic = true
             isPlayingAIMusic = false
-            print("✅ Playback started successfully")
         } catch {
-            print("❌ Failed to start playback: \(error)")
             isPlayingMusic = false
             isPlayingAIMusic = false
             throw error
@@ -227,35 +202,26 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAIMusic(from urlString: String, title: String, artist: String) async throws {
-        print("🎵 Starting AI music playback with file URL: \(urlString)")
-        print("   Title: \(title)")
-        print("   Artist: \(artist)")
         
         guard let url = URL(string: urlString) else {
-            print("❌ Invalid AI music URL: \(urlString)")
             throw PlayerError.invalidURL(urlString)
         }
         
-        // Stop any existing playback
         await stop()
         
-        // Create a new player item
         let playerItem = AVPlayerItem(url: url)
         avPlayerItem = playerItem
         
-        // Add observers for player item status and duration
         statusObserver = playerItem.observe(\.status) { [weak self] item, _ in
             guard let self = self else { return }
             switch item.status {
             case .readyToPlay:
-                print("✅ AVPlayerItem is ready to play")
                 self.duration = item.duration.seconds
-                // Update metadata when item is ready
                 self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
             case .failed:
                 print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
             case .unknown:
-                print("⚠️ AVPlayerItem status is unknown")
+                break
             @unknown default:
                 break
             }
@@ -265,21 +231,17 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             guard let self = self else { return }
             if item.duration.isValid {
                 self.duration = item.duration.seconds
-                print("📊 Updated AI track duration: \(self.duration) seconds")
             }
         }
         
-        // Create and configure the player
         avPlayer = AVPlayer(playerItem: playerItem)
         
-        // Add time observer
         let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = avPlayer?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self else { return }
             self.currentTime = time.seconds
         }
         
-        // Add observer for playback completion
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(playerItemDidReachEnd),
@@ -287,37 +249,28 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             object: playerItem
         )
         
-        // Wait for player item to be ready
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        try await Task.sleep(nanoseconds: 1_000_000_000)
         
         guard playerItem.status == .readyToPlay else {
-            print("❌ AVPlayerItem is not ready to play")
             throw PlayerError.playbackError("AI music playback failed to start - item not ready")
         }
         
-        // Start playback
         avPlayer?.play()
         isPlayingMusic = true
         isPlayingAIMusic = true
         
-        // Update metadata
         currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
         
-        // Verify playback started
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        try await Task.sleep(nanoseconds: 1_000_000_000)
         
         guard await isPlaying() else {
-            print("❌ AI music playback failed to start")
             throw PlayerError.playbackError("AI music playback failed to start")
         }
-        
-        print("✅ AI music playback started successfully")
     }
     
     private func updateAITrackMetadata(title: String, artist: String) async {
         self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
         
-        // Now Playing Center 업데이트
         var nowPlayingInfo = [String: Any]()
         nowPlayingInfo[MPMediaItemPropertyTitle] = title
         nowPlayingInfo[MPMediaItemPropertyArtist] = artist
@@ -332,7 +285,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     private func cleanupAIPlayback() {
-        print("AudioManager: Cleaning up AI playback")
         avPlayer?.pause()
         avPlayer = nil
         avPlayerItem = nil
@@ -364,11 +316,9 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     
     func seek(to seconds: Double) async {
         let targetTime = max(0, seconds)
-        print("AudioManager: Seeking to \(targetTime)")
         
         if isPlayingAIMusic {
             guard let player = avPlayer, let item = player.currentItem, item.status == .readyToPlay else {
-                print("AudioManager Seek Error: AVPlayer not ready.")
                 return
             }
             let time = CMTime(seconds: targetTime, preferredTimescale: 600)
@@ -420,7 +370,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         guard !isPlayingAIMusic, isPlayingMusic else { return }
         
         if duration > 0 && (currentTime >= duration - 0.5 || currentTime > duration + 0.1) {
-            print("AudioManager: MusicKit track completion detected by timer.")
             NotificationCenter.default.post(
                 name: AudioManager.audioDidFinishNotification,
                 object: nil
@@ -429,7 +378,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     private func handlePlaybackError(_ error: Error) async {
-        print("AudioManager Error Handler: \(error.localizedDescription)")
         isPlayingMusic = false
         
         if isPlayingAIMusic {
@@ -441,7 +389,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     
     @MainActor
     private func updateTrackMetadata(song: MusicKit.Song) async {
-        print("AudioManager: Updating metadata from fetched MusicKit.Song: \(song.title)")
         self.currentTrackMetadata = (title: song.title, artist: song.artistName, albumArt: nil)
 
         Task.detached {
@@ -465,7 +412,6 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
 
     func cleanup() {
-        print("AudioManager: cleanup() called.")
         timer?.invalidate()
         timer = nil
         musicPlayerController.endGeneratingPlaybackNotifications()
@@ -484,23 +430,15 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         if musicPlayerController.playbackState != .stopped {
             musicPlayerController.stop()
         }
-        print("AudioManager: Cleanup finished.")
-    }
-
-    deinit {
-        print("AudioManager: deinit called.")
     }
 
     @objc private func playerItemDidReachEnd() {
-        print("AudioManager: AI music playback finished")
         isPlayingMusic = false
         isPlayingAIMusic = false
         currentTime = 0
         
-        // Clean up the player
         cleanupAIPlayback()
         
-        // Notify that playback has finished
         NotificationCenter.default.post(
             name: AudioManager.audioDidFinishNotification,
             object: nil

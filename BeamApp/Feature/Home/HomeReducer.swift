@@ -92,14 +92,15 @@ struct HomeReducer {
                     playbackStoreID: result.id,
                     isAIGenerated: false,
                     duration: nil,
-                    fileUrl: nil
+                    fileUrl: nil,
+                    artworkURL: result.artworkURL
                 )
                 state.playerState = PlayerReducer.State(
                     playlist: [track],
                     currentIndex: 0
                 )
                 state.route = .player
-                return .none
+                return .send(.player(.presented(.startPlayback([track]))))
             case .playlistSelected(let playlist):
                 guard let playlistID = playlist.id else {
                     return .none

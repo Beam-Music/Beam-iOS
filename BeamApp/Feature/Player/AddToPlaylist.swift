@@ -12,7 +12,7 @@ import MusicKit
 
 struct AddToPlaylistSheet: View {
     let playlist: PlaylistSummaryDTO
-    let onAdd: () -> Void
+    let onAdd: (_ addedSong: MusicSearchResult) -> Void
 
     @State private var searchText: String = ""
     @State private var searchResults: [MusicSearchResult] = []
@@ -156,12 +156,12 @@ struct AddToPlaylistSheet: View {
             "artistName": result.artist
         ]
         isLoading = true
-        addSongToPlaylistAPI(urlString: urlString, body: body, token: token) { result in
+        addSongToPlaylistAPI(urlString: urlString, body: body, token: token) { apiResult in
             DispatchQueue.main.async {
                 isLoading = false
-                switch result {
+                switch apiResult {
                 case .success:
-                    onAdd()
+                    onAdd(result)
                 case .failure(let error):
                     errorMessage = error.localizedDescription
                 }

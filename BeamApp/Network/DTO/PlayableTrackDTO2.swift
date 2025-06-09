@@ -1,3 +1,11 @@
+//
+//  PlayableTrackDTO2.swift
+//  BeamApp
+//
+//  Created by anonymous on 5/23/25.
+//
+import Foundation
+
 struct PlayableTrackDTO: Equatable, Identifiable, Codable {
     let id: UUID
     let title: String
