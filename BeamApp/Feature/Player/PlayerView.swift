@@ -261,6 +261,8 @@ struct PlayerView: View {
     @State private var isRemixSheetPresented = false
     @State private var selectedArtists: [Artist] = []
     @State private var isAddToPlaylistSheetPresented = false
+    @State private var isPlaylistSelectSheetPresented = false
+    @State private var showAddSuccess = false
     let mockArtists: [Artist] = [
         Artist(name: "Dua Lipa", imageName: "artist_dualipa"),
         Artist(name: "BlackPink", imageName: "artist_blackpink"),
@@ -353,7 +355,7 @@ struct PlayerView: View {
                                     Image(systemName: "heart")
                                         .foregroundColor(.white)
                                 }
-                                Button(action: { isAddToPlaylistSheetPresented = true }) {
+                                Button(action: { isPlaylistSelectSheetPresented = true }) {
                                     Image(systemName: "plus")
                                         .foregroundColor(.white)
                                 }
@@ -494,19 +496,30 @@ struct PlayerView: View {
                 if !viewStore.isPlaying {
                     viewStore.send(.playPause)
                 }
+                libraryStore.send(.fetchUserPlaylists)
             }
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
             }
-            .sheet(isPresented: $isAddToPlaylistSheetPresented) {
-                // TODO: 실제로는 사용자의 기본/첫 번째 플레이리스트를 넘겨야 함
-                let dummyPlaylist = PlaylistSummaryDTO(id: UUID(), name: "내 플레이리스트", user: nil)
-                AddToPlaylistSheet(
-                    playlist: dummyPlaylist,
-                    onAdd: {
-                        // TODO: 곡 추가 후 처리 (예: 알림, UI 갱신 등)
-                    }
-                )
+            .sheet(isPresented: $isPlaylistSelectSheetPresented, onDismiss: {
+                libraryStore.send(.fetchUserPlaylists)
+            }) {
+                let playlists = ViewStore(libraryStore, observe: { $0.playlists }).state
+                if let track = viewStore.currentTrack {
+                    PlaylistSelectSheet(
+                        playlists: playlists,
+                        onSelect: { playlist in
+                            addSongToPlaylist(track: track, playlist: playlist)
+                            isPlaylistSelectSheetPresented = false
+                        },
+                        onCancel: {
+                            isPlaylistSelectSheetPresented = false
+                        }
+                    )
+                }
+            }
+            .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {
+                Button("확인", role: .cancel) { showAddSuccess = false }
             }
         }
     }
@@ -516,5 +529,33 @@ struct PlayerView: View {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    private func addSongToPlaylist(track: PlayableTrackDTO, playlist: PlaylistSummaryDTO) {
+        guard let playlistID = playlist.id?.uuidString else { return }
+        let urlString = Endpoints.Playlist.userPlaylistSongs(playlistID: playlistID)
+        guard let token = TokenStorage.shared.fetchToken() else { return }
+        let body: [String: String] = [
+            "songId": track.playbackStoreID ?? track.id.uuidString,
+            "title": track.title,
+            "artistName": track.artistName ?? ""
+        ]
+        let _ = Task {
+            do {
+                var request = URLRequest(url: URL(string: urlString)!)
+                request.httpMethod = "POST"
+                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
+                    showAddSuccess = true
+                } else if let httpResponse = response as? HTTPURLResponse {
+                    print("플레이리스트 추가 실패: Status \(httpResponse.statusCode)")
+                }
+            } catch {
+                print("플레이리스트 추가 실패: \(error)")
+            }
+        }
     }
 }

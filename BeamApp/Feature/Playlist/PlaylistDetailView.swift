@@ -23,7 +23,7 @@ struct PlaylistDetailView: View {
 
     @ViewBuilder
     private var playlistContent: some View {
-        if isLoading {
+        if isLoading && !displaySongs.isEmpty {
             Spacer()
             ProgressView()
             Spacer()
@@ -125,8 +125,22 @@ struct PlaylistDetailView: View {
         }) {
             AddToPlaylistSheet(
                 playlist: playlist,
-                onAdd: {
+                onAdd: { addedSong in
                     isAddingSong = false
+                    if displaySongs.isEmpty {
+                        let newTrack = PlayableTrackDTO(
+                            id: UUID(),
+                            title: addedSong.title,
+                            artistName: addedSong.artist,
+                            playbackUrl: nil,
+                            playbackStoreID: addedSong.id,
+                            isAIGenerated: false,
+                            duration: 180.0,
+                            fileUrl: nil,
+                            artworkURL: addedSong.artworkURL
+                        )
+                        onPlayAll()
+                    }
                 }
             )
         }

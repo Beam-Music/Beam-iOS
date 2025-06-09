@@ -124,6 +124,9 @@ struct HomeView: View {
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
     @State private var hitSongs: [MusicSearchResult] = []
+    @State private var remixArtistPairs: [RemixArtistPair] = []
+    @State private var songToAddToPlaylist: MusicSearchResult? = nil
+    @State private var isPlaylistSelectSheetPresented: Bool = false
     
     init(isLoggedIn: Binding<Bool>, isMiniPlayerVisible: Binding<Bool>, store: StoreOf<HomeReducer>, libraryStore: StoreOf<LibraryReducer>) {
         self._isLoggedIn = isLoggedIn
@@ -198,11 +201,38 @@ struct HomeView: View {
                                         onPlay: {
                                             viewStore.send(.playMusic(song))
                                             isMiniPlayerVisible = true
+                                        },
+                                        onAdd: {
+                                            songToAddToPlaylist = song
+                                            isPlaylistSelectSheetPresented = true
                                         }
                                     )
                                 }
                             }
                             .padding(.horizontal)
+                        }
+                        // 리믹스할 가수조합 추천 섹션
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("리믹스할 가수조합 추천")
+                                    .font(.title2).bold()
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Button("전체보기") {
+                                    // 전체보기 액션 (필요시)
+                                }
+                                .foregroundColor(.white.opacity(0.7))
+                                .font(.subheadline)
+                            }
+                            .padding(.horizontal)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 32) {
+                                    ForEach(remixArtistPairs) { pair in
+                                        RemixArtistPairView(pair: pair)
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
                         }
                     }
                     .padding(.top, 20)
@@ -285,6 +315,7 @@ struct HomeView: View {
         .onAppear {
             Task {
                 await fetchAppleMusicHitSongs()
+                await fetchRemixArtistPairs()
             }
         }
         .sheet(
@@ -324,6 +355,94 @@ struct HomeView: View {
         } catch {
             // 에러 처리 (예: 네트워크 오류, 권한 오류 등)
         }
+    }
+
+    // MARK: - 리믹스 가수조합 데이터 및 뷰
+    struct RemixArtistPair: Identifiable {
+        let id = UUID()
+        let artist1: String
+        let artist2: String
+        var artworkURL1: URL?
+        var artworkURL2: URL?
+    }
+
+    struct RemixArtistPairView: View {
+        let pair: RemixArtistPair
+        var body: some View {
+            VStack(spacing: 10) {
+                ZStack {
+                    if let url1 = pair.artworkURL1 {
+                        AsyncImage(url: url1) { image in
+                            image.resizable()
+                        } placeholder: {
+                            Color.gray.opacity(0.3)
+                        }
+                        .clipShape(HalfCircle(left: true))
+                    }
+                    if let url2 = pair.artworkURL2 {
+                        AsyncImage(url: url2) { image in
+                            image.resizable()
+                        } placeholder: {
+                            Color.gray.opacity(0.3)
+                        }
+                        .clipShape(HalfCircle(left: false))
+                    }
+                }
+                .frame(width: 100, height: 100)
+                Button(action: { /* 청음하기 액션 */ }) {
+                    HStack(spacing: 4) {
+                        Text("청음하기")
+                        Image(systemName: "play.circle.fill")
+                    }
+                    .foregroundColor(.white)
+                    .font(.headline)
+                }
+            }
+        }
+    }
+
+    struct HalfCircle: Shape {
+        let left: Bool
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            if left {
+                path.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: rect.width/2, startAngle: .degrees(90), endAngle: .degrees(270), clockwise: false)
+                path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+                path.closeSubpath()
+            } else {
+                path.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: rect.width/2, startAngle: .degrees(-90), endAngle: .degrees(90), clockwise: false)
+                path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+                path.closeSubpath()
+            }
+            return path
+        }
+    }
+
+    // 가수조합을 MusicKit으로 검색해서 artworkURL을 채움 (데모용 하드코딩)
+    private func fetchRemixArtistPairs() async {
+        let pairs = [
+            ("Dua Lipa", "H.E.R"),
+            ("Rihanna", "BlackPink"),
+            ("WOODZ", "NewJeans")
+        ]
+        var result: [RemixArtistPair] = []
+        for (a1, a2) in pairs {
+            let url1 = await fetchArtistArtworkURL(artist: a1)
+            let url2 = await fetchArtistArtworkURL(artist: a2)
+            result.append(RemixArtistPair(artist1: a1, artist2: a2, artworkURL1: url1, artworkURL2: url2))
+        }
+        await MainActor.run { self.remixArtistPairs = result }
+    }
+
+    private func fetchArtistArtworkURL(artist: String) async -> URL? {
+        do {
+            let request = MusicCatalogSearchRequest(term: artist, types: [MusicKit.Artist.self])
+            let response = try await request.response()
+            if let artist = response.artists.first, let url = artist.artwork?.url(width: 200, height: 200) {
+                return url
+            }
+        } catch {}
+        return nil
     }
 }
 
@@ -440,6 +559,7 @@ struct HomeNavigationBarView: View {
 struct HitSongCardView: View {
     let song: MusicSearchResult
     let onPlay: () -> Void
+    let onAdd: () -> Void
     @State private var fetchedArtworkURL: URL? = nil
     @State private var isFetching: Bool = false
 
@@ -478,9 +598,6 @@ struct HitSongCardView: View {
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.8))
                 .lineLimit(1)
-            Text("1M+ loved, 3M+ played")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
         }
         .frame(width: 130)
         .onAppear {
