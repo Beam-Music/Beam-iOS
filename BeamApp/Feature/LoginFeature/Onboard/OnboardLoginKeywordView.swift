@@ -1,28 +1,15 @@
 //
-//  Untitled.swift
-//  BeamApp
-//
-//  Created by anonymous on 5/8/25.
-//
-
-//
 //  OnboardKeywordView2.swift
 //  BeamApp
 //
-//  Created by anonymous on 5/7/25.
-//
-
-import SwiftUI
-
-
-// MARK: - OnboardKeywordView
-
+//  Created by anonymous on 5/7/25
 import SwiftUI
 
 struct OnboardKeywordView: View {
     let onNext: () -> Void
     @State private var selectedArtists: Set<String> = []
     @State private var selectedGenres: Set<String> = []
+    @State private var animatedArtistIDs: Set<String> = []
     let artists = ["정진태", "Coldplay", "Bruno Mars", "Lenny", "Taylor Swift", "The 1975", "SZA", "ADOY"]
     let genres = ["발라드", "댄스", "힙합", "록"]
 
@@ -50,6 +37,7 @@ struct OnboardKeywordView: View {
                 ChipGridView(
                     data: artists.map { ChipItem(id: $0, name: $0) },
                     selectedItems: $selectedArtists,
+                    animatedArtistIDs: $animatedArtistIDs,
                     chipHorizontalPadding: chipHorizontalPadding,
                     chipVerticalPadding: chipVerticalPadding,
                     chipHeight: chipHeight,
@@ -66,6 +54,7 @@ struct OnboardKeywordView: View {
                 ChipGridView(
                     data: genres.map { ChipItem(id: $0, name: $0) },
                     selectedItems: $selectedGenres,
+                    animatedArtistIDs: $animatedArtistIDs,
                     chipHorizontalPadding: chipHorizontalPadding,
                     chipVerticalPadding: chipVerticalPadding,
                     chipHeight: chipHeight,

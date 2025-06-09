@@ -13,6 +13,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 import ComposableArchitecture
 import Combine
 
@@ -32,170 +33,240 @@ struct OnboardSignupView: View {
     @State private var isSignupButtonDisabled = false
     @State private var signupButtonRemainingSeconds = 0
     @State private var signupButtonTimer: Timer?
-    
+    @State private var profileImage: UIImage? = nil
+    @State private var showImagePicker = false
+    @State private var showVerificationModal = false
+    @State private var codeDigits: [String] = Array(repeating: "", count: 6)
+
     var body: some View {
-        WithViewStore(self.store, observe: { $0 }) { viewStore in
-            ScrollView {
-                VStack(spacing: 24) {
-                    Text("BEAM의 광야 속으로 들어와 볼래요?")
-                        .font(.title2)
-                        .bold()
-                        .foregroundColor(.white)
-                    VStack(spacing: 16) {
-                        CustomTextField("이름", text: viewStore.binding(
-                            get: \.username,
-                            send: SignupFeature.Action.usernameChanged
-                        ))
-                        CustomTextField("이메일 주소", text: viewStore.binding(
-                            get: \.email,
-                            send: SignupFeature.Action.emailChanged
-                        ), keyboardType: .emailAddress)
-                        CustomSecureField("비밀번호", text: viewStore.binding(
-                            get: \.password,
-                            send: SignupFeature.Action.passwordChanged
-                        ))
-                    }
-                    .padding(.horizontal, 24)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("프라이버시 및 이용약관 동의")
+        WithViewStore(self.store, observe: \.self) { viewStore in
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [Color(red: 0.91, green: 0.74, blue: 0.72), Color(red: 0.67, green: 0.62, blue: 0.87)]),
+                    startPoint: .top, endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Text("BEAM의 광야 속으로\n가입하기")
+                            .font(.title2.bold())
+                            .multilineTextAlignment(.center)
                             .foregroundColor(.white)
-                            .font(.subheadline)
-                        HStack(spacing: 24) {
-                            CheckBox(isChecked: agreement == .agree, label: "동의") {
-                                agreement = .agree
-                            }
-                            CheckBox(isChecked: agreement == .disagree, label: "비동의") {
-                                agreement = .disagree
+                            .padding(.top, 32)
+
+                        HStack(spacing: 0) {
+                            ForEach(1...3, id: \.self) { idx in
+                                VStack(spacing: 4) {
+                                    Circle()
+                                        .fill(idx == 1 ? Color.blue.opacity(0.2) : Color.white.opacity(0.4))
+                                        .frame(width: 28, height: 28)
+                                        .overlay(Text("\(idx)").foregroundColor(idx == 1 ? .blue : .gray).fontWeight(.bold))
+                                    Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
+                                        .font(.caption)
+                                        .foregroundColor(idx == 1 ? .blue : .white.opacity(0.7))
+                                }
+                                if idx < 3 {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.4))
+                                        .frame(width: 40, height: 2)
+                                }
                             }
                         }
-                    }
-                    .padding(.horizontal, 24)
-                    ZStack {
-                        HStack {
-                            Spacer()
-                            Text(isSignupButtonDisabled
-                                ? String(format: "가입 요청 및 인증 메일 받기 (%d:%02d)", signupButtonRemainingSeconds / 60, signupButtonRemainingSeconds % 60)
-                                : "가입 요청 및 인증 메일 받기")
-                                .font(.headline)
+                        .padding(.vertical, 24)
+
+                        Button {
+                            showImagePicker = true
+                        } label: {
+                            if let image = profileImage {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 110, height: 110)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white, lineWidth: 3))
+                            } else {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 110, height: 110)
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                        .padding(.bottom, 24)
+                        .photosPicker(isPresented: $showImagePicker, selection: Binding(
+                            get: { nil },
+                            set: { item in
+                                if let item = item {
+                                    Task {
+                                        if let data = try? await item.loadTransferable(type: Data.self),
+                                           let uiImage = UIImage(data: data) {
+                                            profileImage = uiImage
+                                        }
+                                    }
+                                }
+                            }
+                        ))
+
+                        VStack(spacing: 18) {
+                            CustomTextField("이름", text: viewStore.binding(
+                                get: \.username,
+                                send: SignupFeature.Action.usernameChanged
+                            ))
+                            HStack(spacing: 8) {
+                                CustomTextField("이메일 주소", text: viewStore.binding(
+                                    get: \.email,
+                                    send: SignupFeature.Action.emailChanged
+                                ), keyboardType: .emailAddress)
+                                Button("인증하기") {
+                                    if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." ||
+                                       viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
+                                       viewStore.errorMessage == "이미 인증된 이메일입니다." {
+                                        return
+                                    }
+                                    viewStore.send(.signupButtonTapped)
+                                }
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 16)
+                                .background(viewStore.email.isEmpty || viewStore.isLoading ? Color.gray.opacity(0.5) : Color.purple)
                                 .foregroundColor(.white)
-                            Spacer()
+                                .cornerRadius(8)
+                                .disabled(viewStore.email.isEmpty || viewStore.isLoading)
+                            }
+                            if let errorMessage = viewStore.errorMessage,
+                               errorMessage.contains("이미 가입된 이메일") {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                                    .padding(.top, 4)
+                            }
+                            if let errorMessage = viewStore.errorMessage,
+                               errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." {
+                                Text("유효하지 않은 이메일입니다. 이메일을 다시 확인해주세요.")
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                                    .padding(.top, 4)
+                            }
+                            CustomSecureField("비밀번호", text: viewStore.binding(
+                                get: \.password,
+                                send: SignupFeature.Action.passwordChanged
+                            ))
+                            CustomTextField("전화번호", text: viewStore.binding(
+                                get: \.phone,
+                                send: SignupFeature.Action.phoneChanged
+                            ), keyboardType: .phonePad)
                         }
-                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 8)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("프라이버시 및 이용약관 동의")
+                                .foregroundColor(.white)
+                                .font(.subheadline)
+                            HStack(spacing: 24) {
+                                CheckBox(isChecked: agreement == .agree, label: "동의") {
+                                    agreement = .agree
+                                }
+                                CheckBox(isChecked: agreement == .disagree, label: "비동의") {
+                                    agreement = .disagree
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 8)
+
+                        Button(action: {
+                            if viewStore.isVerified {
+                                onNext()
+                            }
+                            // onNext()
+                        }) {
+                            HStack {
+                                Spacer()
+                                Text("완료")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Image(systemName: "arrow.right")
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                            .padding()
+                            .background(viewStore.isVerified ? Color.purple : Color.gray.opacity(0.5))
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.top, 16)
+                        // .disabled(
+                        //     viewStore.isLoading ||
+                        //     viewStore.username.isEmpty ||
+                        //     viewStore.email.isEmpty ||
+                        //     viewStore.password.isEmpty ||
+                        //     viewStore.phone.isEmpty ||
+                        //     agreement != .agree ||
+                        //     viewStore.errorMessage == "Invalid verification code or email" ||
+                        //     !viewStore.isVerified
+                        // )
+
+                        Spacer()
+
+                        HStack {
+                            Text("계정이 이미 있으신가요?")
+                                .foregroundColor(.white.opacity(0.7))
+                            Button("로그인하기") {
+                                // 로그인 이동 액션 필요시 구현
+                            }
+                            .foregroundColor(.white)
+                            .underline()
+                        }
+                        .font(.footnote)
+                        .padding(.bottom, 16)
                     }
                     .padding()
-                    .background(LinearGradient(gradient: Gradient(colors: [Color.purple, Color.pink]), startPoint: .leading, endPoint: .trailing))
-                    .cornerRadius(12)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if !(
-                            viewStore.isLoading ||
-                            viewStore.username.isEmpty ||
-                            viewStore.email.isEmpty ||
-                            viewStore.password.isEmpty ||
-                            viewStore.isVerified ||
-                            agreement != .agree ||
-                            isSignupButtonDisabled
-                        ) {
-                            viewStore.send(.signupButtonTapped)
-                            isSignupButtonDisabled = true
-                            signupButtonRemainingSeconds = 120
-                            signupButtonTimer?.invalidate()
-                            signupButtonTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-                                if signupButtonRemainingSeconds > 0 {
-                                    signupButtonRemainingSeconds -= 1
-                                }
-                                if signupButtonRemainingSeconds == 0 {
-                                    isSignupButtonDisabled = false
-                                    timer.invalidate()
-                                }
-                            }
-                        }
-                    }
-                    .disabled(
-                        viewStore.isLoading ||
-                        viewStore.username.isEmpty ||
-                        viewStore.email.isEmpty ||
-                        viewStore.password.isEmpty ||
-                        viewStore.isVerified ||
-                        agreement != .agree ||
-                        isSignupButtonDisabled
-                    )
-                    .padding(.horizontal, 30)
-                    .padding(.top, 10)
-                    if !viewStore.isVerified {
-                        Divider()
-                            .background(Color.white.opacity(0.3))
-                            .padding(.vertical)
-                            .padding(.horizontal, 30)
-                        Text("이메일로 전송된 인증 코드를 입력하세요.")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        CustomTextField("인증 코드", text: viewStore.binding(
-                            get: \.verificationCode,
-                            send: SignupFeature.Action.verificationCodeChanged
-                        ), keyboardType: .numberPad)
-                        .padding(.horizontal, 30)
-                        GradientButton(
-                            title: isVerifyButtonDisabled
-                                ? String(format: "이메일 인증 (%d:%02d)", verifyButtonRemainingSeconds / 60, verifyButtonRemainingSeconds % 60)
-                                : "이메일 인증",
-                            gradient: Gradient(colors: [Color.blue, Color.purple]),
-                            action: {
-                                viewStore.send(.verifyButtonTapped)
-                                isVerifyButtonDisabled = true
-                                verifyButtonRemainingSeconds = 120
-                                verifyButtonTimer?.invalidate()
-                                verifyButtonTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-                                    if verifyButtonRemainingSeconds > 0 {
-                                        verifyButtonRemainingSeconds -= 1
-                                    }
-                                    if verifyButtonRemainingSeconds == 0 {
-                                        isVerifyButtonDisabled = false
-                                        timer.invalidate()
-                                    }
-                                }
-                            }
-                        )
-                        .disabled(viewStore.isLoading || viewStore.verificationCode.isEmpty || isVerifyButtonDisabled)
-                        .padding(.horizontal, 30)
-                    }
-                    if viewStore.isLoading {
-                        ProgressView("처리 중...")
-                            .tint(.purple)
-                    }
-                    Spacer(minLength: 40)
-                    // Button("다음 →", action: onNext)
-                    //     .font(.headline)
-                    //     .frame(maxWidth: .infinity)
-                    //     .padding()
-                    //     .background(Color.white.opacity(0.7))
-                    //     .foregroundColor(.purple)
-                    //     .cornerRadius(12)
-                    //     .padding(.horizontal, 32)
                 }
-                .padding()
-                .background(Color.clear)
+                .keyboardAdaptive()
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
             }
-            .keyboardAdaptive()
-            .onTapGesture {
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            .sheet(isPresented: $showVerificationModal, onDismiss: {
+                if let errorMessage = viewStore.errorMessage, errorMessage.contains("이미 가입된 이메일") {
+                    // errorMessage를 nil로 리셋하는 액션이 있다면 아래처럼 사용
+                    // viewStore.send(.resetErrorMessage)
+                    // 없으면 아래처럼 직접 리셋 (Binding이 아니므로 State로 관리 필요)
+                }
+            }) {
+                VerificationCodeModal(
+                    code: $codeDigits,
+                    errorMessage: viewStore.errorMessage,
+                    onClose: { showVerificationModal = false },
+                    onVerify: {
+                        let code = codeDigits.joined()
+                        viewStore.send(.verificationCodeChanged(code))
+                        viewStore.send(.verifyButtonTapped)
+                        // showVerificationModal = false  // 인증 성공 시에만 닫히도록 변경
+                    }
+                )
+            }
+            .onChange(of: viewStore.errorMessage) { newValue in
+                if newValue == "인증 메일이 발송되었습니다. 이메일을 확인해주세요." ||
+                   newValue == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." {
+                    showVerificationModal = true
+                } else if newValue == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
+                          newValue == "이미 인증된 이메일입니다." {
+                    showVerificationModal = false
+                }
             }
             .onChange(of: viewStore.isVerified) { isVerified in
-                if isVerified && !didAutoAdvance {
-                    didAutoAdvance = true
-                    onNext()
+                if isVerified {
+                    showVerificationModal = false
                 }
-            }
-            .onDisappear {
-                signupButtonTimer?.invalidate()
-                verifyButtonTimer?.invalidate()
             }
         }
     }
 }
-
-// MARK: - Custom Components
 
 struct CustomTextField: View {
     let placeholder: String
@@ -379,5 +450,102 @@ struct KeyboardAdaptive: ViewModifier {
 extension View {
     func keyboardAdaptive() -> some View {
         self.modifier(KeyboardAdaptive())
+    }
+}
+
+struct VerificationCodeModal: View {
+    @Binding var code: [String]
+    var errorMessage: String?
+    var onClose: () -> Void
+    var onVerify: () -> Void
+    @FocusState private var focusedIndex: Int?
+    @State private var attempted: Bool = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.title2)
+                        .foregroundColor(.gray)
+                        .padding()
+                }
+            }
+            Text("이메일 인증 코드")
+                .font(.title2.bold())
+                .padding(.top, 8)
+            Image(systemName: "envelope.open")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 120)
+                .padding(.vertical, 12)
+            Text("verification code를 입력해주세요.")
+                .foregroundColor(.gray)
+                .padding(.bottom, 16)
+            HStack(spacing: 12) {
+                ForEach(0..<6) { idx in
+                    TextField("", text: Binding(
+                        get: { code[idx] },
+                        set: { newValue in
+                            let old = code[idx]
+                            let filtered = newValue.filter { $0.isNumber }
+                            if filtered.count > 1 {
+                                code[idx] = String(filtered.prefix(1))
+                            } else {
+                                code[idx] = filtered
+                            }
+                            if !filtered.isEmpty && idx < 5 {
+                                focusedIndex = idx + 1
+                            }
+                            if filtered.isEmpty && old != "" && code.allSatisfy({ $0.isEmpty }) == false {
+                                for i in 0..<code.count {
+                                    code[i] = ""
+                                }
+                                focusedIndex = 0
+                            }
+                            if filtered.isEmpty && old != "" && idx > 0 {
+                                focusedIndex = idx - 1
+                            }
+                        }
+                    ))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .font(.title)
+                    .frame(width: 44, height: 48)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                    .focused($focusedIndex, equals: idx)
+                }
+            }
+            .padding(.bottom, 24)
+            .onAppear { focusedIndex = 0 }
+            if attempted, let errorMessage = errorMessage, !errorMessage.isEmpty {
+                let displayMessage = errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." ? "인증 번호가 일치하지 않습니다." : errorMessage
+                Text(displayMessage)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .padding(.top, 4)
+            }
+            Button("확인") {
+                attempted = true
+                onVerify()
+            }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.purple)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .padding(.horizontal, 32)
+            Spacer()
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color(red: 0.95, green: 0.82, blue: 0.78), Color(red: 0.93, green: 0.77, blue: 0.62)]),
+                startPoint: .top, endPoint: .bottom
+            )
+        )
+        .cornerRadius(20)
     }
 }

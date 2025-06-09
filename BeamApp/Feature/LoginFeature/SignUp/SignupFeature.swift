@@ -13,6 +13,7 @@ struct SignupFeature: Reducer {
         var username: String = ""
         var email: String = ""
         var password: String = ""
+        var phone: String = ""
         var verificationCode: String = ""
         var isLoading: Bool = false
         var isVerified: Bool = false
@@ -26,6 +27,7 @@ struct SignupFeature: Reducer {
         case usernameChanged(String)
         case emailChanged(String)
         case passwordChanged(String)
+        case phoneChanged(String)
         case verificationCodeChanged(String)
         case signupButtonTapped
         case verifyButtonTapped
@@ -85,6 +87,10 @@ struct SignupFeature: Reducer {
                 state.password = password
                 return .none
                 
+            case let .phoneChanged(phone):
+                state.phone = phone
+                return .none
+                
             case let .verificationCodeChanged(code):
                 state.verificationCode = code
                 return .none
@@ -119,7 +125,11 @@ struct SignupFeature: Reducer {
                 
             case let .signupResponse(.failure(error)):
                 state.isLoading = false
-                state.errorMessage = error.localizedDescription
+                if error.localizedDescription.contains("이미 인증된 이메일") {
+                    state.errorMessage = "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
+                } else {
+                    state.errorMessage = error.localizedDescription
+                }
                 return .none
                 
             case .verifyButtonTapped:
