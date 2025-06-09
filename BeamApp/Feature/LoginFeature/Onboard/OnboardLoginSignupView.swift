@@ -27,6 +27,10 @@ struct OnboardSignupView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var didAutoAdvance = false
     @State private var agreement: Agreement = .none
+    @State private var privacyAgreement: Agreement = .none
+    @State private var termsAgreement: Agreement = .none
+    @State private var showPrivacySheet = false
+    @State private var showTermsSheet = false
     @State private var isVerifyButtonDisabled = false
     @State private var verifyButtonRemainingSeconds = 0
     @State private var verifyButtonTimer: Timer?
@@ -163,20 +167,45 @@ struct OnboardSignupView: View {
                         .padding(.bottom, 8)
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("프라이버시 및 이용약관 동의")
-                                .foregroundColor(.white)
-                                .font(.subheadline)
-                            HStack(spacing: 24) {
-                                CheckBox(isChecked: agreement == .agree, label: "동의") {
-                                    agreement = .agree
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 12) {
+                                    Text("프라이버시 동의")
+                                        .foregroundColor(.white)
+                                        .font(.subheadline)
+                                    CheckBox(isChecked: privacyAgreement == .agree, label: "동의") {
+                                        privacyAgreement = .agree
+                                    }
+                                    CheckBox(isChecked: privacyAgreement == .disagree, label: "비동의") {
+                                        privacyAgreement = .disagree
+                                    }
+                                    Button("자세히") { showPrivacySheet = true }
+                                        .font(.caption)
+                                        .foregroundColor(.purple)
                                 }
-                                CheckBox(isChecked: agreement == .disagree, label: "비동의") {
-                                    agreement = .disagree
+                                HStack(spacing: 12) {
+                                    Text("이용약관 동의")
+                                        .foregroundColor(.white)
+                                        .font(.subheadline)
+                                    CheckBox(isChecked: termsAgreement == .agree, label: "동의") {
+                                        termsAgreement = .agree
+                                    }
+                                    CheckBox(isChecked: termsAgreement == .disagree, label: "비동의") {
+                                        termsAgreement = .disagree
+                                    }
+                                    Button("자세히") { showTermsSheet = true }
+                                        .font(.caption)
+                                        .foregroundColor(.purple)
                                 }
                             }
                         }
                         .padding(.horizontal, 32)
                         .padding(.vertical, 8)
+                        .sheet(isPresented: $showPrivacySheet) {
+                            ScrollView { Text(privacyText).padding() }
+                        }
+                        .sheet(isPresented: $showTermsSheet) {
+                            ScrollView { Text(termsText).padding() }
+                        }
 
                         Button(action: {
                             if viewStore.isVerified {
@@ -194,7 +223,7 @@ struct OnboardSignupView: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(viewStore.isVerified ? Color.purple : Color.gray.opacity(0.5))
+                            .background((viewStore.isVerified && privacyAgreement == .agree && termsAgreement == .agree) ? Color.purple : Color.gray.opacity(0.5))
                             .cornerRadius(12)
                         }
                         .padding(.horizontal, 32)
@@ -549,3 +578,36 @@ struct VerificationCodeModal: View {
         .cornerRadius(20)
     }
 }
+
+private let privacyText = """
+📄  프라이버시 약관
+
+1. 개인정보의 수집 및 이용 목적
+Beam Music(이하 '본 앱')은 사용자의 개인정보를 수집하거나 외부로 전송하지 않습니다. 본 앱은 오직 서비스 제공 및 기능 개선, 피드백 수집을 목적으로만 사용자의 익명 데이터를 수집할 수 있습니다.
+
+2. 수집하는 정보의 종류
+본 앱은 사용자의 이름, 이메일, 전화번호 등 회원가입 시 입력한 정보와, 앱 사용 과정에서 생성되는 익명 사용 데이터(예: 사용 패턴, 오류 로그 등)를 수집할 수 있습니다. 단, 광고, 유료 콘텐츠, 인앱 결제 등 수익 창출을 위한 정보는 수집하지 않습니다.
+
+3. 개인정보의 보관 및 보호
+수집된 개인정보 및 익명 데이터는 안전하게 저장되며, 외부로 전송되거나 제3자에게 제공되지 않습니다. 본 앱은 개인정보 보호를 위해 합리적인 보안 조치를 취하고 있습니다.
+
+4. 개인정보의 이용 및 파기
+수집된 개인정보는 서비스 제공 및 기능 개선을 위해서만 사용되며, 이용 목적이 달성된 후에는 즉시 파기됩니다. 사용자는 언제든지 개인정보 삭제를 요청할 수 있습니다.
+
+5. 약관 변경
+프라이버시 약관의 내용이 변경될 경우, 앱 내 공지 또는 업데이트를 통해 사전 안내드립니다.
+"""
+
+private let termsText = """
+📄  이용약관 
+서비스 개요
+본 애플리케이션(이하 'Beam Music')은 개인 또는 소규모 팀이 개발 중인 앱으로, 현재는 테스트 및 피드백 수집을 목적으로 제공됩니다.
+수익 창출
+본 앱은 현재 광고, 유료 콘텐츠, 인앱 결제 등 수익을 목적으로 하지 않으며, 어떠한 비용도 이용자에게 청구되지 않습니다.
+개인정보 처리
+본 앱은 사용자의 개인정보를 수집하거나 외부로 전송하지 않습니다. 단, 기능 개선을 위한 익명 사용 데이터(예: 사용 패턴)는 수집될 수 있습니다.
+면책 조항
+본 앱은 개발 중으로, 일부 기능의 오류나 사용 제한이 발생할 수 있습니다. 이에 따른 책임은 개발자가 지지 않으며, 사용자 동의 하에 사용됩니다.
+약관 변경
+서비스 내용이나 정책 변경 시, 앱 내 공지 또는 업데이트를 통해 사전 안내드립니다.
+"""

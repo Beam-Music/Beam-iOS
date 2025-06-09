@@ -506,16 +506,16 @@ struct PlayerView: View {
             }) {
                 let playlists = ViewStore(libraryStore, observe: { $0.playlists }).state
                 if let track = viewStore.currentTrack {
-                    PlaylistSelectSheet(
-                        playlists: playlists,
-                        onSelect: { playlist in
-                            addSongToPlaylist(track: track, playlist: playlist)
-                            isPlaylistSelectSheetPresented = false
-                        },
-                        onCancel: {
-                            isPlaylistSelectSheetPresented = false
-                        }
-                    )
+//                    PlaylistSelectSheet(
+//                        playlists: playlists,
+//                        onSelect: { playlist in
+//                            addSongToPlaylist(track: track, playlist: playlist)
+//                            isPlaylistSelectSheetPresented = false
+//                        },
+//                        onCancel: {
+//                            isPlaylistSelectSheetPresented = false
+//                        }
+//                    )
                 }
             }
             .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {
