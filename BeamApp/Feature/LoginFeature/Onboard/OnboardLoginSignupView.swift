@@ -41,6 +41,8 @@ struct OnboardSignupView: View {
     @State private var showImagePicker = false
     @State private var showVerificationModal = false
     @State private var codeDigits: [String] = Array(repeating: "", count: 6)
+    @FocusState private var focusedField: Field?
+    enum Field: Hashable { case name, email, password, phone }
 
     var body: some View {
         WithViewStore(self.store, observe: \.self) { viewStore in
@@ -51,213 +53,234 @@ struct OnboardSignupView: View {
                 )
                 .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 0) {
-                        Text("BEAM의 광야 속으로\n가입하기")
-                            .font(.title2.bold())
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.white)
-                            .padding(.top, 32)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            Text("BEAM의 광야 속으로\n가입하기")
+                                .font(.title2.bold())
+                                .multilineTextAlignment(.center)
+                                .foregroundColor(.white)
+                                .padding(.top, 32)
 
-                        HStack(spacing: 0) {
-                            ForEach(1...3, id: \.self) { idx in
-                                VStack(spacing: 4) {
-                                    Circle()
-                                        .fill(idx == 1 ? Color.blue.opacity(0.2) : Color.white.opacity(0.4))
-                                        .frame(width: 28, height: 28)
-                                        .overlay(Text("\(idx)").foregroundColor(idx == 1 ? .blue : .gray).fontWeight(.bold))
-                                    Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
-                                        .font(.caption)
-                                        .foregroundColor(idx == 1 ? .blue : .white.opacity(0.7))
-                                }
-                                if idx < 3 {
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.4))
-                                        .frame(width: 40, height: 2)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 24)
-
-                        Button {
-                            showImagePicker = true
-                        } label: {
-                            if let image = profileImage {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 110, height: 110)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.white, lineWidth: 3))
-                            } else {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 110, height: 110)
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                        }
-                        .padding(.bottom, 24)
-                        .photosPicker(isPresented: $showImagePicker, selection: Binding(
-                            get: { nil },
-                            set: { item in
-                                if let item = item {
-                                    Task {
-                                        if let data = try? await item.loadTransferable(type: Data.self),
-                                           let uiImage = UIImage(data: data) {
-                                            profileImage = uiImage
-                                        }
+                            HStack(spacing: 0) {
+                                ForEach(1...3, id: \.self) { idx in
+                                    VStack(spacing: 4) {
+                                        Circle()
+                                            .fill(idx == 1 ? Color.blue.opacity(0.2) : Color.white.opacity(0.4))
+                                            .frame(width: 28, height: 28)
+                                            .overlay(Text("\(idx)").foregroundColor(idx == 1 ? .blue : .gray).fontWeight(.bold))
+                                        Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
+                                            .font(.caption)
+                                            .foregroundColor(idx == 1 ? .blue : .white.opacity(0.7))
+                                    }
+                                    if idx < 3 {
+                                        Rectangle()
+                                            .fill(Color.white.opacity(0.4))
+                                            .frame(width: 40, height: 2)
                                     }
                                 }
                             }
-                        ))
+                            .padding(.vertical, 24)
 
-                        VStack(spacing: 18) {
-                            CustomTextField("이름", text: viewStore.binding(
-                                get: \.username,
-                                send: SignupFeature.Action.usernameChanged
+                            Button {
+                                showImagePicker = true
+                            } label: {
+                                if let image = profileImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 110, height: 110)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.white, lineWidth: 3))
+                                } else {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.2))
+                                            .frame(width: 110, height: 110)
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 24)
+                            .photosPicker(isPresented: $showImagePicker, selection: Binding(
+                                get: { nil },
+                                set: { item in
+                                    if let item = item {
+                                        Task {
+                                            if let data = try? await item.loadTransferable(type: Data.self),
+                                               let uiImage = UIImage(data: data) {
+                                                profileImage = uiImage
+                                            }
+                                        }
+                                    }
+                                }
                             ))
-                            HStack(spacing: 8) {
+
+                            VStack(spacing: 18) {
+                                CustomTextField("이름", text: viewStore.binding(
+                                    get: \.username,
+                                    send: SignupFeature.Action.usernameChanged
+                                ))
+                                .id(Field.name)
+                                .focused($focusedField, equals: .name)
                                 CustomTextField("이메일 주소", text: viewStore.binding(
                                     get: \.email,
                                     send: SignupFeature.Action.emailChanged
                                 ), keyboardType: .emailAddress)
-                                Button("인증하기") {
-                                    if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." ||
-                                       viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
-                                       viewStore.errorMessage == "이미 인증된 이메일입니다." {
-                                        return
+                                .id(Field.email)
+                                .focused($focusedField, equals: .email)
+                                HStack(spacing: 8) {
+                                    Spacer(minLength: 0)
+                                    Button("인증하기") {
+                                        if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." ||
+                                           viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
+                                           viewStore.errorMessage == "이미 인증된 이메일입니다." {
+                                            return
+                                        }
+                                        viewStore.send(.signupButtonTapped)
                                     }
-                                    viewStore.send(.signupButtonTapped)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 16)
+                                    .background((viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading) ? Color.gray.opacity(0.5) : Color.purple)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                                    .disabled(viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading)
                                 }
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 16)
-                                .background(viewStore.email.isEmpty || viewStore.isLoading ? Color.gray.opacity(0.5) : Color.purple)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                                .disabled(viewStore.email.isEmpty || viewStore.isLoading)
-                            }
-                            if let errorMessage = viewStore.errorMessage,
-                               errorMessage.contains("이미 가입된 이메일") {
-                                Text(errorMessage)
-                                    .foregroundColor(.red)
-                                    .font(.caption)
-                                    .padding(.top, 4)
-                            }
-                            if let errorMessage = viewStore.errorMessage,
-                               errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." {
-                                Text("유효하지 않은 이메일입니다. 이메일을 다시 확인해주세요.")
-                                    .foregroundColor(.red)
-                                    .font(.caption)
-                                    .padding(.top, 4)
-                            }
-                            CustomSecureField("비밀번호", text: viewStore.binding(
-                                get: \.password,
-                                send: SignupFeature.Action.passwordChanged
-                            ))
-                            CustomTextField("전화번호", text: viewStore.binding(
-                                get: \.phone,
-                                send: SignupFeature.Action.phoneChanged
-                            ), keyboardType: .phonePad)
-                        }
-                        .padding(.horizontal, 32)
-                        .padding(.bottom, 8)
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 12) {
-                                    Text("프라이버시 동의")
-                                        .foregroundColor(.white)
-                                        .font(.subheadline)
-                                    CheckBox(isChecked: privacyAgreement == .agree, label: "동의") {
-                                        privacyAgreement = .agree
-                                    }
-                                    CheckBox(isChecked: privacyAgreement == .disagree, label: "비동의") {
-                                        privacyAgreement = .disagree
-                                    }
-                                    Button("자세히") { showPrivacySheet = true }
+                                if let errorMessage = viewStore.errorMessage,
+                                   errorMessage.contains("이미 가입된 이메일") {
+                                    Text(errorMessage)
+                                        .foregroundColor(.red)
                                         .font(.caption)
-                                        .foregroundColor(.purple)
+                                        .padding(.top, 4)
                                 }
-                                HStack(spacing: 12) {
-                                    Text("이용약관 동의")
-                                        .foregroundColor(.white)
-                                        .font(.subheadline)
-                                    CheckBox(isChecked: termsAgreement == .agree, label: "동의") {
-                                        termsAgreement = .agree
-                                    }
-                                    CheckBox(isChecked: termsAgreement == .disagree, label: "비동의") {
-                                        termsAgreement = .disagree
-                                    }
-                                    Button("자세히") { showTermsSheet = true }
+                                if let errorMessage = viewStore.errorMessage,
+                                   errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." {
+                                    Text("유효하지 않은 이메일입니다. 이메일을 다시 확인해주세요.")
+                                        .foregroundColor(.red)
                                         .font(.caption)
-                                        .foregroundColor(.purple)
+                                        .padding(.top, 4)
+                                }
+                                CustomSecureField("비밀번호", text: viewStore.binding(
+                                    get: \.password,
+                                    send: SignupFeature.Action.passwordChanged
+                                ))
+                                .id(Field.password)
+                                .focused($focusedField, equals: .password)
+                                CustomTextField("전화번호", text: viewStore.binding(
+                                    get: \.phone,
+                                    send: SignupFeature.Action.phoneChanged
+                                ), keyboardType: .phonePad)
+                                .id(Field.phone)
+                                .focused($focusedField, equals: .phone)
+                            }
+                            .padding(.horizontal, 32)
+                            .padding(.bottom, 8)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        Text("프라이버시 동의")
+                                            .foregroundColor(.white)
+                                            .font(.subheadline)
+                                        CheckBox(isChecked: privacyAgreement == .agree, label: "동의") {
+                                            privacyAgreement = .agree
+                                        }
+                                        CheckBox(isChecked: privacyAgreement == .disagree, label: "비동의") {
+                                            privacyAgreement = .disagree
+                                        }
+                                        Button("자세히") { showPrivacySheet = true }
+                                            .font(.caption)
+                                            .foregroundColor(.purple)
+                                    }
+                                    HStack(spacing: 12) {
+                                        Text("이용약관 동의")
+                                            .foregroundColor(.white)
+                                            .font(.subheadline)
+                                        CheckBox(isChecked: termsAgreement == .agree, label: "동의") {
+                                            termsAgreement = .agree
+                                        }
+                                        CheckBox(isChecked: termsAgreement == .disagree, label: "비동의") {
+                                            termsAgreement = .disagree
+                                        }
+                                        Button("자세히") { showTermsSheet = true }
+                                            .font(.caption)
+                                            .foregroundColor(.purple)
+                                    }
                                 }
                             }
-                        }
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 8)
-                        .sheet(isPresented: $showPrivacySheet) {
-                            ScrollView { Text(privacyText).padding() }
-                        }
-                        .sheet(isPresented: $showTermsSheet) {
-                            ScrollView { Text(termsText).padding() }
-                        }
-
-                        Button(action: {
-                            if viewStore.isVerified {
-                                onNext()
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 8)
+                            .sheet(isPresented: $showPrivacySheet) {
+                                ScrollView { Text(privacyText).padding() }
                             }
-                            // onNext()
-                        }) {
+                            .sheet(isPresented: $showTermsSheet) {
+                                ScrollView { Text(termsText).padding() }
+                            }
+
+                            Button(action: {
+                                if viewStore.isVerified {
+                                    onNext()
+                                }
+                                // onNext()
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    Text("완료")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    Image(systemName: "arrow.right")
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                }
+                                .padding()
+                                .background((viewStore.isVerified && privacyAgreement == .agree && termsAgreement == .agree) ? Color.purple : Color.gray.opacity(0.5))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 32)
+                            .padding(.top, 16)
+                            // .disabled(
+                            //     viewStore.isLoading ||
+                            //     viewStore.username.isEmpty ||
+                            //     viewStore.email.isEmpty ||
+                            //     viewStore.password.isEmpty ||
+                            //     viewStore.phone.isEmpty ||
+                            //     agreement != .agree ||
+                            //     viewStore.errorMessage == "Invalid verification code or email" ||
+                            //     !viewStore.isVerified
+                            // )
+
+                            Spacer()
+
                             HStack {
-                                Spacer()
-                                Text("완료")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                Image(systemName: "arrow.right")
-                                    .foregroundColor(.white)
-                                Spacer()
+                                Text("계정이 이미 있으신가요?")
+                                    .foregroundColor(.white.opacity(0.7))
+                                Button("로그인하기") {
+                                    // 로그인 이동 액션 필요시 구현
+                                }
+                                .foregroundColor(.white)
+                                .underline()
                             }
-                            .padding()
-                            .background((viewStore.isVerified && privacyAgreement == .agree && termsAgreement == .agree) ? Color.purple : Color.gray.opacity(0.5))
-                            .cornerRadius(12)
+                            .font(.footnote)
+                            .padding(.bottom, 16)
                         }
-                        .padding(.horizontal, 32)
-                        .padding(.top, 16)
-                        // .disabled(
-                        //     viewStore.isLoading ||
-                        //     viewStore.username.isEmpty ||
-                        //     viewStore.email.isEmpty ||
-                        //     viewStore.password.isEmpty ||
-                        //     viewStore.phone.isEmpty ||
-                        //     agreement != .agree ||
-                        //     viewStore.errorMessage == "Invalid verification code or email" ||
-                        //     !viewStore.isVerified
-                        // )
-
-                        Spacer()
-
-                        HStack {
-                            Text("계정이 이미 있으신가요?")
-                                .foregroundColor(.white.opacity(0.7))
-                            Button("로그인하기") {
-                                // 로그인 이동 액션 필요시 구현
+                        .frame(minHeight: UIScreen.main.bounds.height)
+                        .padding()
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
+                        .onChange(of: focusedField) { newValue in
+                            if let field = newValue {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                    withAnimation {
+                                        proxy.scrollTo(field, anchor: .center)
+                                    }
+                                }
                             }
-                            .foregroundColor(.white)
-                            .underline()
                         }
-                        .font(.footnote)
-                        .padding(.bottom, 16)
                     }
-                    .padding()
-                }
-                .keyboardAdaptive()
-                .onTapGesture {
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
             }
             .sheet(isPresented: $showVerificationModal, onDismiss: {
@@ -556,16 +579,21 @@ struct VerificationCodeModal: View {
                     .font(.caption)
                     .padding(.top, 4)
             }
-            Button("확인") {
+            Button(action: {
                 attempted = true
                 onVerify()
+            }) {
+                Text("확인")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(code.joined().count == 6 ? Color.purple : Color.gray.opacity(0.5))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .contentShape(Rectangle())
             }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.purple)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-                .padding(.horizontal, 32)
+            .padding(.horizontal, 32)
+            .disabled(code.joined().count != 6)
             Spacer()
         }
         .padding()

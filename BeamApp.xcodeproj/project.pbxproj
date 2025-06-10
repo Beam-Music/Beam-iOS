@@ -70,6 +70,7 @@
 		B7641C6F2DADF795005C3FFC /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7641C6E2DADF795005C3FFC /* Color+Theme.swift */; };
 		B7A3E4602DE063E300553152 /* OnboardLoginDoneSignupVIew.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A3E45F2DE063B500553152 /* OnboardLoginDoneSignupVIew.swift */; };
 		B7AE59DD2DF6D44A00A3D62D /* PlaylistSelectSheet 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7AE59DC2DF6D44A00A3D62D /* PlaylistSelectSheet 2.swift */; };
+		B7B78C942DF7F1CC0019E8A0 /* KeyboardAvoidingScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B78C932DF7F1CC0019E8A0 /* KeyboardAvoidingScrollView.swift */; };
 		B7CAFECB2DC0C18300ECE0BE /* APIClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7CAFECA2DC0C17F00ECE0BE /* APIClients.swift */; };
 		B7D045AB2DD1DFA200B5C41A /* AddToPlaylist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D045AA2DD1DF8C00B5C41A /* AddToPlaylist.swift */; };
 		B7D045AE2DD2D73200B5C41A /* PlaylistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D045AD2DD2D72900B5C41A /* PlaylistDetailView.swift */; };
@@ -161,6 +162,7 @@
 		B7641C6E2DADF795005C3FFC /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		B7A3E45F2DE063B500553152 /* OnboardLoginDoneSignupVIew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardLoginDoneSignupVIew.swift; sourceTree = "<group>"; };
 		B7AE59DC2DF6D44A00A3D62D /* PlaylistSelectSheet 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistSelectSheet 2.swift"; sourceTree = "<group>"; };
+		B7B78C932DF7F1CC0019E8A0 /* KeyboardAvoidingScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAvoidingScrollView.swift; sourceTree = "<group>"; };
 		B7CAFEC42DC0A52B00ECE0BE /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
 		B7CAFECA2DC0C17F00ECE0BE /* APIClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClients.swift; sourceTree = "<group>"; };
 		B7D045AA2DD1DF8C00B5C41A /* AddToPlaylist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddToPlaylist.swift; sourceTree = "<group>"; };
@@ -348,6 +350,7 @@
 		0FB655232CBDEC95000B803B /* Onboard */ = {
 			isa = PBXGroup;
 			children = (
+				B7B78C932DF7F1CC0019E8A0 /* KeyboardAvoidingScrollView.swift */,
 				B7A3E45F2DE063B500553152 /* OnboardLoginDoneSignupVIew.swift */,
 				B749319F2DCC6A7B003967F6 /* OnboardLoginWelcomeView.swift */,
 				B749319D2DCC6A4F003967F6 /* OnboardLoginVoiceView.swift */,
@@ -711,6 +714,7 @@
 				B74931962DCC69A5003967F6 /* OnboardLoginMusicView.swift in Sources */,
 				0F5621C12CB76D1B006E03F9 /* LibraryView.swift in Sources */,
 				0F7042EE2CCA251400279559 /* PlayerDetailView.swift in Sources */,
+				B7B78C942DF7F1CC0019E8A0 /* KeyboardAvoidingScrollView.swift in Sources */,
 				B749319E2DCC6A50003967F6 /* OnboardLoginVoiceView.swift in Sources */,
 				0FB328092C9031B300F5675B /* OnboardView.swift in Sources */,
 				0FC873F22C9007D000D809E9 /* TextStyles.swift in Sources */,
