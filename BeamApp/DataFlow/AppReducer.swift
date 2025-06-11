@@ -18,6 +18,7 @@ struct AppReducer: Reducer {
         var selectedTab: Tab = .home
         var isLoggedIn: Bool = false
         var isSignedUp: Bool = false
+        var userProfile: UserProfile? = nil
     }
     
     enum Action: Equatable {
@@ -28,6 +29,9 @@ struct AppReducer: Reducer {
         case home(HomeReducer.Action)
         case login(LoginFeature.Action)
         case signup(SignupFeature.Action)
+        case fetchUserProfile
+        case userProfileLoaded(UserProfile)
+        case userProfileFailed(UserProfileError)
     }
 
     enum Tab: Equatable {
@@ -62,7 +66,10 @@ struct AppReducer: Reducer {
                 state.isLoggedIn = true
                 state.loginState.token = token
                 state.selectedTab = .home
-                return .none
+                return .merge(
+                    .none,
+                    .send(.fetchUserProfile)
+                )
                 
             case .login(.loginResponse(.failure)):
                 return .none
@@ -76,7 +83,10 @@ struct AppReducer: Reducer {
                 return .none
                 
             case .signup(.verifyResponse(.success)):
-                return .none
+                return .merge(
+                    .none,
+                    .send(.fetchUserProfile)
+                )
                 
             case .signup(.usernameChanged),
                  .signup(.emailChanged),
@@ -91,7 +101,38 @@ struct AppReducer: Reducer {
                 
              case .signup(.setIsLoggedIn(let isLoggedIn)):
                  return .none
-            case .home, .tabBar:
+             case .signup(.profileImageChanged):
+                 return .none
+             case .home, .tabBar:
+                 return .none
+            case .fetchUserProfile:
+                print(">>> fetchUserProfile called")
+                guard let token = state.loginState.token ?? state.signupState.token,
+                      let userId = UserDefaults.standard.string(forKey: "userID") else {
+                    print(">>> fetchUserProfile: token or userId missing")
+                    return .none
+                }
+                print(">>> fetchUserProfile: userId = \(userId), token = \(token.prefix(10))...")
+                return .run { send in
+                    do {
+                        let profile = try await UserProfileClient.fetchProfile(userId: userId, token: token)
+                        print(">>> fetchUserProfile: profile loaded: \(profile)")
+                        await send(.userProfileLoaded(profile))
+                    } catch let error as UserProfileError {
+                        print(">>> fetchUserProfile: UserProfileError: \(error)")
+                        await send(.userProfileFailed(error))
+                    } catch {
+                        print(">>> fetchUserProfile: unknown error: \(error)")
+                        await send(.userProfileFailed(.unknown))
+                    }
+                }
+            case let .userProfileLoaded(profile):
+                print(">>> userProfileLoaded: \(profile)")
+                state.userProfile = profile
+                return .none
+            case .userProfileFailed:
+                print(">>> userProfileFailed")
+                // 에러 처리 (필요시)
                 return .none
             }
         }

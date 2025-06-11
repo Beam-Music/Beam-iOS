@@ -30,15 +30,25 @@ extension AuthService: DependencyKey {
             
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
+            guard let httpResponse = response as? HTTPURLResponse else {
                 throw LoginError.invalidResponse
             }
-                
-                struct TokenResponse: Decodable {
-                    let token: String
+            if httpResponse.statusCode == 401 {
+                // 서버의 reason 메시지 파싱
+                struct ErrorResponse: Decodable { let reason: String }
+                if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data),
+                   errorResponse.reason.lowercased().contains("verify your email") {
+                    throw LoginError.emailNotVerified
+                } else {
+                    throw LoginError.invalidCredentials
                 }
-            
+            }
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw LoginError.invalidResponse
+            }
+            struct TokenResponse: Decodable {
+                let token: String
+            }
             let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
             @Dependency(\.tokenStorage) var tokenStorage
             do {
@@ -57,6 +67,7 @@ enum LoginError: Error, Equatable {
     case invalidURL
     case invalidResponse
     case invalidCredentials
+    case emailNotVerified
     case serverError
     case decodingError(DecodingError)
     case networkError(Error)

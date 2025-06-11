@@ -103,7 +103,7 @@ struct SignupView: View {
                     }
                     .disabled(viewStore.isLoading || viewStore.verificationCode.isEmpty)
                         .padding(.horizontal, 30)
-                    }
+                }
 
                 // --- 상태 표시 ---
                 if viewStore.isLoading {

@@ -3,12 +3,13 @@ import ComposableArchitecture
 @Reducer
 struct TabBarReducer {
     struct State: Equatable {
-        var playerState = PlayerReducer.State()
+        var playerState: PlayerReducer.State? = nil
         var generatorState = GeneratorFeature.State()
         var homeState = HomeReducer.State()
         var libraryState = LibraryReducer.State()
     }
 
+    @CasePathable
     enum Action: Equatable {
         case player(PlayerReducer.Action)
         case generator(GeneratorFeature.Action)
@@ -17,9 +18,6 @@ struct TabBarReducer {
     }
 
     var body: some Reducer<State, Action> {
-        Scope(state: \.playerState, action: \.player) {
-            PlayerReducer()
-        }
         Scope(state: \.generatorState, action: \.generator) {
             GeneratorFeature()
         }
@@ -29,14 +27,13 @@ struct TabBarReducer {
         Scope(state: \.libraryState, action: \.library) {
             LibraryReducer()
         }
-
         Reduce { state, action in
             switch action {
             case let .home(.playlistLoaded(playlist)),
                  let .library(.playlistLoaded(playlist)):
-                if state.playerState.playlist != playlist {
-                    state.playerState.playlist = playlist
-                    state.playerState.currentIndex = 0
+                if state.playerState?.playlist != playlist {
+                    state.playerState?.playlist = playlist
+                    state.playerState?.currentIndex = 0
                 }
                 return .none
             case let .library(.startPlayback(tracks)):

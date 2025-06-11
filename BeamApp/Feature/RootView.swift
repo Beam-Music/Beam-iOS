@@ -17,6 +17,7 @@ struct RootView: View {
     @State private var isLoading = true
     @Dependency(\.tokenStorage) var tokenStorage
     let libraryStore = Store(initialState: LibraryReducer.State(), reducer: { LibraryReducer() })
+    @State private var hasCompletedOnboarding = false
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
@@ -27,71 +28,44 @@ struct RootView: View {
     }
     
     var body: some View {
-        WithViewStore(self.store, observe: ViewState.init) { viewStore in
+        WithViewStore(self.store, observe: { $0 }) { viewStore in
             ZStack {
                 if isLoading {
                     ProgressView()
                         .tint(Color.purple)
                 } else {
-                    ZStack {
-                        if viewStore.isLoggedIn {
-                            TabBarView(store: store, libraryStore: libraryStore, isMiniPlayerVisible: $isMiniPlayerVisible)
-                            .zIndex(0)
-                        } else {
-                            OnboardView(
-                                loginStore: store.scope(
-                                    state: \.loginState,
-                                    action: AppReducer.Action.login
-                                ),
-                                signupStore: store.scope(
-                                    state: \.signupState,
-                                    action: AppReducer.Action.signup
-                                ),
-                                onOnboardingFinished: {
-                                    viewStore.send(.setSelectedTab(.home))
-                                    viewStore.send(.setLoggedIn(true))
-                                }
-                            )
-                        }
-                        
-                        if isMiniPlayerVisible && !isPlayerViewVisible && viewStore.isLoggedIn {
-                            MiniPlayerView(store: store.scope(
-                                state: \.tabBarState.playerState,
-                                action: { AppReducer.Action.tabBar(.player($0)) }
-                            ), isPlayerViewVisible: $isPlayerViewVisible)
-                            .onTapGesture {
-                                showFullPlayer()
+                    if viewStore.isLoggedIn {
+                        TabBarView(store: store, libraryStore: libraryStore, isMiniPlayerVisible: $isMiniPlayerVisible)
+                        .zIndex(0)
+                    } else {
+                        OnboardView(
+                            loginStore: store.scope(
+                                state: \.loginState,
+                                action: AppReducer.Action.login
+                            ),
+                            signupStore: store.scope(
+                                state: \.signupState,
+                                action: AppReducer.Action.signup
+                            ),
+                            onOnboardingFinished: {
+                                hasCompletedOnboarding = true
+                                viewStore.send(.setSelectedTab(.home))
+                                viewStore.send(.setLoggedIn(true))
                             }
-                            .transition(.move(edge: .bottom))
-                            .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
-                            .zIndex(1)
-                        }
-                    }
-                    .opacity(isPlayerViewVisible ? 0.3 : 1)
-                    
-                    if isPlayerViewVisible {
-                        Color.black
-                            .opacity(calculateBackgroundOpacity())
-                            .ignoresSafeArea()
-                            .zIndex(1)
-                        
-                        PlayerView(store: store.scope(
-                            state: \.tabBarState.playerState,
-                            action: { AppReducer.Action.tabBar(.player($0)) }
-                        ), isMiniPlayerVisible: $isMiniPlayerVisible, libraryStore: libraryStore)
-                        .background(Color.black)
-                        .offset(y: calculatePlayerOffset())
-                        .gesture(
-                            DragGesture()
-                                .updating($dragOffset) { value, state, _ in
-                                    state = value.translation.height
-                                }
-                                .onEnded { value in
-                                    handleDragEnd(value)
-                                }
                         )
-                        .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
-                        .zIndex(2)
+                    }
+                    
+                    if let _ = viewStore.tabBarState.playerState, isMiniPlayerVisible && !isPlayerViewVisible && viewStore.isLoggedIn && hasCompletedOnboarding {
+                        MiniPlayerView(store: store.scope(
+                            state: \.tabBarState.playerState!,
+                            action: { AppReducer.Action.tabBar(.player($0)) }
+                        ), isPlayerViewVisible: $isPlayerViewVisible)
+                        .onTapGesture {
+                            showFullPlayer()
+                        }
+                        .transition(.move(edge: .bottom))
+                        .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
+                        .zIndex(1)
                     }
                 }
             }
@@ -100,6 +74,7 @@ struct RootView: View {
             .task {
                 // Check for saved token on app launch
                 if let token = tokenStorage.fetchToken() {
+                    hasCompletedOnboarding = true
                     viewStore.send(.setLoggedIn(true))
                 }
                 isLoading = false

@@ -252,7 +252,7 @@ struct RemixArtistPickerView: View {
 
 // MARK: - Main Player View
 struct PlayerView: View {
-    let store: StoreOf<PlayerReducer>
+    let store: Store<PlayerReducer.State, PlayerReducer.Action>
     @Binding var isMiniPlayerVisible: Bool
     let libraryStore: StoreOf<LibraryReducer>
     @State private var isDetailViewPresented = false
@@ -269,12 +269,6 @@ struct PlayerView: View {
         Artist(name: "H.E.R", imageName: "artist_her"),
         Artist(name: "Rihanna", imageName: "artist_rihanna")
     ]
-    
-    init(store: StoreOf<PlayerReducer>, isMiniPlayerVisible: Binding<Bool>, libraryStore: StoreOf<LibraryReducer>) {
-        self.store = store
-        self._isMiniPlayerVisible = isMiniPlayerVisible
-        self.libraryStore = libraryStore
-    }
     
     struct ViewState: Equatable {
         let isPlaying: Bool

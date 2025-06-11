@@ -24,10 +24,7 @@ struct TabBarView: View {
                     get: \.isLoggedIn,
                     send: { .setLoggedIn($0) }
                 ), isMiniPlayerVisible: $isMiniPlayerVisible,
-                         store: store.scope(
-                            state: \.tabBarState.homeState,
-                            action: { AppReducer.Action.tabBar(.home($0)) }
-                         ),
+                         store: store,
                          libraryStore: libraryStore)
                 .tabItem {
                     Label("홈", systemImage: "house.fill")
@@ -46,10 +43,13 @@ struct TabBarView: View {
                 }
                 .tag(AppReducer.Tab.library)
 
-                SettingsView(isLoggedIn: viewStore.binding(
-                    get: \.isLoggedIn,
-                    send: { .setLoggedIn($0) }
-                ))
+                SettingsView(
+                    store: store,
+                    isLoggedIn: viewStore.binding(
+                        get: \.isLoggedIn,
+                        send: { .setLoggedIn($0) }
+                    )
+                )
                 .tabItem {
                     Label("설정", systemImage: "gearshape.fill")
                 }

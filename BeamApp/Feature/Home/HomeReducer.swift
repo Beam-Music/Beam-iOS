@@ -21,7 +21,7 @@ struct HomeReducer {
         var route: Route?
         var playlist: [PlayableTrackDTO] = []
         var errorMessage: String? = nil
-        @PresentationState var playerState: PlayerReducer.State? = nil
+        var playerState: PlayerReducer.State? = nil
         var selectedPlaylistID: String? = nil
         var recommendedPlaylists: [PlaylistSummaryDTO] = []
     }
@@ -41,7 +41,7 @@ struct HomeReducer {
         case userPlaylistsLoaded([PlaylistSummaryDTO])
         case playlistLoaded([PlayableTrackDTO])
         case playlistFailed(String)
-        case player(PresentationAction<PlayerReducer.Action>)
+        case player(PlayerReducer.Action)
         case fetchRecommendPlaylists
         case recommendPlaylistsLoaded([PlaylistSummaryDTO])
         case recommendPlaylistsFailed(String)
@@ -100,7 +100,7 @@ struct HomeReducer {
                     currentIndex: 0
                 )
                 state.route = .player
-                return .send(.player(.presented(.startPlayback([track]))))
+                return .send(.player(.startPlayback([track])))
             case .playlistSelected(let playlist):
                 guard let playlistID = playlist.id else {
                     return .none
@@ -217,15 +217,15 @@ struct HomeReducer {
             case let .playlistFailed(error):
                 state.errorMessage = error
                 return .none
-            case .player(.dismiss):
-                state.playerState = nil
-                state.route = nil
-                return .none
+//            case .player(.dismiss):
+//                state.playerState = nil
+//                state.route = nil
+//                return .none
             case .player:
                 return .none
             }
         }
-        .ifLet(\.$playerState, action: \.player) {
+        .ifLet(\.playerState, action: \.player) {
             PlayerReducer()
         }
     }

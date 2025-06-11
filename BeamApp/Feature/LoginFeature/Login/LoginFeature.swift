@@ -59,6 +59,8 @@ struct LoginFeature: Reducer {
                     state.errorMessage = "Server error occurred. Please try again later."
                 case .networkError:
                     state.errorMessage = "Network error occurred. Please check your connection."
+                case .emailNotVerified:
+                    state.errorMessage = "이메일 인증을 먼저 완료해 주세요."
                 default:
                     state.errorMessage = "An unexpected error occurred"
                 }

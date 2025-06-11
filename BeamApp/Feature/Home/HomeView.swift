@@ -113,13 +113,11 @@ struct MusicSearchResultView: View {
     }
 }
 
-// MARK: - Updated HomeView
 struct HomeView: View {
     @Binding var isLoggedIn: Bool
     @Binding var isMiniPlayerVisible: Bool
-    let store: StoreOf<HomeReducer>
+    let store: StoreOf<AppReducer>
     let libraryStore: StoreOf<LibraryReducer>
-    @ObservedObject var viewStore: ViewStore<HomeReducer.State, HomeReducer.Action>
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
@@ -128,12 +126,11 @@ struct HomeView: View {
     @State private var songToAddToPlaylist: MusicSearchResult? = nil
     @State private var isPlaylistSelectSheetPresented: Bool = false
     
-    init(isLoggedIn: Binding<Bool>, isMiniPlayerVisible: Binding<Bool>, store: StoreOf<HomeReducer>, libraryStore: StoreOf<LibraryReducer>) {
-        self._isLoggedIn = isLoggedIn
-        self._isMiniPlayerVisible = isMiniPlayerVisible
-        self.store = store
-        self.libraryStore = libraryStore
-        self.viewStore = ViewStore(store, observe: { $0 })
+    private var homeStore: StoreOf<HomeReducer> {
+        store.scope(state: \.tabBarState.homeState, action: { AppReducer.Action.tabBar(.home($0)) })
+    }
+    private var viewStore: ViewStore<HomeReducer.State, HomeReducer.Action> {
+        ViewStore(homeStore, observe: { $0 })
     }
     
     var body: some View {
@@ -310,28 +307,13 @@ struct HomeView: View {
 
             MusicSearchView(isMiniPlayerVisible: $isMiniPlayerVisible)
         }
-        .navigationBarItems(trailing: HomeNavigationBarView(isLoggedIn: $isLoggedIn))
+        .navigationBarItems(trailing: HomeNavigationBarView(store: store, isLoggedIn: $isLoggedIn))
         .navigationBarTitle("", displayMode: .inline)
         .onAppear {
             Task {
                 await fetchAppleMusicHitSongs()
                 await fetchRemixArtistPairs()
             }
-        }
-        .sheet(
-            store: store.scope(
-                state: \.$playerState,
-                action: HomeReducer.Action.player
-            ),
-            onDismiss: {
-                // 필요시 미니플레이어 등 상태 처리
-            }
-        ) { playerStore in
-            PlayerView(
-                store: playerStore,
-                isMiniPlayerVisible: $isMiniPlayerVisible,
-                libraryStore: libraryStore
-            )
         }
     }
     
@@ -546,9 +528,10 @@ struct MusicSearchView: View {
 }
 
 struct HomeNavigationBarView: View {
+    let store: StoreOf<AppReducer>
     @Binding var isLoggedIn: Bool
     var body: some View {
-        NavigationLink(destination: SettingsView(isLoggedIn: $isLoggedIn)) {
+        NavigationLink(destination: SettingsView(store: store, isLoggedIn: $isLoggedIn)) {
             Image(systemName: "gearshape")
                 .font(.system(size: 20))
                 .foregroundColor(Color.purple)

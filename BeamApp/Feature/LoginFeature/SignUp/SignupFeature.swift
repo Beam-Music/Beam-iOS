@@ -7,6 +7,7 @@
 
 import ComposableArchitecture
 import Foundation
+import UIKit
 
 struct SignupFeature: Reducer {
     struct State: Equatable {
@@ -21,6 +22,20 @@ struct SignupFeature: Reducer {
         var errorMessage: String? = nil
         var showVerificationSection: Bool = false
         var token: String? = nil
+        var profileImage: UIImage? = nil
+        static func == (lhs: State, rhs: State) -> Bool {
+            return lhs.username == rhs.username &&
+                lhs.email == rhs.email &&
+                lhs.password == rhs.password &&
+                lhs.phone == rhs.phone &&
+                lhs.verificationCode == rhs.verificationCode &&
+                lhs.isLoading == rhs.isLoading &&
+                lhs.isVerified == rhs.isVerified &&
+                lhs.isLoggedIn == rhs.isLoggedIn &&
+                lhs.errorMessage == rhs.errorMessage &&
+                lhs.showVerificationSection == rhs.showVerificationSection &&
+                lhs.token == rhs.token
+        }
     }
     
     enum Action: Equatable {
@@ -34,6 +49,23 @@ struct SignupFeature: Reducer {
         case signupResponse(Result<SignupResponseType, SignupError>)
         case verifyResponse(Result<VerifyResponseType, SignupError>)
         case setIsLoggedIn(Bool)
+        case profileImageChanged(UIImage?)
+        static func == (lhs: Action, rhs: Action) -> Bool {
+            switch (lhs, rhs) {
+            case let (.usernameChanged(a), .usernameChanged(b)): return a == b
+            case let (.emailChanged(a), .emailChanged(b)): return a == b
+            case let (.passwordChanged(a), .passwordChanged(b)): return a == b
+            case let (.phoneChanged(a), .phoneChanged(b)): return a == b
+            case let (.verificationCodeChanged(a), .verificationCodeChanged(b)): return a == b
+            case (.signupButtonTapped, .signupButtonTapped): return true
+            case (.verifyButtonTapped, .verifyButtonTapped): return true
+            case let (.signupResponse(a), .signupResponse(b)): return a == b
+            case let (.verifyResponse(a), .verifyResponse(b)): return a == b
+            case let (.setIsLoggedIn(a), .setIsLoggedIn(b)): return a == b
+            case (.profileImageChanged, .profileImageChanged): return true
+            default: return false
+            }
+        }
     }
     
     enum SignupResponseType: Equatable {
@@ -98,10 +130,15 @@ struct SignupFeature: Reducer {
             case .signupButtonTapped:
                 state.isLoading = true
                 state.errorMessage = nil
-                
-                return .run { [username = state.username, email = state.email, password = state.password] send in
+
+                let username = state.username
+                let email = state.email
+                let password = state.password
+                let profileImage = state.profileImage
+
+                return .run { send in
                     do {
-                        let response = try await signupRequest(username, email, password)
+                        let response = try await signupRequest(username, email, password, profileImage)
                         await send(.signupResponse(.success(response)))
                     } catch {
                         if let signupError = error as? SignupError {
@@ -156,7 +193,15 @@ struct SignupFeature: Reducer {
                     state.isVerified = true
                     state.token = token
                     state.errorMessage = "이메일 인증이 완료되었습니다."
-                    
+
+                    // userID를 토큰에서 파싱하여 UserDefaults에 저장
+                    if let userId = Self.parseUserIdFromJWT(token) {
+                        UserDefaults.standard.set(userId, forKey: "userID")
+                        print("✅ userID 저장됨: \(userId)")
+                    } else {
+                        print("❌ userID 파싱 실패: token=\(token.prefix(20))...")
+                    }
+
                     return .run { [token] send in
                         do {
                             try await tokenStorage.saveToken(token)
@@ -179,6 +224,10 @@ struct SignupFeature: Reducer {
                     }
                 }
                 return .none
+                
+            case let .profileImageChanged(image):
+                state.profileImage = image
+                return .none
             }
         }
     }
@@ -192,7 +241,7 @@ private struct ErrorResponse: Decodable {
 }
 
 extension DependencyValues {
-    var signupRequest: (String, String, String) async throws -> SignupFeature.SignupResponseType {
+    var signupRequest: (String, String, String, UIImage?) async throws -> SignupFeature.SignupResponseType {
         get { self[SignupRequestKey.self] }
         set { self[SignupRequestKey.self] = newValue }
     }
@@ -204,24 +253,46 @@ extension DependencyValues {
 }
 
 private struct SignupRequestKey: DependencyKey {
-    static var liveValue: (String, String, String) async throws -> SignupFeature.SignupResponseType = { username, email, password in
+    static var liveValue: (String, String, String, UIImage?) async throws -> SignupFeature.SignupResponseType = { username, email, password, profileImage in
         var request = URLRequest(url: URL(string: Endpoints.Auth.register)!)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body: [String: Any] = [
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        // 텍스트 파트
+        let params = [
             "username": username,
             "email": email,
             "password": password
         ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
+        for (key, value) in params {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+        // 이미지 파트 (선택)
+        if let image = profileImage {
+            if let imageData = image.jpegData(compressionQuality: 0.8) {
+                print("✅ jpegData 변환 성공! 이미지 크기: \(imageData.count / 1024) KB")
+                body.append("--\(boundary)\r\n".data(using: .utf8)!)
+                body.append("Content-Disposition: form-data; name=\"profileImage\"; filename=\"profile.jpg\"\r\n".data(using: .utf8)!)
+                body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+                body.append(imageData)
+                body.append("\r\n".data(using: .utf8)!)
+            } else {
+                print("❌ jpegData 변환 실패! (UIImage는 있으나 Data 변환 실패)")
+            }
+        } else {
+            print("❌ profileImage가 nil입니다. (이미지 선택 안 됨)")
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SignupFeature.SignupError.invalidResponse
         }
-        
         switch httpResponse.statusCode {
         case 201:
             return .newUser
@@ -289,6 +360,30 @@ private struct VerifyRequestKey: DependencyKey {
                 throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
             }
         }
+    }
+}
+
+extension SignupFeature {
+    /// JWT 토큰에서 userId를 파싱 (payload의 "userId" 키)
+    static func parseUserIdFromJWT(_ token: String) -> String? {
+        let segments = token.split(separator: ".")
+        guard segments.count == 3 else { return nil }
+        let payloadSegment = segments[1]
+        var base64 = String(payloadSegment)
+        // Base64 padding 보정
+        let requiredLength = (4 * ((base64.count + 3) / 4))
+        let paddingLength = requiredLength - base64.count
+        if paddingLength > 0 {
+            base64 += String(repeating: "=", count: paddingLength)
+        }
+        guard let payloadData = Data(base64Encoded: base64) else { return nil }
+        guard let payloadJson = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else { return nil }
+        if let userId = payloadJson["userId"] as? String {
+            return userId
+        } else if let userId = payloadJson["userId"] as? Int {
+            return String(userId)
+        }
+        return nil
     }
 }
 
