@@ -76,7 +76,8 @@ struct AppReducer: Reducer {
                 
             case .login(.usernameChanged),
                  .login(.passwordChanged),
-                 .login(.loginButtonTapped):
+                 .login(.loginButtonTapped),
+                 .login(.reset):
                 return .none
                 
             case .signup(.signupResponse(.success)):
@@ -96,7 +97,8 @@ struct AppReducer: Reducer {
                  .signup(.signupButtonTapped),
                  .signup(.verifyButtonTapped),
                  .signup(.signupResponse(.failure)),
-                 .signup(.verifyResponse(.failure)):
+                 .signup(.verifyResponse(.failure)),
+                 .signup(.reset):
                 return .none
                 
              case .signup(.setIsLoggedIn(let isLoggedIn)):

@@ -128,10 +128,13 @@ struct SignupView: View {
             }
             .padding()
             .background(colorScheme == .dark ? Color.black : Color.white)
-        .navigationBarBackButtonHidden(true)
-        .navigationBarItems(leading: BackButton(action: {
-            self.presentationMode.wrappedValue.dismiss()
-        }))
+            .navigationBarBackButtonHidden(true)
+            .navigationBarItems(leading: BackButton(action: {
+                self.presentationMode.wrappedValue.dismiss()
+            }))
+            .onAppear {
+                viewStore.send(.reset)
+            }
         }
     }
 }

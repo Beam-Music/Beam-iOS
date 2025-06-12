@@ -144,10 +144,10 @@ struct OnboardSignupView: View {
                                     }
                                     .padding(.vertical, 10)
                                     .padding(.horizontal, 16)
-                                    .background((viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading) ? Color.gray.opacity(0.5) : Color.purple)
+                                    .background((viewStore.isVerified || viewStore.email.isEmpty || viewStore.password.isEmpty || viewStore.isLoading) ? Color.gray.opacity(0.5) : Color.purple)
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
-                                    .disabled(viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading)
+                                    .disabled(viewStore.isVerified || viewStore.email.isEmpty || viewStore.password.isEmpty || viewStore.isLoading)
                                 }
                                 if let errorMessage = viewStore.errorMessage,
                                    errorMessage.contains("이미 가입된 이메일") {
@@ -316,6 +316,9 @@ struct OnboardSignupView: View {
                 if isVerified {
                     showVerificationModal = false
                 }
+            }
+            .onAppear {
+                viewStore.send(.reset)
             }
         }
     }

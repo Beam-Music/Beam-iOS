@@ -11,6 +11,7 @@ import ComposableArchitecture
 struct SettingsView: View {
     let store: StoreOf<AppReducer>
     @Binding var isLoggedIn: Bool
+    @State private var showDeleteAlert = false
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
@@ -60,6 +61,55 @@ struct SettingsView: View {
                             .background(Color.red)
                             .foregroundColor(.primaryBackground)
                             .cornerRadius(10)
+                    }
+                    Button(action: {
+                        showDeleteAlert = true
+                    }) {
+                        Text("회원 탈퇴")
+                            .padding()
+                            .background(Color.gray)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .alert(isPresented: $showDeleteAlert) {
+                        Alert(
+                            title: Text("정말 탈퇴하시겠습니까?"),
+                            message: Text("탈퇴 후에는 유저 데이터를 되돌릴 수 없습니다."),
+                            primaryButton: .destructive(Text("확인")) {
+                                guard let userId = UserDefaults.standard.string(forKey: "userID") else { return }
+                                let url = URL(string: "\(Endpoints.baseURL)/api/users/\(userId)")!
+                                var request = URLRequest(url: url)
+                                request.httpMethod = "DELETE"
+                                print("회원 탈퇴 요청 userID:", userId)
+                                let token = viewStore.loginState.token
+                                    ?? viewStore.signupState.token
+                                    ?? TokenStorage.shared.fetchToken()
+                                if let token {
+                                    print("회원 탈퇴 요청 토큰:", token)
+                                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                                } else {
+                                    print("회원 탈퇴 요청: 토큰 없음")
+                                }
+                                URLSession.shared.dataTask(with: request) { data, response, error in
+                                    if let error = error {
+                                        print("회원 탈퇴 실패: \(error)")
+                                        return
+                                    }
+                                    if let httpResponse = response as? HTTPURLResponse {
+                                        print("회원 탈퇴 응답 코드: \(httpResponse.statusCode)")
+                                        if httpResponse.statusCode == 200 || httpResponse.statusCode == 204 {
+                                            DispatchQueue.main.async {
+                                                UserDefaults.standard.removeObject(forKey: "userID")
+                                                isLoggedIn = false
+                                            }
+                                        } else {
+                                            print("회원 탈퇴 실패: 서버 응답 오류 (status: \(httpResponse.statusCode))")
+                                        }
+                                    }
+                                }.resume()
+                            },
+                            secondaryButton: .cancel(Text("취소"))
+                        )
                     }
                     Spacer()
                 }

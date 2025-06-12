@@ -50,6 +50,7 @@ struct SignupFeature: Reducer {
         case verifyResponse(Result<VerifyResponseType, SignupError>)
         case setIsLoggedIn(Bool)
         case profileImageChanged(UIImage?)
+        case reset
         static func == (lhs: Action, rhs: Action) -> Bool {
             switch (lhs, rhs) {
             case let (.usernameChanged(a), .usernameChanged(b)): return a == b
@@ -63,6 +64,7 @@ struct SignupFeature: Reducer {
             case let (.verifyResponse(a), .verifyResponse(b)): return a == b
             case let (.setIsLoggedIn(a), .setIsLoggedIn(b)): return a == b
             case (.profileImageChanged, .profileImageChanged): return true
+            case (.reset, .reset): return true
             default: return false
             }
         }
@@ -227,6 +229,10 @@ struct SignupFeature: Reducer {
                 
             case let .profileImageChanged(image):
                 state.profileImage = image
+                return .none
+                
+            case .reset:
+                state = State()
                 return .none
             }
         }

@@ -21,6 +21,7 @@ struct LoginFeature: Reducer {
         case passwordChanged(String)
         case loginButtonTapped
         case loginResponse(TaskResult<String>)
+        case reset
     }
     
     @Dependency(\.authService) var authService
@@ -67,6 +68,10 @@ struct LoginFeature: Reducer {
             } else {
                 state.errorMessage = error.localizedDescription
             }
+            return .none
+            
+        case .reset:
+            state = State()
             return .none
         }
     }

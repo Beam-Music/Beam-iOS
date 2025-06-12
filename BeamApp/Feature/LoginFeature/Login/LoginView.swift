@@ -88,6 +88,9 @@ struct LoginView: View {
                 .navigationBarItems(leading: BackButton(action: {
                     self.presentationMode.wrappedValue.dismiss()
                 }))
+                .onAppear {
+                    viewStore.send(.reset)
+                }
             }
         }
     }
