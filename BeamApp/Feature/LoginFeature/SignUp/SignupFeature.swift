@@ -44,6 +44,8 @@ struct SignupFeature: Reducer {
         case passwordChanged(String)
         case phoneChanged(String)
         case verificationCodeChanged(String)
+        case sendVerificationCodeButtonTapped
+        case sendVerificationCodeResponse(Result<Void, SignupError>)
         case signupButtonTapped
         case verifyButtonTapped
         case signupResponse(Result<SignupResponseType, SignupError>)
@@ -58,6 +60,7 @@ struct SignupFeature: Reducer {
             case let (.passwordChanged(a), .passwordChanged(b)): return a == b
             case let (.phoneChanged(a), .phoneChanged(b)): return a == b
             case let (.verificationCodeChanged(a), .verificationCodeChanged(b)): return a == b
+            case (.sendVerificationCodeButtonTapped, .sendVerificationCodeButtonTapped): return true
             case (.signupButtonTapped, .signupButtonTapped): return true
             case (.verifyButtonTapped, .verifyButtonTapped): return true
             case let (.signupResponse(a), .signupResponse(b)): return a == b
@@ -65,6 +68,7 @@ struct SignupFeature: Reducer {
             case let (.setIsLoggedIn(a), .setIsLoggedIn(b)): return a == b
             case (.profileImageChanged, .profileImageChanged): return true
             case (.reset, .reset): return true
+            case (.sendVerificationCodeResponse, .sendVerificationCodeResponse): return false
             default: return false
             }
         }
@@ -77,6 +81,7 @@ struct SignupFeature: Reducer {
     
     enum VerifyResponseType: Equatable {
         case success(token: String)
+        case emailVerifiedOnly
     }
     
     enum SignupError: Error, Equatable {
@@ -105,6 +110,7 @@ struct SignupFeature: Reducer {
     @Dependency(\.signupRequest) var signupRequest
     @Dependency(\.verifyRequest) var verifyRequest
     @Dependency(\.tokenStorage) var tokenStorage
+    @Dependency(\.sendVerificationCodeRequest) var sendVerificationCodeRequest
     
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -127,6 +133,34 @@ struct SignupFeature: Reducer {
                 
             case let .verificationCodeChanged(code):
                 state.verificationCode = code
+                return .none
+                
+            case .sendVerificationCodeButtonTapped:
+                state.isLoading = true
+                state.errorMessage = nil
+                let email = state.email
+                return .run { send in
+                    do {
+                        try await sendVerificationCodeRequest(email)
+                        await send(.sendVerificationCodeResponse(.success(())))
+                    } catch {
+                        if let signupError = error as? SignupError {
+                            await send(.sendVerificationCodeResponse(.failure(signupError)))
+                        } else {
+                            await send(.sendVerificationCodeResponse(.failure(.serverError(error.localizedDescription))))
+                        }
+                    }
+                }
+                
+            case let .sendVerificationCodeResponse(.success):
+                state.isLoading = false
+                state.errorMessage = "인증 메일이 발송되었습니다. 이메일을 확인해주세요."
+                state.showVerificationSection = true
+                return .none
+                
+            case let .sendVerificationCodeResponse(.failure(error)):
+                state.isLoading = false
+                state.errorMessage = error.localizedDescription
                 return .none
                 
             case .signupButtonTapped:
@@ -211,6 +245,10 @@ struct SignupFeature: Reducer {
                             await send(.verifyResponse(.failure(.serverError("토큰 저장에 실패했습니다: \(error.localizedDescription)"))))
                         }
                     }
+                case .emailVerifiedOnly:
+                    state.isVerified = true
+                    state.errorMessage = "이메일 인증 성공! 회원가입을 진행하세요."
+                    return .none
                 }
                 
             case let .verifyResponse(.failure(error)):
@@ -246,6 +284,13 @@ private struct ErrorResponse: Decodable {
     let status: Int?
 }
 
+// MARK: - Success Response for Verification
+private struct SuccessResponse: Decodable {
+    let success: Bool
+    let token: String?
+    let reason: String?
+}
+
 extension DependencyValues {
     var signupRequest: (String, String, String, UIImage?) async throws -> SignupFeature.SignupResponseType {
         get { self[SignupRequestKey.self] }
@@ -255,6 +300,11 @@ extension DependencyValues {
     var verifyRequest: (String, String) async throws -> SignupFeature.VerifyResponseType {
         get { self[VerifyRequestKey.self] }
         set { self[VerifyRequestKey.self] = newValue }
+    }
+    
+    var sendVerificationCodeRequest: (String) async throws -> Void {
+        get { self[SendVerificationCodeRequestKey.self] }
+        set { self[SendVerificationCodeRequestKey.self] = newValue }
     }
 }
 
@@ -344,11 +394,15 @@ private struct VerifyRequestKey: DependencyKey {
         
         switch httpResponse.statusCode {
         case 200:
-            struct TokenResponse: Decodable {
-                let token: String
+            let result = try JSONDecoder().decode(SuccessResponse.self, from: data)
+            guard result.success else {
+                throw SignupFeature.SignupError.serverError(result.reason ?? "이메일 인증에 실패했습니다.")
             }
-            let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
-            return .success(token: tokenResponse.token)
+            if let token = result.token {
+                return .success(token: token)
+            } else {
+                return .emailVerifiedOnly
+            }
         case 500:
             if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
                 let errorMessage = errorResponse.reason
@@ -365,6 +419,30 @@ private struct VerifyRequestKey: DependencyKey {
                 let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
                 throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
             }
+        }
+    }
+}
+
+private struct SendVerificationCodeRequestKey: DependencyKey {
+    static var liveValue: (String) async throws -> Void = { email in
+        // 실제 서버 API에 맞게 구현 필요
+        guard let url = URL(string: Endpoints.Auth.sendVerificationCode) else {
+            throw SignupFeature.SignupError.invalidResponse
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["email": email]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SignupFeature.SignupError.invalidResponse
+        }
+        if httpResponse.statusCode == 200 {
+            return
+        } else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
         }
     }
 }

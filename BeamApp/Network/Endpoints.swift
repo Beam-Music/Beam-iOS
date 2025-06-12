@@ -13,6 +13,7 @@ struct Endpoints {
         static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/api/users/register"
         static let verify = "\(baseURL)/api/users/verify"
+        static let sendVerificationCode = "\(baseURL)/api/users/send-verification-code"
     }
     
     struct History {

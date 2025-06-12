@@ -202,7 +202,7 @@ struct OnboardTasteView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 32)
 
-                Spacer(minLength: 60)
+                Spacer(minLength: 16)
             }
             Button(action: {
                 guard let token = TokenStorage.shared.fetchToken() else {
@@ -232,7 +232,7 @@ struct OnboardTasteView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.trailing, 32)
-            .padding(.bottom, 40)
+            .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(

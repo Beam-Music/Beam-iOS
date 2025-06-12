@@ -94,6 +94,8 @@ struct AppReducer: Reducer {
                  .signup(.passwordChanged),
                  .signup(.phoneChanged),
                  .signup(.verificationCodeChanged),
+                 .signup(.sendVerificationCodeButtonTapped),
+                 .signup(.sendVerificationCodeResponse),
                  .signup(.signupButtonTapped),
                  .signup(.verifyButtonTapped),
                  .signup(.signupResponse(.failure)),

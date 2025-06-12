@@ -135,19 +135,19 @@ struct OnboardSignupView: View {
                                 HStack(spacing: 8) {
                                     Spacer(minLength: 0)
                                     Button("인증하기") {
-                                        if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." ||
-                                           viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
-                                           viewStore.errorMessage == "이미 인증된 이메일입니다." {
+                                        if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요."
+                                            || viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
+                                            || viewStore.errorMessage == "이미 인증된 이메일입니다." {
                                             return
                                         }
-                                        viewStore.send(.signupButtonTapped)
+                                        viewStore.send(.sendVerificationCodeButtonTapped)
                                     }
                                     .padding(.vertical, 10)
                                     .padding(.horizontal, 16)
-                                    .background((viewStore.isVerified || viewStore.email.isEmpty || viewStore.password.isEmpty || viewStore.isLoading) ? Color.gray.opacity(0.5) : Color.purple)
+                                    .background((viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading) ? Color.gray.opacity(0.5) : Color.purple)
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
-                                    .disabled(viewStore.isVerified || viewStore.email.isEmpty || viewStore.password.isEmpty || viewStore.isLoading)
+                                    .disabled(viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading)
                                 }
                                 if let errorMessage = viewStore.errorMessage,
                                    errorMessage.contains("이미 가입된 이메일") {
@@ -221,10 +221,17 @@ struct OnboardSignupView: View {
                             }
 
                             Button(action: {
+                                viewStore.send(.signupButtonTapped)
                                 if viewStore.isVerified {
-                                    onNext()
+                                    if let token = viewStore.token {
+                                        Task {
+                                            try? await TokenStorage.shared.saveToken(token)
+                                            onNext()
+                                        }
+                                    } else {
+                                        onNext()
+                                    }
                                 }
-                                // onNext()
                             }) {
                                 HStack {
                                     Spacer()
@@ -236,21 +243,12 @@ struct OnboardSignupView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background((viewStore.isVerified && privacyAgreement == .agree && termsAgreement == .agree) ? Color.purple : Color.gray.opacity(0.5))
+                                .background((viewStore.verificationCode.count == 6 && privacyAgreement == .agree && termsAgreement == .agree && !viewStore.isLoading) ? Color.purple : Color.gray.opacity(0.5))
                                 .cornerRadius(12)
                             }
+                            .disabled(viewStore.verificationCode.count != 6 || viewStore.isLoading || privacyAgreement != .agree || termsAgreement != .agree)
                             .padding(.horizontal, 32)
                             .padding(.top, 16)
-                            // .disabled(
-                            //     viewStore.isLoading ||
-                            //     viewStore.username.isEmpty ||
-                            //     viewStore.email.isEmpty ||
-                            //     viewStore.password.isEmpty ||
-                            //     viewStore.phone.isEmpty ||
-                            //     agreement != .agree ||
-                            //     viewStore.errorMessage == "Invalid verification code or email" ||
-                            //     !viewStore.isVerified
-                            // )
 
                             Spacer()
 
