@@ -48,6 +48,12 @@ struct LoginFeature: Reducer {
         case let .loginResponse(.success(token)):
             state.isLoading = false
             state.token = token
+            if let userId = SignupFeature.parseUserIdFromJWT(token) {
+                UserDefaults.standard.set(userId, forKey: "userID")
+                print("✅ userID 저장됨: \(userId)")
+            } else {
+                print("❌ userID 파싱 실패: token=\(token.prefix(20))...")
+            }
             return .none
             
         case let .loginResponse(.failure(error)):

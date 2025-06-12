@@ -25,6 +25,7 @@ struct SettingsView: View {
                 }
             }()
             let profileImageUrl = fullUrlString.flatMap { URL(string: $0) }
+            print("[프로필 이미지 로딩 URL]", profileImageUrl?.absoluteString ?? "nil")
             print("userProfile: \(String(describing: viewStore.userProfile))")
             print("profileImageUrl(raw): \(String(describing: viewStore.userProfile?.profileImageUrl))")
             print("profileImageUrl(final): \(profileImageUrl?.absoluteString ?? "nil")")
@@ -53,6 +54,10 @@ struct SettingsView: View {
                             .foregroundColor(.white.opacity(0.7))
                             .padding(.top, 40)
                     }
+                    Text(viewStore.userProfile?.username ?? "닉네임 없음")
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
+                        .padding(.top, 12)
                     Button(action: {
                         isLoggedIn = false
                     }) {

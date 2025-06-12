@@ -125,6 +125,8 @@ struct HomeView: View {
     @State private var remixArtistPairs: [RemixArtistPair] = []
     @State private var songToAddToPlaylist: MusicSearchResult? = nil
     @State private var isPlaylistSelectSheetPresented: Bool = false
+    @State private var isLoadingHitSongs: Bool = true
+    @State private var isLoadingRemixPairs: Bool = true
     
     private var homeStore: StoreOf<HomeReducer> {
         store.scope(state: \.tabBarState.homeState, action: { AppReducer.Action.tabBar(.home($0)) })
@@ -175,7 +177,7 @@ struct HomeView: View {
                 .padding(.top, 32)
                 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("히트 음악")
                                 .font(.title2).bold()
@@ -191,25 +193,34 @@ struct HomeView: View {
                         Spacer().frame(height: 10)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 28) {
-                                ForEach(hitSongs.indices, id: \.self) { idx in
-                                    let song = hitSongs[idx]
-                                    HitSongCardView(
-                                        song: song,
-                                        onPlay: {
-                                            viewStore.send(.playMusic(song))
-                                            isMiniPlayerVisible = true
-                                        },
-                                        onAdd: {
-                                            songToAddToPlaylist = song
-                                            isPlaylistSelectSheetPresented = true
-                                        }
-                                    )
+                                if isLoadingHitSongs {
+                                    // 로딩 중일 때 플레이스홀더
+                                    ForEach(0..<5, id: \.self) { _ in
+                                        HitSongCardPlaceholder()
+                                    }
+                                } else {
+                                    ForEach(hitSongs.indices, id: \.self) { idx in
+                                        let song = hitSongs[idx]
+                                        HitSongCardView(
+                                            song: song,
+                                            onPlay: {
+                                                viewStore.send(.playMusic(song))
+                                                isMiniPlayerVisible = true
+                                            },
+                                            onAdd: {
+                                                songToAddToPlaylist = song
+                                                isPlaylistSelectSheetPresented = true
+                                            }
+                                        )
+                                    }
                                 }
                             }
                             .padding(.horizontal)
                         }
+                        .padding(.top, 10)
+                        .frame(height: 180) // 고정된 높이 설정
                         // 리믹스할 가수조합 추천 섹션
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("리믹스할 가수조합 추천")
                                     .font(.title2).bold()
@@ -224,12 +235,21 @@ struct HomeView: View {
                             .padding(.horizontal)
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 32) {
-                                    ForEach(remixArtistPairs) { pair in
-                                        RemixArtistPairView(pair: pair)
+                                    if isLoadingRemixPairs {
+                                        // 로딩 중일 때 플레이스홀더
+                                        ForEach(0..<3, id: \.self) { _ in
+                                            RemixArtistPairPlaceholder()
+                                        }
+                                    } else {
+                                        ForEach(remixArtistPairs) { pair in
+                                            RemixArtistPairView(pair: pair)
+                                        }
                                     }
                                 }
                                 .padding(.horizontal)
                             }
+                            .padding(.top, 10)
+                            .frame(height: 150) // 고정된 높이 설정
                         }
                     }
                     .padding(.top, 20)
@@ -333,9 +353,14 @@ struct HomeView: View {
                     isExplicit: song.contentRating == .explicit
                 )
             }
-            hitSongs = results
+            await MainActor.run {
+                self.hitSongs = results
+                self.isLoadingHitSongs = false
+            }
         } catch {
-            // 에러 처리 (예: 네트워크 오류, 권한 오류 등)
+            await MainActor.run {
+                self.isLoadingHitSongs = false
+            }
         }
     }
 
@@ -402,18 +427,27 @@ struct HomeView: View {
 
     // 가수조합을 MusicKit으로 검색해서 artworkURL을 채움 (데모용 하드코딩)
     private func fetchRemixArtistPairs() async {
-        let pairs = [
-            ("Dua Lipa", "H.E.R"),
-            ("Rihanna", "BlackPink"),
-            ("WOODZ", "NewJeans")
-        ]
-        var result: [RemixArtistPair] = []
-        for (a1, a2) in pairs {
-            let url1 = await fetchArtistArtworkURL(artist: a1)
-            let url2 = await fetchArtistArtworkURL(artist: a2)
-            result.append(RemixArtistPair(artist1: a1, artist2: a2, artworkURL1: url1, artworkURL2: url2))
+        do {
+            let pairs = [
+                ("Dua Lipa", "H.E.R"),
+                ("Rihanna", "BlackPink"),
+                ("WOODZ", "NewJeans")
+            ]
+            var result: [RemixArtistPair] = []
+            for (a1, a2) in pairs {
+                let url1 = await fetchArtistArtworkURL(artist: a1)
+                let url2 = await fetchArtistArtworkURL(artist: a2)
+                result.append(RemixArtistPair(artist1: a1, artist2: a2, artworkURL1: url1, artworkURL2: url2))
+            }
+            await MainActor.run { 
+                self.remixArtistPairs = result 
+                self.isLoadingRemixPairs = false
+            }
+        } catch {
+            await MainActor.run {
+                self.isLoadingRemixPairs = false
+            }
         }
-        await MainActor.run { self.remixArtistPairs = result }
     }
 
     private func fetchArtistArtworkURL(artist: String) async -> URL? {
@@ -597,6 +631,47 @@ struct HitSongCardView: View {
                     isFetching = false
                 }
             }
+        }
+    }
+}
+
+// MARK: - 플레이스홀더 뷰들
+struct HitSongCardPlaceholder: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 110, height: 110)
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.6)))
+                    .scaleEffect(0.8)
+            }
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 80, height: 16)
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.white.opacity(0.15))
+                .frame(width: 60, height: 14)
+        }
+        .frame(width: 130)
+    }
+}
+
+struct RemixArtistPairPlaceholder: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Circle()
+                .fill(Color.white.opacity(0.1))
+                .frame(width: 100, height: 100)
+                .overlay(
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.6)))
+                        .scaleEffect(0.8)
+                )
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 70, height: 16)
         }
     }
 }
