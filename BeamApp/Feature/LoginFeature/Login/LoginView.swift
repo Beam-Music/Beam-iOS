@@ -34,9 +34,9 @@ struct LoginView: View {
                                 .padding(16)
                         }
                     }
-                    TextField("닉네임", text: viewStore.binding(
-                        get: \.username,
-                        send: LoginFeature.Action.usernameChanged
+                    TextField("이메일", text: viewStore.binding(
+                        get: \.email,
+                        send: LoginFeature.Action.emailChanged
                     ))
                     .padding()
                     .background(Color.white.opacity(0.2))

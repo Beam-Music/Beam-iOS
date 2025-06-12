@@ -74,7 +74,7 @@ struct AppReducer: Reducer {
             case .login(.loginResponse(.failure)):
                 return .none
                 
-            case .login(.usernameChanged),
+            case .login(.emailChanged),
                  .login(.passwordChanged),
                  .login(.loginButtonTapped),
                  .login(.reset):

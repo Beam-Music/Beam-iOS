@@ -439,21 +439,10 @@ struct GenreChipView: View {
     let isSelected: Bool
     let size: CGFloat
     let onTap: () -> Void
-    @State private var imageURL: URL?
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let url = imageURL {
-                AsyncImage(url: url) { image in
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    ProgressView()
-                        .frame(width: size, height: size)
-                        .background(Color.gray.opacity(0.2))
-                }
-            } else {
-                Color.gray.opacity(isSelected ? 0.4 : 0.2)
-            }
+            Color.gray.opacity(isSelected ? 0.4 : 0.2)
             Text(genre)
                 .font(.headline)
                 .foregroundColor(.white)
@@ -470,23 +459,7 @@ struct GenreChipView: View {
                 .shadow(color: isSelected ? .purple.opacity(0.5) : .clear, radius: 10)
         )
         .onTapGesture { onTap() }
-        .onAppear {
-            fetchGenreImageURL(genre: genre) { url in
-                self.imageURL = url
-            }
-        }
     }
-}
-
-func fetchGenreImageURL(genre: String, completion: @escaping (URL?) -> Void) {
-    let genreImageURLs: [String: String] = [
-        "발라드": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Ballad.jpg/1200px-Ballad.jpg",
-        "댄스": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Dance.jpg/1200px-Dance.jpg",
-        "힙합": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Hiphop.jpg/1200px-Hiphop.jpg",
-        "록": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Rock.jpg/1200px-Rock.jpg"
-    ]
-    let url = URL(string: genreImageURLs[genre] ?? "")
-    completion(url)
 }
 
 // 네트워크 함수 추가

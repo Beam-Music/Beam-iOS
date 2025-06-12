@@ -9,7 +9,7 @@ import Foundation
 
 struct LoginFeature: Reducer {
     struct State: Equatable {
-        var username: String = ""
+        var email: String = ""
         var password: String = ""
         var isLoading: Bool = false
         var errorMessage: String?
@@ -17,7 +17,7 @@ struct LoginFeature: Reducer {
     }
     
     enum Action: Equatable {
-        case usernameChanged(String)
+        case emailChanged(String)
         case passwordChanged(String)
         case loginButtonTapped
         case loginResponse(TaskResult<String>)
@@ -28,8 +28,8 @@ struct LoginFeature: Reducer {
     
     func reduce(into state: inout State, action: Action) -> Effect<Action> {
         switch action {
-        case let .usernameChanged(username):
-            state.username = username
+        case let .emailChanged(email):
+            state.email = email
             return .none
             
         case let .passwordChanged(password):
@@ -39,9 +39,9 @@ struct LoginFeature: Reducer {
         case .loginButtonTapped:
             state.isLoading = true
             state.errorMessage = nil
-            return .run { [username = state.username, password = state.password] send in
+            return .run { [email = state.email, password = state.password] send in
                 await send(.loginResponse(TaskResult {
-                    try await self.authService.login(username, password)
+                    try await self.authService.login(email, password)
                 }))
             }
             

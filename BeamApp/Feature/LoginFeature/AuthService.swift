@@ -25,7 +25,7 @@ extension AuthService: DependencyKey {
             request.httpMethod = "POST"
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
             
-            let body: [String: Any] = ["username": username, "password": password]
+            let body: [String: Any] = ["email": username, "password": password]
             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
             
             let (data, response) = try await URLSession.shared.data(for: request)
