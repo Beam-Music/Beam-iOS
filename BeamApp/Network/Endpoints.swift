@@ -7,12 +7,13 @@
 import Foundation
 
 struct Endpoints {
-    static let baseURL = "https://web-production-9874.up.railway.app"
-//    static let baseURL = "http://192.168.99.72:8080"
+//    static let baseURL = "https://web-production-9874.up.railway.app"
+    static let baseURL = "http://192.168.99.48:8080"
     struct Auth {
         static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/api/users/register"
         static let verify = "\(baseURL)/api/users/verify"
+        static let sendVerificationCode = "\(baseURL)/api/users/send-verification-code"
     }
     
     struct History {

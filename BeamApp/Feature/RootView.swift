@@ -17,6 +17,8 @@ struct RootView: View {
     @State private var isLoading = true
     @Dependency(\.tokenStorage) var tokenStorage
     let libraryStore = Store(initialState: LibraryReducer.State(), reducer: { LibraryReducer() })
+    @State private var hasCompletedOnboarding = false
+    @Namespace private var albumArtNamespace
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
@@ -27,59 +29,72 @@ struct RootView: View {
     }
     
     var body: some View {
-        WithViewStore(self.store, observe: ViewState.init) { viewStore in
+        WithViewStore(self.store, observe: { $0 }) { viewStore in
             ZStack {
                 if isLoading {
                     ProgressView()
                         .tint(Color.purple)
                 } else {
-                    ZStack {
-                        if viewStore.isLoggedIn {
-                            TabBarView(store: store, libraryStore: libraryStore, isMiniPlayerVisible: $isMiniPlayerVisible)
-                            .zIndex(0)
-                        } else {
-                            OnboardView(
-                                loginStore: store.scope(
-                                    state: \.loginState,
-                                    action: AppReducer.Action.login
+                    if viewStore.isLoggedIn {
+                        TabBarView(store: store, libraryStore: libraryStore, isMiniPlayerVisible: $isMiniPlayerVisible)
+                        .zIndex(0)
+                    } else {
+                        OnboardView(
+                            loginStore: store.scope(
+                                state: \.loginState,
+                                action: AppReducer.Action.login
+                            ),
+                            signupStore: store.scope(
+                                state: \.signupState,
+                                action: AppReducer.Action.signup
+                            ),
+                            onOnboardingFinished: {
+                                hasCompletedOnboarding = true
+                                viewStore.send(.setSelectedTab(.home))
+                                viewStore.send(.setLoggedIn(true))
+                            }
+                        )
+                    }
+                    
+                    // MiniPlayerView: only show when not in full player
+                    if let _ = viewStore.tabBarState.playerState, !isPlayerViewVisible {
+                        VStack {
+                            Spacer()
+                            MiniPlayerView(
+                                store: store.scope(
+                                    state: \ .tabBarState.playerState!,
+                                    action: { AppReducer.Action.tabBar(.player($0)) }
                                 ),
-                                signupStore: store.scope(
-                                    state: \.signupState,
-                                    action: AppReducer.Action.signup
-                                ),
-                                onOnboardingFinished: {
-                                    viewStore.send(.setSelectedTab(.home))
-                                    viewStore.send(.setLoggedIn(true))
-                                }
+                                isPlayerViewVisible: $isPlayerViewVisible,
+                                albumArtNamespace: albumArtNamespace
                             )
-                        }
-                        
-                        if isMiniPlayerVisible && !isPlayerViewVisible && viewStore.isLoggedIn {
-                            MiniPlayerView(store: store.scope(
-                                state: \.tabBarState.playerState,
-                                action: { AppReducer.Action.tabBar(.player($0)) }
-                            ), isPlayerViewVisible: $isPlayerViewVisible)
                             .onTapGesture {
                                 showFullPlayer()
                             }
-                            .transition(.move(edge: .bottom))
-                            .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
-                            .zIndex(1)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .bottom).combined(with: .opacity)
+                            ))
+                            .padding(.bottom, 85)
                         }
+                        .ignoresSafeArea(edges: .bottom)
                     }
-                    .opacity(isPlayerViewVisible ? 0.3 : 1)
-                    
-                    if isPlayerViewVisible {
-                        Color.black
-                            .opacity(calculateBackgroundOpacity())
-                            .ignoresSafeArea()
-                            .zIndex(1)
-                        
-                        PlayerView(store: store.scope(
-                            state: \.tabBarState.playerState,
-                            action: { AppReducer.Action.tabBar(.player($0)) }
-                        ), isMiniPlayerVisible: $isMiniPlayerVisible, libraryStore: libraryStore)
-                        .background(Color.black)
+
+                    // PlayerView: only show when in full player mode
+                    if isPlayerViewVisible, let _ = viewStore.tabBarState.playerState {
+                        PlayerView(
+                            store: store.scope(
+                                state: \ .tabBarState.playerState!,
+                                action: { AppReducer.Action.tabBar(.player($0)) }
+                            ),
+                            isMiniPlayerVisible: $isMiniPlayerVisible,
+                            libraryStore: libraryStore,
+                            albumArtNamespace: albumArtNamespace
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
                         .offset(y: calculatePlayerOffset())
                         .gesture(
                             DragGesture()
@@ -90,8 +105,6 @@ struct RootView: View {
                                     handleDragEnd(value)
                                 }
                         )
-                        .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
-                        .zIndex(2)
                     }
                 }
             }
@@ -100,6 +113,7 @@ struct RootView: View {
             .task {
                 // Check for saved token on app launch
                 if let token = tokenStorage.fetchToken() {
+                    hasCompletedOnboarding = true
                     viewStore.send(.setLoggedIn(true))
                 }
                 isLoading = false

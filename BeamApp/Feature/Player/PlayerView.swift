@@ -8,6 +8,33 @@
 import SwiftUI
 import ComposableArchitecture
 
+// MARK: - Hex Color Extension
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
 // MARK: - Album Art View
 struct AlbumArtView: View {
     let albumArt: UIImage?
@@ -252,9 +279,10 @@ struct RemixArtistPickerView: View {
 
 // MARK: - Main Player View
 struct PlayerView: View {
-    let store: StoreOf<PlayerReducer>
+    let store: Store<PlayerReducer.State, PlayerReducer.Action>
     @Binding var isMiniPlayerVisible: Bool
     let libraryStore: StoreOf<LibraryReducer>
+    let albumArtNamespace: Namespace.ID
     @State private var isDetailViewPresented = false
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var audioManager = AudioManager.shared
@@ -269,12 +297,6 @@ struct PlayerView: View {
         Artist(name: "H.E.R", imageName: "artist_her"),
         Artist(name: "Rihanna", imageName: "artist_rihanna")
     ]
-    
-    init(store: StoreOf<PlayerReducer>, isMiniPlayerVisible: Binding<Bool>, libraryStore: StoreOf<LibraryReducer>) {
-        self.store = store
-        self._isMiniPlayerVisible = isMiniPlayerVisible
-        self.libraryStore = libraryStore
-    }
     
     struct ViewState: Equatable {
         let isPlaying: Bool
@@ -304,9 +326,13 @@ struct PlayerView: View {
     var body: some View {
         WithViewStore(self.store, observe: ViewState.init) { viewStore in
             ZStack {
+                // Figma background: solid #63477C + linear gradient (20% opacity)
+                Color(hex: "#63477C")
+                    .ignoresSafeArea()
                 LinearGradient(
-                    gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
-                    startPoint: .top, endPoint: .bottom
+                    gradient: Gradient(colors: [Color.red.opacity(0.2), Color.purple.opacity(0.2)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
                 VStack(spacing: 0) {
@@ -334,12 +360,14 @@ struct PlayerView: View {
                                 Color.gray.opacity(0.2)
                             }
                             .frame(width: 320, height: 320)
+                            .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                             .cornerRadius(24)
                             .shadow(radius: 14)
                             .padding(.bottom, 8)
                         } else {
                             AlbumArtView(albumArt: audioManager.currentTrackMetadata.albumArt)
                                 .frame(width: 320, height: 320)
+                                .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                                 .cornerRadius(24)
                                 .shadow(radius: 14)
                                 .padding(.bottom, 8)
@@ -506,16 +534,16 @@ struct PlayerView: View {
             }) {
                 let playlists = ViewStore(libraryStore, observe: { $0.playlists }).state
                 if let track = viewStore.currentTrack {
-                    PlaylistSelectSheet(
-                        playlists: playlists,
-                        onSelect: { playlist in
-                            addSongToPlaylist(track: track, playlist: playlist)
-                            isPlaylistSelectSheetPresented = false
-                        },
-                        onCancel: {
-                            isPlaylistSelectSheetPresented = false
-                        }
-                    )
+//                    PlaylistSelectSheet(
+//                        playlists: playlists,
+//                        onSelect: { playlist in
+//                            addSongToPlaylist(track: track, playlist: playlist)
+//                            isPlaylistSelectSheetPresented = false
+//                        },
+//                        onCancel: {
+//                            isPlaylistSelectSheetPresented = false
+//                        }
+//                    )
                 }
             }
             .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {

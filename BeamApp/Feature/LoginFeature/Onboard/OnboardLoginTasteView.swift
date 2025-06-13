@@ -13,6 +13,7 @@ struct OnboardTasteView: View {
     @State private var selectedArtists: Set<String> = []
     @State private var selectedGenres: Set<String> = []
     @State private var animatedArtistIDs: Set<String> = []
+    @State private var showUserIDAlert = false
     let artists = [
         ChipItem(id: "백예린", name: "백예린"),
         ChipItem(id: "김정치마", name: "김정치마"),
@@ -201,12 +202,28 @@ struct OnboardTasteView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 32)
 
-                Spacer(minLength: 60)
+                Spacer(minLength: 16)
             }
             Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {}
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    onNext()
+                guard let token = TokenStorage.shared.fetchToken() else {
+                    print("토큰 없음")
+                    return
+                }
+                guard let userID = UserDefaults.standard.string(forKey: "userID") else {
+                    print("userID 없음")
+                    showUserIDAlert = true
+                    return
+                }
+                updateUserTaste(token: token, userID: userID, artists: Array(selectedArtists), genres: Array(selectedGenres)) { result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success:
+                            onNext()
+                        case .failure(let error):
+                            print("취향 저장 실패: \(error)")
+                            // TODO: Alert 등으로 사용자에게 안내
+                        }
+                    }
                 }
             }) {
                 Text("다음 →")
@@ -215,7 +232,7 @@ struct OnboardTasteView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.trailing, 32)
-            .padding(.bottom, 40)
+            .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
@@ -225,6 +242,9 @@ struct OnboardTasteView: View {
             )
         )
         .ignoresSafeArea()
+        .alert(isPresented: $showUserIDAlert) {
+            Alert(title: Text("유저 정보 오류"), message: Text("userID가 없습니다. 회원가입/로그인을 다시 시도해 주세요."), dismissButton: .default(Text("확인")))
+        }
     }
 }
 
@@ -419,21 +439,10 @@ struct GenreChipView: View {
     let isSelected: Bool
     let size: CGFloat
     let onTap: () -> Void
-    @State private var imageURL: URL?
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let url = imageURL {
-                AsyncImage(url: url) { image in
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    ProgressView()
-                        .frame(width: size, height: size)
-                        .background(Color.gray.opacity(0.2))
-                }
-            } else {
-                Color.gray.opacity(isSelected ? 0.4 : 0.2)
-            }
+            Color.gray.opacity(isSelected ? 0.4 : 0.2)
             Text(genre)
                 .font(.headline)
                 .foregroundColor(.white)
@@ -450,21 +459,28 @@ struct GenreChipView: View {
                 .shadow(color: isSelected ? .purple.opacity(0.5) : .clear, radius: 10)
         )
         .onTapGesture { onTap() }
-        .onAppear {
-            fetchGenreImageURL(genre: genre) { url in
-                self.imageURL = url
-            }
-        }
     }
 }
 
-func fetchGenreImageURL(genre: String, completion: @escaping (URL?) -> Void) {
-    let genreImageURLs: [String: String] = [
-        "발라드": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Ballad.jpg/1200px-Ballad.jpg",
-        "댄스": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Dance.jpg/1200px-Dance.jpg",
-        "힙합": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Hiphop.jpg/1200px-Hiphop.jpg",
-        "록": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Rock.jpg/1200px-Rock.jpg"
+// 네트워크 함수 추가
+func updateUserTaste(token: String, userID: String, artists: [String], genres: [String], completion: @escaping (Result<Void, Error>) -> Void) {
+    let url = URL(string: "\(Endpoints.baseURL)/api/users/\(userID)/taste")!
+    var request = URLRequest(url: url)
+    request.httpMethod = "PUT"
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+    let body: [String: Any] = [
+        "favoriteArtists": artists,
+        "favoriteGenres": genres
     ]
-    let url = URL(string: genreImageURLs[genre] ?? "")
-    completion(url)
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+    URLSession.shared.dataTask(with: request) { data, response, error in
+        if let error = error {
+            completion(.failure(error))
+            return
+        }
+        completion(.success(()))
+    }.resume()
 }

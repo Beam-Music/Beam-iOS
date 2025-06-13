@@ -103,7 +103,7 @@ struct SignupView: View {
                     }
                     .disabled(viewStore.isLoading || viewStore.verificationCode.isEmpty)
                         .padding(.horizontal, 30)
-                    }
+                }
 
                 // --- 상태 표시 ---
                 if viewStore.isLoading {
@@ -128,10 +128,13 @@ struct SignupView: View {
             }
             .padding()
             .background(colorScheme == .dark ? Color.black : Color.white)
-        .navigationBarBackButtonHidden(true)
-        .navigationBarItems(leading: BackButton(action: {
-            self.presentationMode.wrappedValue.dismiss()
-        }))
+            .navigationBarBackButtonHidden(true)
+            .navigationBarItems(leading: BackButton(action: {
+                self.presentationMode.wrappedValue.dismiss()
+            }))
+            .onAppear {
+                viewStore.send(.reset)
+            }
         }
     }
 }
