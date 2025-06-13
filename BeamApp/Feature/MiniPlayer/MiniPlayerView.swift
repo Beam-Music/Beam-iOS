@@ -12,6 +12,7 @@ struct MiniPlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     let store: Store<PlayerReducer.State, PlayerReducer.Action>
     @Binding var isPlayerViewVisible: Bool
+    let albumArtNamespace: Namespace.ID
     
     var body: some View {
         WithViewStore(self.store, observe: { $0 }) { (viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) in
@@ -51,11 +52,13 @@ struct MiniPlayerView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 50, height: 50)
+                    .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                     .cornerRadius(5)
             } else {
                 Rectangle()
                     .fill(Color.gray)
                     .frame(width: 50, height: 50)
+                    .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                     .cornerRadius(5)
             }
         }

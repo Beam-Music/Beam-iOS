@@ -21,7 +21,6 @@ struct HomeReducer {
         var route: Route?
         var playlist: [PlayableTrackDTO] = []
         var errorMessage: String? = nil
-        var playerState: PlayerReducer.State? = nil
         var selectedPlaylistID: String? = nil
         var recommendedPlaylists: [PlaylistSummaryDTO] = []
     }
@@ -95,12 +94,8 @@ struct HomeReducer {
                     fileUrl: nil,
                     artworkURL: result.artworkURL
                 )
-                state.playerState = PlayerReducer.State(
-                    playlist: [track],
-                    currentIndex: 0
-                )
                 state.route = .player
-                return .send(.player(.startPlayback([track])))
+                return .none
             case .playlistSelected(let playlist):
                 guard let playlistID = playlist.id else {
                     return .none
@@ -123,12 +118,6 @@ struct HomeReducer {
                 return .none
             case let .setNavigation(route):
                 state.route = route
-                if case .player = route {
-                    state.playerState = PlayerReducer.State(
-                        playlist: state.playlist,
-                        currentIndex: 0
-                    )
-                }
                 return .none
             case .fetchUserPlaylists:
                 return .run { send in
@@ -217,16 +206,9 @@ struct HomeReducer {
             case let .playlistFailed(error):
                 state.errorMessage = error
                 return .none
-//            case .player(.dismiss):
-//                state.playerState = nil
-//                state.route = nil
-//                return .none
             case .player:
                 return .none
             }
-        }
-        .ifLet(\.playerState, action: \.player) {
-            PlayerReducer()
         }
     }
 }

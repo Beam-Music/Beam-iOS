@@ -138,6 +138,23 @@ struct AppReducer: Reducer {
                 print(">>> userProfileFailed")
                 // 에러 처리 (필요시)
                 return .none
+            case .home(.playMusic(let result)):
+                let track = PlayableTrackDTO(
+                    id: UUID(),
+                    title: result.title,
+                    artistName: result.artist,
+                    playbackUrl: nil,
+                    playbackStoreID: result.id,
+                    isAIGenerated: false,
+                    duration: nil,
+                    fileUrl: nil,
+                    artworkURL: result.artworkURL
+                )
+                let playerState = PlayerReducer.State(
+                    playlist: [track],
+                    currentIndex: 0
+                )
+                return .send(.tabBar(.setPlayerState(playerState)))
             }
         }
         Scope(state: \.tabBarState, action: /Action.tabBar) {

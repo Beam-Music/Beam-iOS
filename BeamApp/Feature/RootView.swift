@@ -18,6 +18,7 @@ struct RootView: View {
     @Dependency(\.tokenStorage) var tokenStorage
     let libraryStore = Store(initialState: LibraryReducer.State(), reducer: { LibraryReducer() })
     @State private var hasCompletedOnboarding = false
+    @Namespace private var albumArtNamespace
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
@@ -55,17 +56,55 @@ struct RootView: View {
                         )
                     }
                     
-                    if let _ = viewStore.tabBarState.playerState, isMiniPlayerVisible && !isPlayerViewVisible && viewStore.isLoggedIn && hasCompletedOnboarding {
-                        MiniPlayerView(store: store.scope(
-                            state: \.tabBarState.playerState!,
-                            action: { AppReducer.Action.tabBar(.player($0)) }
-                        ), isPlayerViewVisible: $isPlayerViewVisible)
-                        .onTapGesture {
-                            showFullPlayer()
+                    // MiniPlayerView: only show when not in full player
+                    if let _ = viewStore.tabBarState.playerState, !isPlayerViewVisible {
+                        VStack {
+                            Spacer()
+                            MiniPlayerView(
+                                store: store.scope(
+                                    state: \ .tabBarState.playerState!,
+                                    action: { AppReducer.Action.tabBar(.player($0)) }
+                                ),
+                                isPlayerViewVisible: $isPlayerViewVisible,
+                                albumArtNamespace: albumArtNamespace
+                            )
+                            .onTapGesture {
+                                showFullPlayer()
+                            }
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .bottom).combined(with: .opacity)
+                            ))
+                            .padding(.bottom, 85)
                         }
-                        .transition(.move(edge: .bottom))
-                        .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
-                        .zIndex(1)
+                        .ignoresSafeArea(edges: .bottom)
+                    }
+
+                    // PlayerView: only show when in full player mode
+                    if isPlayerViewVisible, let _ = viewStore.tabBarState.playerState {
+                        PlayerView(
+                            store: store.scope(
+                                state: \ .tabBarState.playerState!,
+                                action: { AppReducer.Action.tabBar(.player($0)) }
+                            ),
+                            isMiniPlayerVisible: $isMiniPlayerVisible,
+                            libraryStore: libraryStore,
+                            albumArtNamespace: albumArtNamespace
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
+                        .offset(y: calculatePlayerOffset())
+                        .gesture(
+                            DragGesture()
+                                .updating($dragOffset) { value, state, _ in
+                                    state = value.translation.height
+                                }
+                                .onEnded { value in
+                                    handleDragEnd(value)
+                                }
+                        )
                     }
                 }
             }
