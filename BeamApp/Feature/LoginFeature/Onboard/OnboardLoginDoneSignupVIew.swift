@@ -47,7 +47,9 @@ struct OnboardLoginDoneSignupView: View {
                         if idx < 3 {
                             Rectangle()
                                 .fill(idx == 3 ? Color.purple : Color.white.opacity(0.4))
-                                .frame(width: 40, height: 2)
+                                .frame(width: 25, height: 2)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
                         }
                     }
                 }

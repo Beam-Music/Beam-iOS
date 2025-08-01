@@ -57,7 +57,7 @@ struct RootView: View {
                     }
                     
                     // MiniPlayerView: only show when not in full player
-                    if let _ = viewStore.tabBarState.playerState, !isPlayerViewVisible {
+                    if viewStore.isLoggedIn, let _ = viewStore.tabBarState.playerState, !isPlayerViewVisible {
                         VStack {
                             Spacer()
                             MiniPlayerView(

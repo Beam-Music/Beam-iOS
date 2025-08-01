@@ -9,6 +9,52 @@ import SwiftUI
 import ComposableArchitecture
 import MusicKit
 
+// MARK: - AI Convert Helper Functions
+func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
+    let url = URL(string: "\(Endpoints.baseURL)/ai-convert/remix")! // AI 변환 엔드포인트
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+
+    let boundary = "Boundary-\(UUID().uuidString)"
+    request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+    var data = Data()
+    let filename = fileURL.lastPathComponent
+    let mimetype = "audio/mpeg" // mp3 등 실제 파일 타입에 맞게
+
+    guard let fileData = try? Data(contentsOf: fileURL) else {
+        completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "파일을 읽을 수 없습니다."])))
+        return
+    }
+
+    data.append("--\(boundary)\r\n".data(using: .utf8)!)
+    data.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+    data.append("Content-Type: \(mimetype)\r\n\r\n".data(using: .utf8)!)
+    data.append(fileData)
+    data.append("\r\n".data(using: .utf8)!)
+    data.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+    let task = URLSession.shared.uploadTask(with: request, from: data) { responseData, response, error in
+        if let error = error {
+            completion(.failure(error))
+            return
+        }
+        guard let responseData = responseData else {
+            completion(.failure(NSError(domain: "NoData", code: 0, userInfo: nil)))
+            return
+        }
+        // 임시 파일로 저장
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
+        do {
+            try responseData.write(to: tempURL)
+            completion(.success(tempURL))
+        } catch {
+            completion(.failure(error))
+        }
+    }
+    task.resume()
+}
+
 struct MusicSearchResult: Identifiable, Hashable, Equatable {
     let id: String
     let title: String
@@ -127,6 +173,7 @@ struct HomeView: View {
     @State private var isPlaylistSelectSheetPresented: Bool = false
     @State private var isLoadingHitSongs: Bool = true
     @State private var isLoadingRemixPairs: Bool = true
+    @State private var isRemixingDemo = false
     
     private var homeStore: StoreOf<HomeReducer> {
         store.scope(state: \.tabBarState.homeState, action: { AppReducer.Action.tabBar(.home($0)) })
@@ -242,7 +289,28 @@ struct HomeView: View {
                                         }
                                     } else {
                                         ForEach(remixArtistPairs) { pair in
-                                            RemixArtistPairView(pair: pair)
+                                            RemixArtistPairView(pair: pair, onRemix: { fileName in
+                                                if let fileURL = Bundle.main.url(forResource: fileName, withExtension: nil) {
+                                                    isRemixingDemo = true
+                                                    uploadFileToAIConvert(fileURL: fileURL) { result in
+                                                        DispatchQueue.main.async {
+                                                            isRemixingDemo = false
+                                                            switch result {
+                                                            case .success(let url):
+                                                                Task {
+                                                                    do {
+                                                                        try await AudioManager.shared.playAIMusic(from: url.absoluteString, title: pair.artist2, artist: pair.artist1)
+                                                                    } catch {
+                                                                        print("AI 변환 곡 재생 실패: \(error)")
+                                                                    }
+                                                                }
+                                                            case .failure(let error):
+                                                                print("AI 변환 실패: \(error)")
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            })
                                         }
                                     }
                                 }
@@ -371,10 +439,13 @@ struct HomeView: View {
         let artist2: String
         var artworkURL1: URL?
         var artworkURL2: URL?
+        var fileName: String? // 내장 mp3 파일명 (있으면 AI Remix 가능)
     }
 
     struct RemixArtistPairView: View {
         let pair: RemixArtistPair
+        var onRemix: ((String) -> Void)? // fileName 전달
+
         var body: some View {
             VStack(spacing: 10) {
                 ZStack {
@@ -396,7 +467,11 @@ struct HomeView: View {
                     }
                 }
                 .frame(width: 100, height: 100)
-                Button(action: { /* 청음하기 액션 */ }) {
+                Button(action: {
+                    if let fileName = pair.fileName {
+                        onRemix?(fileName)
+                    }
+                }) {
                     HStack(spacing: 4) {
                         Text("청음하기")
                         Image(systemName: "play.circle.fill")
@@ -404,6 +479,8 @@ struct HomeView: View {
                     .foregroundColor(.white)
                     .font(.headline)
                 }
+                .disabled(pair.fileName == nil)
+                .opacity(pair.fileName == nil ? 0.5 : 1.0)
             }
         }
     }
@@ -427,26 +504,23 @@ struct HomeView: View {
 
     // 가수조합을 MusicKit으로 검색해서 artworkURL을 채움 (데모용 하드코딩)
     private func fetchRemixArtistPairs() async {
-        do {
-            let pairs = [
-                ("Dua Lipa", "H.E.R"),
-                ("Rihanna", "BlackPink"),
-                ("WOODZ", "NewJeans")
-            ]
-            var result: [RemixArtistPair] = []
-            for (a1, a2) in pairs {
-                let url1 = await fetchArtistArtworkURL(artist: a1)
-                let url2 = await fetchArtistArtworkURL(artist: a2)
-                result.append(RemixArtistPair(artist1: a1, artist2: a2, artworkURL1: url1, artworkURL2: url2))
-            }
-            await MainActor.run { 
-                self.remixArtistPairs = result 
-                self.isLoadingRemixPairs = false
-            }
-        } catch {
-            await MainActor.run {
-                self.isLoadingRemixPairs = false
-            }
+        let pairs: [(String, String, String?)] = [
+            ("Dua Lipa", "H.E.R", nil),
+            ("Rihanna", "BlackPink", nil),
+            ("WOODZ", "NewJeans", nil),
+            // 내장곡 추가
+            ("Coldplay", "Fix You", "fixyou.mp3"),
+            ("Coldplay", "Feels Like Falling In Love", "feelslikefallinginlove.mp3")
+        ]
+        var result: [RemixArtistPair] = []
+        for (a1, a2, fileName) in pairs {
+            let url1 = await fetchArtistArtworkURL(artist: a1)
+            let url2 = await fetchArtistArtworkURL(artist: a2)
+            result.append(RemixArtistPair(artist1: a1, artist2: a2, artworkURL1: url1, artworkURL2: url2, fileName: fileName))
+        }
+        await MainActor.run { 
+            self.remixArtistPairs = result 
+            self.isLoadingRemixPairs = false
         }
     }
 

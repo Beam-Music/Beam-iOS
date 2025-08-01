@@ -76,7 +76,9 @@ struct OnboardSignupView: View {
                                     if idx < 3 {
                                         Rectangle()
                                             .fill(Color.white.opacity(0.4))
-                                            .frame(width: 40, height: 2)
+                                            .frame(width: 25, height: 2)
+                                            .padding(.vertical, 6)
+                                            .padding(.horizontal, 10)
                                     }
                                 }
                             }
@@ -221,16 +223,12 @@ struct OnboardSignupView: View {
                             }
 
                             Button(action: {
-                                viewStore.send(.signupButtonTapped)
                                 if viewStore.isVerified {
-                                    if let token = viewStore.token {
-                                        Task {
-                                            try? await TokenStorage.shared.saveToken(token)
-                                            onNext()
-                                        }
-                                    } else {
-                                        onNext()
-                                    }
+                                    viewStore.send(.signupButtonTapped)
+                                    onNext()
+                                } else {
+                                    // 이메일 인증이 완료되지 않았다는 안내 메시지를 띄울 수 있습니다.
+                                    // 예: showAlert = true
                                 }
                             }) {
                                 HStack {
@@ -308,12 +306,19 @@ struct OnboardSignupView: View {
                 } else if newValue == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
                           newValue == "이미 인증된 이메일입니다." {
                     showVerificationModal = false
+                } else if newValue == "이메일 인증 성공! 회원가입을 진행하세요." {
+                    showVerificationModal = false
                 }
             }
             .onChange(of: viewStore.isVerified) { isVerified in
-                if isVerified {
-                    showVerificationModal = false
-                }
+                // if isVerified, let token = viewStore.token {
+                //     Task {
+                //         try? await TokenStorage.shared.saveToken(token)
+                //         onNext()
+                //     }
+                // } else if isVerified {
+                //     onNext()
+                // }
             }
             .onAppear {
                 viewStore.send(.reset)

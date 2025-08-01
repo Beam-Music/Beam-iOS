@@ -7,6 +7,42 @@
 
 import SwiftUI
 import ComposableArchitecture
+import AVFoundation
+
+// MARK: - Voice Conversion Errors
+enum VoiceConversionError: LocalizedError {
+    case serverError(String)
+    case invalidAudioData
+    case timeout
+    
+    var errorDescription: String? {
+        switch self {
+        case .serverError(let message):
+            return message
+        case .invalidAudioData:
+            return "Invalid audio data received"
+        case .timeout:
+            return "Voice conversion timed out"
+        }
+    }
+}
+
+// MARK: - Voice Conversion Models
+struct VoiceInfo: Codable, Identifiable {
+    let id: String
+    let name: String
+    let category: String
+    let description: String?
+    let previewUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id // Supertone API는 id 그대로 반환
+        case name
+        case category
+        case description
+        case previewUrl = "preview_url"
+    }
+}
 
 // MARK: - Hex Color Extension
 extension Color {
@@ -80,7 +116,7 @@ struct PlayerControlsView: View {
             Button(action: onPlayPause) {
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 48, weight: .bold))
-                    .foregroundColor(Color.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.5))
             }
             ZStack {
                 Button(action: onNext) {
@@ -97,42 +133,6 @@ struct PlayerControlsView: View {
     }
 }
 
-// MARK: - AI Music Toggle
-struct AIMusicToggleView: View {
-    let isAIPlaying: Bool
-    let onToggle: (Bool) -> Void
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("AI 음악 모드")
-                    .font(.headline)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { isAIPlaying },
-                    set: { onToggle($0) }
-                ))
-                .tint(Color.purple)
-            }
-            
-            if isAIPlaying {
-                Text("AI가 생성한 음악을 재생합니다")
-                    .font(.caption)
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .gray)
-            }
-        }
-        .padding()
-        .background(colorScheme == .dark ? Color.black.opacity(0.2) : Color.white)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(colorScheme == .dark ? Color.purple.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1)
-        )
-    }
-}
-
 // MARK: - Custom Remix/AI Toggle (Figma 스타일)
 struct RemixAIToggle: View {
     @Binding var isAIVersion: Bool
@@ -141,143 +141,65 @@ struct RemixAIToggle: View {
             let width = geo.size.width
             let height = geo.size.height
             let circleSize = height * 0.8
+            let circleOffset = isAIVersion ? width - circleSize - 4 : 4
+            
             ZStack {
-                LinearGradient(
-                    gradient: Gradient(colors: isAIVersion ? [Color.purple, Color.black] : [Color.white, Color.gray.opacity(0.2)]),
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-                .clipShape(Capsule())
-                Path { path in
-                    let w = width
-                    let h = height
-                    path.addArc(center: CGPoint(x: w*0.2, y: h*0.7), radius: h*0.7, startAngle: .degrees(0), endAngle: .degrees(180), clockwise: false)
-                    path.addArc(center: CGPoint(x: w*0.8, y: h*0.3), radius: h*0.5, startAngle: .degrees(180), endAngle: .degrees(360), clockwise: false)
-                }
-                .stroke(isAIVersion ? Color.white.opacity(0.18) : Color.purple.opacity(0.18), lineWidth: 2)
+                // Background
+                RoundedRectangle(cornerRadius: height / 2)
+                    .fill(Color.white.opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: height / 2)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                
+                // Sliding circle
                 Circle()
                     .fill(
-                        RadialGradient(gradient: Gradient(colors: isAIVersion ? [Color.white.opacity(0.7), Color.purple.opacity(0.7)] : [Color.gray.opacity(0.2), Color.white]), center: .center, startRadius: 2, endRadius: circleSize)
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.purple, Color.pink]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
                     .frame(width: circleSize, height: circleSize)
-                    .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 2)
-                    .offset(x: isAIVersion ? width/2 - circleSize/1.5 : -width/2 + circleSize/1.5)
-                    .animation(.easeInOut(duration: 0.22), value: isAIVersion)
-                ZStack {
-                    if !isAIVersion {
-                        Text("오리지널")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(Color.white)
-                            .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .transition(.opacity)
-                    } else {
-                        Text("AI 버전")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(Color.white)
-                            .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .transition(.opacity)
-                    }
+                    .offset(x: circleOffset - width / 2 + circleSize / 2)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isAIVersion)
+                
+                // Labels
+                HStack {
+                    Text("REMIX")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isAIVersion ? .white.opacity(0.5) : .white)
+                        .animation(.easeInOut(duration: 0.2), value: isAIVersion)
+                    
+                    Spacer()
+                    
+                    Text("AI")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isAIVersion ? .white : .white.opacity(0.5))
+                        .animation(.easeInOut(duration: 0.2), value: isAIVersion)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 12)
             }
-            .contentShape(Rectangle())
-            .onTapGesture { withAnimation { isAIVersion.toggle() } }
         }
-        .frame(height: 48)
-        .frame(minWidth: 140, maxWidth: 180)
+        .frame(width: 120, height: 32)
+        .onTapGesture {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isAIVersion.toggle()
+            }
+        }
     }
 }
 
-struct Artist: Identifiable, Equatable {
+// MARK: - Artist Model
+struct Artist {
     let id: UUID = UUID()
     let name: String
     let imageName: String // asset name or URL
 }
 
-struct RemixArtistPickerView: View {
-    @Binding var isPresented: Bool
-    @Binding var selectedArtists: [Artist]
-    @State private var searchText: String = ""
-    let allArtists: [Artist]
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color.black.opacity(0.18))
-                    .frame(width: 80, height: 8)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.white.opacity(0.7))
-                    TextField("아티스트 검색", text: $searchText)
-                        .foregroundColor(.white)
-                        .padding(.vertical, 10)
-                    Spacer()
-                    Button("완료") {
-                        isPresented = false
-                    }
-                    .foregroundColor(.purple)
-                    .font(.system(size: 16, weight: .bold))
-                }
-                .padding(.horizontal)
-                .background(Color.white.opacity(0.08))
-                .cornerRadius(16)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(allArtists.filter { searchText.isEmpty ? true : $0.name.localizedCaseInsensitiveContains(searchText) }) { artist in
-                            Button(action: {
-                                if selectedArtists.contains(artist) {
-                                    selectedArtists.removeAll { $0 == artist }
-                                } else {
-                                    selectedArtists.append(artist)
-                                }
-                            }) {
-                                HStack(spacing: 16) {
-                                    Image(artist.imageName)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 40, height: 40)
-                                        .clipShape(Circle())
-                                    Text(artist.name)
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 18, weight: .medium))
-                                    Spacer()
-                                    if selectedArtists.contains(artist) {
-                                        Image(systemName: "checkmark")
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                .padding(.vertical, 14)
-                                .padding(.horizontal, 18)
-                                .background(selectedArtists.contains(artist) ? Color.purple.opacity(0.6) : Color.clear)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 320)
-                Spacer(minLength: 0)
-            }
-            .background(
-                LinearGradient(gradient: Gradient(colors: [Color.black.opacity(0.85), Color.purple.opacity(0.7)]), startPoint: .top, endPoint: .bottom)
-                    .cornerRadius(24)
-            )
-            .padding(.horizontal, 24)
-            .padding(.vertical, 60)
-        }
-        .onTapGesture {
-            isPresented = false
-        }
-    }
-}
-
 // MARK: - Main Player View
+@MainActor
 struct PlayerView: View {
     let store: Store<PlayerReducer.State, PlayerReducer.Action>
     @Binding var isMiniPlayerVisible: Bool
@@ -297,6 +219,21 @@ struct PlayerView: View {
         Artist(name: "H.E.R", imageName: "artist_her"),
         Artist(name: "Rihanna", imageName: "artist_rihanna")
     ]
+    
+    // === IMSLP/AI Remix 관련 상태 ===
+    @State private var showIMSLPList = false // 더 이상 사용하지 않음
+    @State private var isRemixing = false
+    @State private var remixedAudioURL: URL? = nil
+    @State private var isAIVersion: Bool = false
+    @State private var showNoMatchAlert = false
+    
+    // Voice conversion states
+    @State private var isVoiceConverting = false
+    @State private var showVoiceSelectionSheet = false
+    @State private var availableVoices: [VoiceInfo] = []
+    @State private var selectedVoice: VoiceInfo?
+    @State private var showVoiceConversionError = false
+    @State private var voiceConversionErrorMessage = ""
     
     struct ViewState: Equatable {
         let isPlaying: Bool
@@ -335,23 +272,8 @@ struct PlayerView: View {
                     endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
+                
                 VStack(spacing: 0) {
-                    // HStack {
-                    //     Button(action: { isMiniPlayerVisible = false }) {
-                    //         HStack(spacing: 6) {
-                    //             Image(systemName: "chevron.left")
-                    //                 .font(.system(size: 18, weight: .bold))
-                    //                 .foregroundColor(.white)
-                    //             Text("Playlists")
-                    //                 .font(.system(size: 18, weight: .semibold))
-                    //                 .foregroundColor(.white)
-                    //         }
-                    //     }
-                    //     Spacer()
-                    // }
-                    // .padding(.top, 24)
-                    // .padding(.horizontal)
-                    // Spacer().frame(height: 8)
                     if let track = viewStore.currentTrack {
                         if let artworkURL = track.artworkURL {
                             AsyncImage(url: artworkURL) { image in
@@ -372,6 +294,7 @@ struct PlayerView: View {
                                 .shadow(radius: 14)
                                 .padding(.bottom, 8)
                         }
+                        
                         VStack(spacing: 2) {
                             HStack(alignment: .center) {
                                 Text(track.title)
@@ -421,6 +344,7 @@ struct PlayerView: View {
                         .padding(.top, 24)
                         .padding(.bottom, 8)
                     }
+                    
                     VStack(spacing: 0) {
                         if audioManager.duration > 0 {
                             Slider(value: $audioManager.currentTime, in: 0...audioManager.duration, onEditingChanged: { editing in
@@ -447,6 +371,7 @@ struct PlayerView: View {
                         .padding(.horizontal)
                     }
                     .padding(.bottom, 8)
+                    
                     VStack(alignment: .leading, spacing: 12) {
                         Button(action: {/* TODO: Show Lyrics */}) {
                             HStack(spacing: 6) {
@@ -475,26 +400,81 @@ struct PlayerView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 18)
-                    HStack(spacing: 18) {
-                        Button(action: { isRemixSheetPresented = true }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "music.note")
-                                Text("Remix")
+                    
+                    // === AI 버전/Remix/Voice Conversion 토글 ===
+                    VStack(spacing: 12) {
+                        HStack(spacing: 18) {
+                            Button(action: {
+                                if let currentTitle = audioManager.currentTrackMetadata.title?.lowercased(),
+                                   let currentArtist = audioManager.currentTrackMetadata.artist?.lowercased(),
+                                   let demoTrack = demoTracks.first(where: {
+                                       $0.title.lowercased() == currentTitle && $0.artist.lowercased() == currentArtist
+                                   }) {
+                                    isRemixing = true
+                                    remixDemoTrack(demoTrack) { result in
+                                        DispatchQueue.main.async {
+                                            isRemixing = false
+                                            switch result {
+                                            case .success(let url):
+                                                Task {
+                                                    do {
+                                                        try await AudioManager.shared.playAIMusic(from: url.absoluteString, title: demoTrack.title, artist: demoTrack.artist)
+                                                    } catch {
+                                                        print("AI 변환 곡 재생 실패: \(error)")
+                                                    }
+                                                }
+                                            case .failure(let error):
+                                                print("AI 변환 실패: \(error)")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // 내장곡이 아니면 안내
+                                    showNoMatchAlert = true
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "music.note")
+                                    Text("Remix")
+                                }
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .stroke(Color.white.opacity(viewStore.isAIMusicEnabled ? 0.7 : 0.25), lineWidth: 2)
+                                        .background(
+                                            viewStore.isAIMusicEnabled ? Color.purple.opacity(0.7).cornerRadius(24) : Color.clear.cornerRadius(24)
+                                        )
+                                )
                             }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 28)
-                            .background(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(Color.white.opacity(viewStore.isAIMusicEnabled ? 0.7 : 0.25), lineWidth: 2)
-                                    .background(
-                                        viewStore.isAIMusicEnabled ? Color.purple.opacity(0.7).cornerRadius(24) : Color.clear.cornerRadius(24)
-                                    )
-                            )
+                            .disabled(!viewStore.isAIMusicEnabled)
+                            .opacity(viewStore.isAIMusicEnabled ? 1 : 0.4)
+                            
+                            // Voice Conversion Button
+                            Button(action: {
+                                Task {
+                                    await loadAvailableVoices()
+                                }
+                                showVoiceSelectionSheet = true
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "person.wave.2")
+                                    Text("Voice")
+                                }
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                                        .background(Color.blue.opacity(0.7).cornerRadius(24))
+                                )
+                            }
                         }
-                        .disabled(!viewStore.isAIMusicEnabled)
-                        .opacity(viewStore.isAIMusicEnabled ? 1 : 0.4)
+                        
                         RemixAIToggle(isAIVersion: Binding(
                             get: { viewStore.isAIMusicEnabled },
                             set: { newValue in viewStore.send(.toggleAIMusic(newValue)) }
@@ -502,6 +482,7 @@ struct PlayerView: View {
                         .frame(width: 180)
                     }
                     .padding(.bottom, 28)
+                    
                     PlayerControlsView(
                         isPlaying: viewStore.isPlaying,
                         onPrevious: { viewStore.send(.previousTrack) },
@@ -509,14 +490,35 @@ struct PlayerView: View {
                         onNext: { viewStore.send(.nextTrack) }
                     )
                     .padding(.top, 18)
-                    Spacer()
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 24)
-                if isRemixSheetPresented {
-                    RemixArtistPickerView(isPresented: $isRemixSheetPresented, selectedArtists: $selectedArtists, allArtists: mockArtists)
-                        .transition(.move(edge: .bottom))
-                        .zIndex(10)
+                
+                // === AI 변환 중 ProgressView ===
+                if isRemixing {
+                    ProgressView("AI 변환/리믹스 중...")
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(12)
+                        .zIndex(100)
+                }
+                
+                // === Voice Conversion 중 ProgressView ===
+                if isVoiceConverting {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("음성 변환 중...")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                        Text("최대 5분 정도 소요될 수 있습니다")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding(24)
+                    .background(Color.black.opacity(0.8))
+                    .cornerRadius(16)
+                    .zIndex(100)
                 }
             }
             .onAppear {
@@ -534,24 +536,76 @@ struct PlayerView: View {
             }) {
                 let playlists = ViewStore(libraryStore, observe: { $0.playlists }).state
                 if let track = viewStore.currentTrack {
-//                    PlaylistSelectSheet(
-//                        playlists: playlists,
-//                        onSelect: { playlist in
-//                            addSongToPlaylist(track: track, playlist: playlist)
-//                            isPlaylistSelectSheetPresented = false
-//                        },
-//                        onCancel: {
-//                            isPlaylistSelectSheetPresented = false
-//                        }
-//                    )
+                    // PlaylistSelectSheet implementation would go here
                 }
             }
             .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {
                 Button("확인", role: .cancel) { showAddSuccess = false }
             }
+            
+            // === 매칭 실패 Alert ===
+            .alert("퍼블릭 도메인 곡을 찾을 수 없습니다.", isPresented: $showNoMatchAlert) {
+                Button("확인", role: .cancel) { showNoMatchAlert = false }
+            }
+            
+            // === Voice Conversion Error Alert ===
+            .alert("음성 변환 실패", isPresented: $showVoiceConversionError) {
+                Button("확인", role: .cancel) { showVoiceConversionError = false }
+            } message: {
+                Text(voiceConversionErrorMessage)
+            }
+            .sheet(isPresented: $showVoiceSelectionSheet) {
+                VoiceSelectionSheet(
+                    voices: availableVoices,
+                    onVoiceSelected: { voice in
+                        selectedVoice = voice
+                        showVoiceSelectionSheet = false
+                        performVoiceConversion(with: voice)
+                    },
+                    onCancel: {
+                        showVoiceSelectionSheet = false
+                    }
+                )
+            }
+            .sheet(isPresented: $isAddToPlaylistSheetPresented) {
+                AddToPlaylistSheet(
+                    playlist: PlaylistSummaryDTO(
+                        id: UUID(),
+                        name: "Current Track",
+                        user: nil
+                    ),
+                    onAdd: { _ in
+                        // Handle adding current track to playlist
+                        isAddToPlaylistSheetPresented = false
+                    }
+                )
+            }
+            .alert("음성 변환 오류", isPresented: $showVoiceConversionError) {
+                Button("확인") { }
+            } message: {
+                Text(voiceConversionErrorMessage)
+            }
+            .overlay(
+                Group {
+                    if isVoiceConverting {
+                        VStack {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            Text("음성을 변환하고 있습니다...")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.top, 16)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.7))
+                    }
+                }
+            )
         }
     }
     
+    // MARK: - Helper Functions
     private func formatTime(_ time: Double) -> String {
         guard time.isFinite else { return "00:00" }
         let minutes = Int(time) / 60
@@ -559,31 +613,571 @@ struct PlayerView: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
     
-    private func addSongToPlaylist(track: PlayableTrackDTO, playlist: PlaylistSummaryDTO) {
-        guard let playlistID = playlist.id?.uuidString else { return }
-        let urlString = Endpoints.Playlist.userPlaylistSongs(playlistID: playlistID)
-        guard let token = TokenStorage.shared.fetchToken() else { return }
-        let body: [String: String] = [
-            "songId": track.playbackStoreID ?? track.id.uuidString,
-            "title": track.title,
-            "artistName": track.artistName ?? ""
-        ]
-        let _ = Task {
+    // === Demo Tracks Section ===
+    struct LocalDemoTrack: Identifiable, Equatable {
+        let id = UUID()
+        let title: String
+        let artist: String
+        let fileName: String // 번들 내 파일명
+    }
+    
+    let demoTracks: [LocalDemoTrack] = [
+        LocalDemoTrack(title: "Fix You", artist: "Coldplay", fileName: "fixyou.mp3"),
+        LocalDemoTrack(title: "Feels Like Falling In Love", artist: "Coldplay", fileName: "feelslikefallinginlove.mp3")
+    ]
+    
+    // MARK: - Helper Functions (Outside PlayerView)
+    func remixDemoTrack(_ track: LocalDemoTrack, completion: @escaping (Result<URL, Error>) -> Void) {
+        if let fileURL = Bundle.main.url(forResource: track.fileName, withExtension: nil) {
+            uploadFileToAIConvert(fileURL: fileURL, completion: completion)
+        } else {
+            completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "내장 mp3 파일을 찾을 수 없습니다."])))
+        }
+    }
+    
+    func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
+        let url = URL(string: "\(Endpoints.baseURL)/ai-convert/remix")! // AI 변환 엔드포인트
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var data = Data()
+        let filename = fileURL.lastPathComponent
+        let mimetype = "audio/mpeg" // mp3 등 실제 파일 타입에 맞게
+
+        guard let fileData = try? Data(contentsOf: fileURL) else {
+            completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "파일을 읽을 수 없습니다."])))
+            return
+        }
+
+        data.append("--\(boundary)\r\n".data(using: .utf8)!)
+        data.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        data.append("Content-Type: \(mimetype)\r\n\r\n".data(using: .utf8)!)
+        data.append(fileData)
+        data.append("\r\n".data(using: .utf8)!)
+        data.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        let task = URLSession.shared.uploadTask(with: request, from: data) { responseData, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let responseData = responseData else {
+                completion(.failure(NSError(domain: "NoData", code: 0, userInfo: nil)))
+                return
+            }
+            // 임시 파일로 저장
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
             do {
-                var request = URLRequest(url: URL(string: urlString)!)
-                request.httpMethod = "POST"
-                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                request.httpBody = try JSONSerialization.data(withJSONObject: body)
-                let (_, response) = try await URLSession.shared.data(for: request)
-                if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
-                    showAddSuccess = true
-                } else if let httpResponse = response as? HTTPURLResponse {
-                    print("플레이리스트 추가 실패: Status \(httpResponse.statusCode)")
-                }
+                try responseData.write(to: tempURL)
+                completion(.success(tempURL))
             } catch {
-                print("플레이리스트 추가 실패: \(error)")
+                completion(.failure(error))
             }
         }
+        task.resume()
+    }
+    
+    @MainActor
+    private func loadAvailableVoices() async {
+        do {
+            guard let url = URL(string: Endpoints.VoiceConversion.list) else {
+                throw URLError(.badURL)
+            }
+            
+            print("🎤 Loading available voices from: \(url)")
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw URLError(.badServerResponse)
+            }
+            
+            print("📡 Voice list response:")
+            print("   Status code: \(httpResponse.statusCode)")
+            print("   Response size: \(data.count) bytes")
+            
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("   Response body: \(responseString)")
+            }
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+            
+            // 서버 응답을 직접 파싱하여 VoiceInfo 배열로 변환
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let voicesArray = json["voices"] as? [[String: Any]] {
+                    // 서버에서 voices 배열로 반환하는 경우
+                    availableVoices = voicesArray.compactMap { voiceDict in
+                        guard let voiceId = voiceDict["voiceId"] as? String,
+                              let name = voiceDict["name"] as? String,
+                              let language = voiceDict["language"] as? [String],
+                              let description = voiceDict["description"] as? String else {
+                            return nil
+                        }
+                        
+                        return VoiceInfo(
+                            id: voiceId,
+                            name: name,
+                            category: language.first ?? "en",
+                            description: description,
+                            previewUrl: nil
+                        )
+                    }
+                    
+                    print("✅ Loaded \(availableVoices.count) voices successfully from voices array")
+                } else if let availableVoicesArray = json["available_voices"] as? [String] {
+                    // 기존 SeedVC API 형식
+                    availableVoices = availableVoicesArray.map { voiceId in
+                        VoiceInfo(
+                            id: voiceId,
+                            name: voiceId.replacingOccurrences(of: "-", with: " ").capitalized,
+                            category: "SeedVC",
+                            description: "Voice ID: \(voiceId)",
+                            previewUrl: nil
+                        )
+                    }
+                    
+                    print("✅ Loaded \(availableVoices.count) voices successfully from available_voices array")
+                } else {
+                    throw URLError(.cannotParseResponse)
+                }
+            } else {
+                throw URLError(.cannotParseResponse)
+            }
+            
+        } catch {
+            print("❌ Failed to load voices: \(error)")
+            voiceConversionErrorMessage = "음성 목록을 불러오는데 실패했습니다: \(error.localizedDescription)"
+            showVoiceConversionError = true
+        }
+    }
+    
+    // MARK: - Voice Conversion Functions
+    private func loadVoices() {
+        Task {
+            do {
+                let url = URL(string: "http://192.168.99.77:8081/ai-convert/voices")!
+                let (data, response) = try await URLSession.shared.data(from: url)
+                
+                guard let httpResponse = response as? HTTPURLResponse,
+                      httpResponse.statusCode == 200 else {
+                    print("❌ Failed to load voices")
+                    return
+                }
+                
+                // Parse the response
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let voicesArray = json["voices"] as? [[String: Any]] {
+                    
+                    let voices = voicesArray.compactMap { voiceDict -> VoiceInfo? in
+                        guard let voiceId = voiceDict["voiceId"] as? String,
+                              let name = voiceDict["name"] as? String,
+                              let language = voiceDict["language"] as? [String],
+                              let description = voiceDict["description"] as? String else {
+                            return nil
+                        }
+                        
+                        return VoiceInfo(
+                            id: voiceId,
+                            name: name,
+                            category: language.first ?? "en",
+                            description: description,
+                            previewUrl: nil
+                        )
+                    }
+                    
+                    await MainActor.run {
+                        self.availableVoices = voices
+                        print("✅ Loaded \(voices.count) voices from Vapor server")
+                    }
+                }
+            } catch {
+                print("❌ Error loading voices: \(error)")
+            }
+        }
+    }
+    
+    private func performVoiceConversion(with voice: VoiceInfo) {
+        let currentTrack = audioManager.currentTrackMetadata
+        guard currentTrack.title != nil || currentTrack.artist != nil else {
+            showVoiceConversionError = true
+            voiceConversionErrorMessage = "현재 재생 중인 트랙이 없습니다."
+            return
+        }
+        
+        isVoiceConverting = true
+        
+        Task {
+            do {
+                // Get the current audio file URL
+                let audioURL: URL
+                if let currentURL = audioManager.currentAudioURL {
+                    audioURL = currentURL
+                } else {
+                    // Fallback to demo file if no current audio URL
+                    guard let demoURL = Bundle.main.url(forResource: "fixyou", withExtension: "mp3") else {
+                        throw VoiceConversionError.invalidAudioData
+                    }
+                    audioURL = demoURL
+                }
+                
+                // Load audio data
+                let audioData = try Data(contentsOf: audioURL)
+                
+                // Trim audio to 1 minute for "Fix You" track
+                let trimmedAudioData: Data
+                if currentTrack.title?.contains("Fix You") == true {
+                    print("✂️ Trimming Fix You track to 1 minute")
+                    trimmedAudioData = try await trimAudioToDuration(audioData, duration: 60.0)
+                } else {
+                    trimmedAudioData = audioData
+                }
+                
+                // Perform voice conversion
+                let convertedAudioData = try await performVaporServerVoiceConversion(
+                    audioData: trimmedAudioData,
+                    voiceId: voice.id,
+                    originalTitle: currentTrack.title ?? "Unknown Track"
+                )
+                
+                // Save converted audio
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let fileName = "voice_converted_\(voice.name).mp3"
+                let fileURL = documentsPath.appendingPathComponent(fileName)
+                
+                try convertedAudioData.write(to: fileURL)
+                
+                print("✅ Voice conversion successful, saved to: \(fileURL)")
+                print("File size: \(convertedAudioData.count) bytes")
+                print("File exists: \(FileManager.default.fileExists(atPath: fileURL.path))")
+                
+                // Get audio duration
+                let asset = AVAsset(url: fileURL)
+                let duration = try await asset.load(.duration)
+                let durationSeconds = CMTimeGetSeconds(duration)
+                print("Audio duration: \(durationSeconds) seconds")
+                
+                // Update audio manager with converted track
+                await MainActor.run {
+                    Task {
+                        try await audioManager.playAIMusic(
+                            from: fileURL.path,
+                            title: "\(currentTrack.title ?? "Unknown") (Voice: \(voice.name))",
+                            artist: currentTrack.artist ?? "Unknown Artist"
+                        )
+                    }
+                    
+                    isVoiceConverting = false
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isVoiceConverting = false
+                    showVoiceConversionError = true
+                    voiceConversionErrorMessage = "음성 변환에 실패했습니다: \(error.localizedDescription)"
+                    print("❌ AI music playback error: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func performVaporServerVoiceConversion(
+        audioData: Data,
+        voiceId: String,
+        originalTitle: String
+    ) async throws -> Data {
+        print("🎵 Starting voice conversion with Vapor server")
+        print("Voice ID: \(voiceId)")
+        print("Audio data size: \(audioData.count) bytes")
+        
+        let url = URL(string: "http://192.168.99.77:8081/ai-convert/voice-conversion")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 1800 // 30 minutes
+        
+        // Configure URLSession with longer timeouts
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 1800 // 30 minutes
+        config.timeoutIntervalForResource = 3600 // 60 minutes
+        let session = URLSession(configuration: config)
+        
+        // Create multipart form data
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        var body = Data()
+        
+        // Add audio file
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"source_audio\"; filename=\"\(originalTitle).mp3\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/mpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add voice ID
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"voiceId\"\r\n\r\n".data(using: .utf8)!)
+        body.append(voiceId.data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add language
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
+        body.append("en".data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add output format
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"outputFormat\"\r\n\r\n".data(using: .utf8)!)
+        body.append("mp3".data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add use separation
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"useSeparation\"\r\n\r\n".data(using: .utf8)!)
+        body.append("true".data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // End boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
+        print("⏱️ Voice conversion may take up to 30 minutes. Please wait...")
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VoiceConversionError.serverError("Invalid response")
+        }
+        
+        print("🔍 Voice conversion response: Status code: \(httpResponse.statusCode)")
+        print("Content-Type: \(httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown")")
+        print("Response size: \(data.count) bytes")
+        print("Response headers: \(httpResponse.allHeaderFields)")
+        
+        // Check if response is JSON (error) or audio data
+        if let responseString = String(data: data, encoding: .utf8),
+           responseString.hasPrefix("{") {
+            // This is a JSON error response
+            print("First 10 bytes: \(Array(data.prefix(10)))")
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("JSON response keys: \(json.keys)")
+                if let error = json["error"] as? String {
+                    throw VoiceConversionError.serverError(error)
+                } else if let success = json["success"] as? Bool, !success {
+                    throw VoiceConversionError.serverError("Voice conversion failed")
+                }
+            }
+            throw VoiceConversionError.invalidAudioData
+        }
+        
+        // This is audio data
+        guard httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 else {
+            throw VoiceConversionError.serverError("HTTP \(httpResponse.statusCode)")
+        }
+        
+        return data
+    }
+    
+    private func trimAudioToDuration(_ audioData: Data, duration: TimeInterval) async throws -> Data {
+        print("✂️ Trimming audio to \(duration) seconds")
+        
+        // Create temporary file
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_audio.mp3")
+        try audioData.write(to: tempURL)
+        
+        // Create asset
+        let asset = AVAsset(url: tempURL)
+        
+        // Create export session with MP3 preset
+        guard let exportSession = AVAssetExportSession(
+            asset: asset,
+            presetName: AVAssetExportPresetAppleM4A
+        ) else {
+            throw VoiceConversionError.invalidAudioData
+        }
+        
+        // Set output URL
+        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("trimmed_audio.m4a")
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .m4a
+        
+        // Set time range (0 to duration)
+        let startTime = CMTime.zero
+        let endTime = CMTime(seconds: duration, preferredTimescale: 600)
+        exportSession.timeRange = CMTimeRange(start: startTime, end: endTime)
+        
+        // Export
+        await exportSession.export()
+        
+        // Check result
+        guard exportSession.status == .completed else {
+            print("❌ Export failed with status: \(exportSession.status.rawValue)")
+            if let error = exportSession.error {
+                print("Export error: \(error)")
+            }
+            throw VoiceConversionError.invalidAudioData
+        }
+        
+        // Read trimmed data
+        let trimmedData = try Data(contentsOf: outputURL)
+        
+        // Clean up
+        try? FileManager.default.removeItem(at: tempURL)
+        try? FileManager.default.removeItem(at: outputURL)
+        
+        print("✅ Audio trimmed successfully: \(trimmedData.count) bytes")
+        return trimmedData
+    }
+}
+
+// MARK: - Voice Selection Sheet
+struct VoiceSelectionSheet: View {
+    let voices: [VoiceInfo]
+    let onVoiceSelected: (VoiceInfo) -> Void
+    let onCancel: () -> Void
+    
+    @State private var searchText = ""
+    
+    var filteredVoices: [VoiceInfo] {
+        if searchText.isEmpty {
+            return voices
+        } else {
+            return voices.filter { voice in
+                voice.name.localizedCaseInsensitiveContains(searchText) ||
+                voice.description?.localizedCaseInsensitiveContains(searchText) == true
+            }
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Header
+                HStack {
+                    Text("음성 선택")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.white.opacity(0.7))
+                    TextField("음성 검색", text: $searchText)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
+                }
+                .padding(.horizontal, 16)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(16)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+                
+                // Voice list
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredVoices) { voice in
+                            VoiceRowView(voice: voice) {
+                                onVoiceSelected(voice)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 400)
+                
+                Spacer(minLength: 0)
+            }
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.black.opacity(0.85), Color.purple.opacity(0.7)]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .cornerRadius(24)
+            )
+            .padding(.horizontal, 24)
+            .padding(.vertical, 60)
+        }
+        .onTapGesture {
+            onCancel()
+        }
+    }
+}
+
+struct VoiceRowView: View {
+    let voice: VoiceInfo
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 16) {
+                // Voice icon
+                ZStack {
+                    Circle()
+                        .fill(Color.purple.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: "person.wave.2.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(voice.name)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    
+                    if let description = voice.description {
+                        Text(description)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(2)
+                    }
+                    
+                    Text(voice.category)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .padding(.vertical, 16)
+            .padding(.horizontal, 20)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(12)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }

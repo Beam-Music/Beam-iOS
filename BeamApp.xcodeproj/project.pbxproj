@@ -56,6 +56,8 @@
 		0FC873FC2C900D6300D809E9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC873FB2C900D6300D809E9 /* Assets.xcassets */; };
 		9F1F572A2CA05BF400DA564A /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F57292CA05BF400DA564A /* AudioManager.swift */; };
 		B737C1472DA68342008FDA8F /* AIPreferenceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */; };
+		B742D01A2E20D7C400A6F648 /* fixyou.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B742D0192E20D7C400A6F648 /* fixyou.mp3 */; };
+		B742D01C2E20D7D700A6F648 /* feelslikefallinginlove.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B742D01B2E20D7D700A6F648 /* feelslikefallinginlove.mp3 */; };
 		B749318E2DCC4935003967F6 /* FlexibleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B749318D2DCC4930003967F6 /* FlexibleView.swift */; };
 		B74931902DCC4B70003967F6 /* OnboardLoginEmotionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B749318F2DCC4B64003967F6 /* OnboardLoginEmotionView.swift */; };
 		B74931922DCC4BAB003967F6 /* OnboardLoginFinalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B74931912DCC4B95003967F6 /* OnboardLoginFinalView.swift */; };
@@ -150,6 +152,8 @@
 		9F1F57292CA05BF400DA564A /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
 		9F1F572B2CA05F9100DA564A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B737C1462DA68336008FDA8F /* AIPreferenceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPreferenceClient.swift; sourceTree = "<group>"; };
+		B742D0192E20D7C400A6F648 /* fixyou.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = fixyou.mp3; sourceTree = "<group>"; };
+		B742D01B2E20D7D700A6F648 /* feelslikefallinginlove.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = feelslikefallinginlove.mp3; sourceTree = "<group>"; };
 		B749318D2DCC4930003967F6 /* FlexibleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlexibleView.swift; sourceTree = "<group>"; };
 		B749318F2DCC4B64003967F6 /* OnboardLoginEmotionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardLoginEmotionView.swift; sourceTree = "<group>"; };
 		B74931912DCC4B95003967F6 /* OnboardLoginFinalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardLoginFinalView.swift; sourceTree = "<group>"; };
@@ -415,6 +419,8 @@
 				0FC873E02C9006BC00D809E9 /* Network */,
 				0FC8737D2C8FFE3E00D809E9 /* BeamApp.entitlements */,
 				0FC8737E2C8FFE3E00D809E9 /* Preview Content */,
+				B742D0192E20D7C400A6F648 /* fixyou.mp3 */,
+				B742D01B2E20D7D700A6F648 /* feelslikefallinginlove.mp3 */,
 			);
 			path = BeamApp;
 			sourceTree = "<group>";
@@ -639,6 +645,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				0FC873FC2C900D6300D809E9 /* Assets.xcassets in Resources */,
+				B742D01A2E20D7C400A6F648 /* fixyou.mp3 in Resources */,
+				B742D01C2E20D7D700A6F648 /* feelslikefallinginlove.mp3 in Resources */,
 				0FC873802C8FFE3E00D809E9 /* Preview Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

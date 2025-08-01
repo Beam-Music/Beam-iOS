@@ -75,8 +75,8 @@ struct SignupFeature: Reducer {
     }
     
     enum SignupResponseType: Equatable {
-        case newUser
-        case existingUnverifiedUser
+        case newUser(token: String?)
+        case existingUnverifiedUser(token: String?)
     }
     
     enum VerifyResponseType: Equatable {
@@ -129,10 +129,14 @@ struct SignupFeature: Reducer {
                 
             case let .phoneChanged(phone):
                 state.phone = phone
+                state.errorMessage = nil
                 return .none
                 
             case let .verificationCodeChanged(code):
                 state.verificationCode = code
+                state.isVerified = false
+                state.token = nil
+                state.errorMessage = nil
                 return .none
                 
             case .sendVerificationCodeButtonTapped:
@@ -187,12 +191,19 @@ struct SignupFeature: Reducer {
                 
             case let .signupResponse(.success(response)):
                 state.isLoading = false
-                state.showVerificationSection = true
-                switch response {
-                case .newUser:
-                    state.errorMessage = "인증 메일이 발송되었습니다. 이메일을 확인해주세요."
-                case .existingUnverifiedUser:
-                    state.errorMessage = "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요."
+                // 회원가입 응답에서 토큰이 있으면 저장
+                let token: String? = {
+                    switch response {
+                    case let .newUser(token): return token
+                    case let .existingUnverifiedUser(token): return token
+                    }
+                }()
+                if let token {
+                    state.token = token
+                    // 토큰 저장
+                    return .run { _ in
+                        try? await tokenStorage.saveToken(token)
+                    }
                 }
                 return .none
                 
@@ -254,6 +265,8 @@ struct SignupFeature: Reducer {
             case let .verifyResponse(.failure(error)):
                 state.isLoading = false
                 state.errorMessage = error.localizedDescription
+                state.isVerified = false
+                state.token = nil
                 return .none
                 
             case let .setIsLoggedIn(isLoggedIn):
@@ -349,11 +362,16 @@ private struct SignupRequestKey: DependencyKey {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SignupFeature.SignupError.invalidResponse
         }
+        struct RegisterResponse: Decodable {
+            let token: String?
+        }
+        let registerResponse = try? JSONDecoder().decode(RegisterResponse.self, from: data)
+        let token = registerResponse?.token
         switch httpResponse.statusCode {
         case 201:
-            return .newUser
+            return .newUser(token: token)
         case 200:
-            return .existingUnverifiedUser
+            return .existingUnverifiedUser(token: token)
         case 500:
             if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
                 let errorMessage = errorResponse.reason

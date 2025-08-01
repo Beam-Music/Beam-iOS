@@ -65,12 +65,14 @@ struct OnboardTasteView: View {
                                 }
                                 Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
                                     .font(.caption)
-                                    .foregroundColor(idx == 2 ? .purple : .white.opacity(0.7))
+                                    .foregroundColor(idx == 2 ? Color(red: 98/255, green: 0/255, blue: 238/255) : Color.white.opacity(0.7))
                             }
                             if idx < 3 {
                                 Rectangle()
                                     .fill(idx == 2 ? Color.purple : Color.white.opacity(0.4))
-                                    .frame(width: 40, height: 2)
+                                    .frame(width: 25, height: 2)
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 10)
                             }
                         }
                     }

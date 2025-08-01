@@ -8,7 +8,7 @@ import Foundation
 
 struct Endpoints {
 //    static let baseURL = "https://web-production-9874.up.railway.app"
-    static let baseURL = "http://192.168.99.48:8080"
+    static let baseURL = "http://192.168.99.77:8081"
     struct Auth {
         static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/api/users/register"
@@ -46,6 +46,13 @@ struct Endpoints {
             return "\(baseURL)/api/ai-preferences/\(userId)"
         }
         static let createPreference = "\(baseURL)/api/ai-preferences"
+    }
+
+    static let aiConvert = "\(baseURL)/ai-convert"
+    
+    struct VoiceConversion {
+        static let list = "\(baseURL)/ai-convert/voices"
+        static let convert = "\(baseURL)/ai-convert/voice-conversion"
     }
 }
 

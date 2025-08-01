@@ -53,6 +53,16 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     @Published var duration: TimeInterval = 0
     @Published var isPlayingMusic: Bool = false
     
+    // Current audio URL for AI music playback
+    var currentAudioURL: URL? {
+        if isPlayingAIMusic, let player = avPlayer, let currentItem = player.currentItem {
+            if let urlAsset = currentItem.asset as? AVURLAsset {
+                return urlAsset.url
+            }
+        }
+        return nil
+    }
+    
     private var timer: Timer?
     static let audioDidFinishNotification = Notification.Name("AudioDidFinish")
     
@@ -65,11 +75,56 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     private func setupAudioSession() {
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .allowAirPlay])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("AudioManager Error: Failed setting audio session category: \(error)")
+        let audioSession = AVAudioSession.sharedInstance()
+        
+        // Try multiple approaches to setup audio session
+        var sessionSetup = false
+        
+        // Approach 1: Standard setup
+        if !sessionSetup {
+            do {
+                try audioSession.setCategory(.playback, mode: .default, options: [])
+                try audioSession.setActive(true)
+                sessionSetup = true
+                print("✅ AudioManager: Audio session setup successful with standard approach")
+            } catch {
+                print("⚠️ AudioManager: Standard audio session setup failed: \(error)")
+            }
+        }
+        
+        // Approach 2: Try without options
+        if !sessionSetup {
+            do {
+                try audioSession.setCategory(.playback, mode: .default)
+                try audioSession.setActive(true)
+                sessionSetup = true
+                print("✅ AudioManager: Audio session setup successful without options")
+            } catch {
+                print("⚠️ AudioManager: Audio session setup without options failed: \(error)")
+            }
+        }
+        
+        // Approach 3: Try with different mode
+        if !sessionSetup {
+            do {
+                try audioSession.setCategory(.playback, mode: .moviePlayback)
+                try audioSession.setActive(true)
+                sessionSetup = true
+                print("✅ AudioManager: Audio session setup successful with moviePlayback mode")
+            } catch {
+                print("⚠️ AudioManager: Audio session setup with moviePlayback failed: \(error)")
+            }
+        }
+        
+        // Approach 4: Minimal setup
+        if !sessionSetup {
+            do {
+                try audioSession.setActive(true)
+                sessionSetup = true
+                print("✅ AudioManager: Audio session setup successful with minimal setup")
+            } catch {
+                print("❌ AudioManager: All audio session setup attempts failed: \(error)")
+            }
         }
     }
     
@@ -170,20 +225,31 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAppleMusicTrack(title: String?, storeID: String?) async throws {
-        
-        await stop()
+        try await stop()
         
         do {
+            // Ensure audio session is active with proper error handling
+            let audioSession = AVAudioSession.sharedInstance()
+            do {
+                try audioSession.setCategory(.playback, mode: .default, options: [])
+                try audioSession.setActive(true)
+            } catch {
+                print("⚠️ AudioManager: Audio session activation failed for Apple Music, trying alternative approach: \(error)")
+                try audioSession.setActive(true, options: [])
+            }
+            
             if let storeID = storeID {
                 musicPlayerController.setQueue(with: [storeID])
-                musicPlayerController.play()
+                try await musicPlayerController.prepareToPlay()
+                try await musicPlayerController.play()
             } else if let title = title {
                 let request = MusicCatalogSearchRequest(term: title, types: [MusicKit.Song.self])
                 let response = try await request.response()
                 
                 if let song = response.songs.first {
                     musicPlayerController.setQueue(with: [song.id.rawValue])
-                    musicPlayerController.play()
+                    try await musicPlayerController.prepareToPlay()
+                    try await musicPlayerController.play()
                 } else {
                     throw PlayerError.trackNotFound(title)
                 }
@@ -197,74 +263,182 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         } catch {
             isPlayingMusic = false
             isPlayingAIMusic = false
+            print("AudioManager Error: Failed to play Apple Music track: \(error)")
             throw error
         }
     }
     
     func playAIMusic(from urlString: String, title: String, artist: String) async throws {
+        try await stop()
         
-        guard let url = URL(string: urlString) else {
-            throw PlayerError.invalidURL(urlString)
-        }
-        
-        await stop()
-        
-        let playerItem = AVPlayerItem(url: url)
-        avPlayerItem = playerItem
-        
-        statusObserver = playerItem.observe(\.status) { [weak self] item, _ in
-            guard let self = self else { return }
-            switch item.status {
-            case .readyToPlay:
-                self.duration = item.duration.seconds
-                self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
-            case .failed:
-                print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
-            case .unknown:
-                break
-            @unknown default:
-                break
+        let url: URL
+        if urlString.hasPrefix("file://") {
+            // 이미 완전한 URL인 경우
+            guard let fullURL = URL(string: urlString) else {
+                throw PlayerError.invalidURL(urlString)
             }
-        }
-        
-        durationObserver = playerItem.observe(\.duration) { [weak self] item, _ in
-            guard let self = self else { return }
-            if item.duration.isValid {
-                self.duration = item.duration.seconds
+            url = fullURL
+        } else if urlString.hasPrefix("/") {
+            // 파일 경로인 경우
+            url = URL(fileURLWithPath: urlString)
+        } else {
+            // 일반 URL인 경우
+            guard let fullURL = URL(string: urlString) else {
+                throw PlayerError.invalidURL(urlString)
             }
+            url = fullURL
         }
         
-        avPlayer = AVPlayer(playerItem: playerItem)
-        
-        let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        timeObserver = avPlayer?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self = self else { return }
-            self.currentTime = time.seconds
-        }
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(playerItemDidReachEnd),
-            name: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem
-        )
-        
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        guard playerItem.status == .readyToPlay else {
-            throw PlayerError.playbackError("AI music playback failed to start - item not ready")
-        }
-        
-        avPlayer?.play()
-        isPlayingMusic = true
-        isPlayingAIMusic = true
-        
-        currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
-        
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        guard await isPlaying() else {
-            throw PlayerError.playbackError("AI music playback failed to start")
+        do {
+            print("🎵 AudioManager: Starting AI music playback")
+            print("   URL: \(url)")
+            print("   Title: \(title)")
+            print("   Artist: \(artist)")
+            
+            // Ensure audio session is active with proper error handling
+            let audioSession = AVAudioSession.sharedInstance()
+            
+            // First, deactivate the session to reset any conflicts
+            do {
+                try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+            } catch {
+                print("⚠️ AudioManager: Failed to deactivate audio session: \(error)")
+            }
+            
+            // Wait a bit before reactivating
+            try await Task.sleep(nanoseconds: 100_000_000) // 0.1초 대기
+            
+            // Try multiple approaches to activate the session
+            var sessionActivated = false
+            
+            // Approach 1: Standard playback category
+            if !sessionActivated {
+                do {
+                    try audioSession.setCategory(.playback, mode: .default, options: [])
+                    try audioSession.setActive(true)
+                    sessionActivated = true
+                    print("✅ AudioManager: Audio session activated with standard approach")
+                } catch {
+                    print("⚠️ AudioManager: Standard audio session activation failed: \(error)")
+                }
+            }
+            
+            // Approach 2: Try without options
+            if !sessionActivated {
+                do {
+                    try audioSession.setCategory(.playback, mode: .default)
+                    try audioSession.setActive(true)
+                    sessionActivated = true
+                    print("✅ AudioManager: Audio session activated without options")
+                } catch {
+                    print("⚠️ AudioManager: Audio session activation without options failed: \(error)")
+                }
+            }
+            
+            // Approach 3: Try with different mode
+            if !sessionActivated {
+                do {
+                    try audioSession.setCategory(.playback, mode: .moviePlayback)
+                    try audioSession.setActive(true)
+                    sessionActivated = true
+                    print("✅ AudioManager: Audio session activated with moviePlayback mode")
+                } catch {
+                    print("⚠️ AudioManager: Audio session activation with moviePlayback failed: \(error)")
+                }
+            }
+            
+            // Approach 4: Last resort - minimal setup
+            if !sessionActivated {
+                do {
+                    try audioSession.setActive(true)
+                    sessionActivated = true
+                    print("✅ AudioManager: Audio session activated with minimal setup")
+                } catch {
+                    print("❌ AudioManager: All audio session activation attempts failed: \(error)")
+                    throw PlayerError.playbackError("Failed to activate audio session: \(error.localizedDescription)")
+                }
+            }
+            
+            let playerItem = AVPlayerItem(url: url)
+            avPlayerItem = playerItem
+            
+            statusObserver = playerItem.observe(\.status) { [weak self] item, _ in
+                guard let self = self else { return }
+                switch item.status {
+                case .readyToPlay:
+                    self.duration = item.duration.seconds
+                    self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
+                case .failed:
+                    print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
+                case .unknown:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+            
+            durationObserver = playerItem.observe(\.duration) { [weak self] item, _ in
+                guard let self = self else { return }
+                if item.duration.isValid {
+                    self.duration = item.duration.seconds
+                }
+            }
+            
+            avPlayer = AVPlayer(playerItem: playerItem)
+            avPlayer?.volume = 1.0
+            
+            let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+            timeObserver = avPlayer?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+                guard let self = self else { return }
+                self.currentTime = time.seconds
+            }
+            
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(playerItemDidReachEnd),
+                name: .AVPlayerItemDidPlayToEndTime,
+                object: playerItem
+            )
+            
+            // AVPlayerItem이 준비될 때까지 더 오래 기다림
+            var attempts = 0
+            while playerItem.status != .readyToPlay && attempts < 30 {
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5초씩 대기
+                attempts += 1
+                print("🎵 AudioManager: Waiting for player item to be ready... attempt \(attempts)/30, status: \(playerItem.status.rawValue)")
+            }
+            
+            guard playerItem.status == .readyToPlay else {
+                print("❌ AudioManager: Player item failed to be ready after \(attempts) attempts")
+                if let error = playerItem.error {
+                    print("   Error: \(error.localizedDescription)")
+                }
+                
+                // 파일이 존재하는지 다시 확인
+                if FileManager.default.fileExists(atPath: url.path) {
+                    print("   File exists but player item is not ready")
+                } else {
+                    print("   File does not exist at path: \(url.path)")
+                }
+                
+                throw PlayerError.playbackError("AI music playback failed to start - item not ready after \(attempts) attempts")
+            }
+            
+            avPlayer?.play()
+            isPlayingMusic = true
+            isPlayingAIMusic = true
+            
+            currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
+            
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            
+            guard await isPlaying() else {
+                throw PlayerError.playbackError("AI music playback failed to start")
+            }
+        } catch {
+            print("AudioManager Error: Failed to play AI music: \(error)")
+            cleanupAIPlayback()
+            throw error
         }
     }
     
