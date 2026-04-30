@@ -46,18 +46,36 @@ extension AuthService: DependencyKey {
             guard (200...299).contains(httpResponse.statusCode) else {
                 throw LoginError.invalidResponse
             }
+            #if DEBUG
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("🔵 Login Response: \(responseString)")
+            }
+            #endif
             struct TokenResponse: Decodable {
-                let token: String
+                let accessToken: String
+                let refreshToken: String
+                let expiresIn: Int
+                let tokenType: String
             }
             let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
             @Dependency(\.tokenStorage) var tokenStorage
             do {
-                try await tokenStorage.saveToken(tokenResponse.token)
-                print("토큰 저장 성공:")
+                try await tokenStorage.saveToken(tokenResponse.accessToken)
+                #if DEBUG
+                print("✅ 토큰이 성공적으로 저장됨: \(tokenResponse.accessToken.prefix(10))...")
+
+                if let savedToken = await tokenStorage.fetchToken() {
+                    print("🔍 저장된 토큰 확인: \(savedToken.prefix(10))...")
+                } else {
+                    print("❌ 토큰 저장 후 검색 실패")
+                }
+                #endif
+
             } catch {
-                print("토큰 저장 실패: \(error)")
+                print("❌ 토큰 저장 실패: \(error)")
+                throw error
             }
-            return tokenResponse.token
+            return tokenResponse.accessToken
         }
         )
     }()

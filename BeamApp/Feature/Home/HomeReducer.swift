@@ -216,8 +216,12 @@ struct HomeReducer {
 struct ModelContextKey: DependencyKey {
     @MainActor
     static let liveValue: ModelContext = {
-        let container = try! ModelContainer(for: TokenEntity.self)
-        return container.mainContext
+        do {
+            let container = try ModelContainer(for: TokenEntity.self)
+            return container.mainContext
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
     }()
 }
 

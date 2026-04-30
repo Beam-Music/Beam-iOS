@@ -170,7 +170,11 @@ struct LibraryReducer: Reducer {
                     do {
                         let token = try await HomeFeature.fetchToken(context: modelContext)
                         let urlString = Endpoints.Playlist.userPlaylist + "/\(playlistID.uuidString)"
-                        var request = URLRequest(url: URL(string: urlString)!)
+                        guard let url = URL(string: urlString) else {
+                            await send(.playlistDeleteFailed("잘못된 URL입니다."))
+                            return
+                        }
+                        var request = URLRequest(url: url)
                         request.httpMethod = "DELETE"
                         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                         let (_, response) = try await URLSession.shared.data(for: request)

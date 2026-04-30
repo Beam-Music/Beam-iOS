@@ -22,7 +22,7 @@ enum VoiceConversionError: LocalizedError {
 // Voice conversion client
 struct VoiceConversionClient {
     var getAvailableVoices: () async throws -> [VoiceInfo]
-    var convertVoice: (Data, String, String) async throws -> Data
+    var convertVoice: (Data, String, String, String?) async throws -> Data // Added voiceType parameter
 }
 
 extension VoiceConversionClient {
@@ -43,34 +43,52 @@ extension VoiceConversionClient {
                 throw URLError(.badServerResponse)
             }
             
-            // 서버 응답을 직접 파싱하여 VoiceInfo 배열로 변환
+            // 새로운 서버 응답 형식 파싱
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let voicesArray = json["voices"] as? [[String: Any]] {
-                    // 서버에서 voices 배열로 반환하는 경우
+                    // 새로운 형식: voices 배열로 반환
                     return voicesArray.compactMap { voiceDict in
                         guard let voiceId = voiceDict["voiceId"] as? String,
                               let name = voiceDict["name"] as? String,
-                              let description = voiceDict["description"] as? String else {
+                              let category = voiceDict["category"] as? String else {
                             return nil
+                        }
+                        
+                        let description = voiceDict["description"] as? String
+                        let previewUrl = voiceDict["preview_url"] as? String
+                        let language = voiceDict["language"] as? [String]
+                        
+                        // voiceType 결정
+                        let voiceType: String
+                        if category.contains("K-Pop") || category.contains("Western Pop") {
+                            voiceType = "singer"
+                        } else if category == "Default" {
+                            voiceType = "default"
+                        } else {
+                            voiceType = "custom"
                         }
                         
                         return VoiceInfo(
                             id: voiceId,
                             name: name,
-                            category: "SeedVC",
+                            category: category,
                             description: description,
-                            previewUrl: nil
+                            previewUrl: previewUrl,
+                            language: language,
+                            voiceType: voiceType
                         )
                     }
                 } else if let availableVoicesArray = json["available_voices"] as? [String] {
-                    // 기존 SeedVC API 형식
+                    // 기존 SeedVC API 형식 (하위 호환성)
                     return availableVoicesArray.map { voiceId in
                         VoiceInfo(
                             id: voiceId,
                             name: voiceId.replacingOccurrences(of: "-", with: " ").capitalized,
-                            category: "SeedVC",
+                            category: "Default",
                             description: "Voice ID: \(voiceId)",
-                            previewUrl: nil
+                            previewUrl: nil,
+                            language: ["en"],
+                            voiceType: "default"
                         )
                     }
                 } else {
@@ -81,13 +99,13 @@ extension VoiceConversionClient {
             }
         },
         
-        convertVoice: { audioData, voiceId, outputFormat in
+        convertVoice: { audioData, voiceId, outputFormat, voiceType in
             let maxRetries = 3
             var lastError: Error?
             
             for attempt in 1...maxRetries {
                 do {
-                    return try await performVoiceConversion(audioData: audioData, voiceId: voiceId, outputFormat: outputFormat)
+                    return try await performVoiceConversion(audioData: audioData, voiceId: voiceId, outputFormat: outputFormat, voiceType: voiceType)
                 } catch let error as VoiceConversionError {
                     if case .serverError(let message) = error, message.contains("timed out") {
                         lastError = error
@@ -111,11 +129,10 @@ extension VoiceConversionClient {
             
             throw lastError ?? VoiceConversionError.timeout
         }
-        }
     )
     
     // Helper function to perform the actual voice conversion request
-    private static func performVoiceConversion(audioData: Data, voiceId: String, outputFormat: String) async throws -> Data {
+    private static func performVoiceConversion(audioData: Data, voiceId: String, outputFormat: String, voiceType: String?) async throws -> Data {
         guard let url = URL(string: Endpoints.VoiceConversion.convert) else {
             throw URLError(.badURL)
         }
@@ -141,6 +158,14 @@ extension VoiceConversionClient {
         body.append("Content-Disposition: form-data; name=\"voiceId\"\r\n\r\n".data(using: .utf8)!)
         body.append(voiceId.data(using: .utf8)!)
         body.append("\r\n".data(using: .utf8)!)
+        
+        // Add voiceType parameter for singer voices
+        if let voiceType = voiceType, voiceType == "singer" {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"voiceType\"\r\n\r\n".data(using: .utf8)!)
+            body.append(voiceType.data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
         
         // Add language parameter (Vapor server API)
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -194,12 +219,14 @@ extension VoiceConversionClient {
     static let mock = Self(
         getAvailableVoices: {
             return [
-                VoiceInfo(id: "pNInz6obpgDQGcFmaJgB", name: "Adam", category: "Default", description: "Male voice", previewUrl: nil),
-                VoiceInfo(id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", category: "Default", description: "Female voice", previewUrl: nil),
-                VoiceInfo(id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", category: "Default", description: "Female voice", previewUrl: nil)
+                VoiceInfo(id: "pNInz6obpgDQGcFmaJgB", name: "Adam", category: "Default", description: "Male voice", previewUrl: nil, language: ["en"], voiceType: "default"),
+                VoiceInfo(id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", category: "Default", description: "Female voice", previewUrl: nil, language: ["en"], voiceType: "default"),
+                VoiceInfo(id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", category: "Default", description: "Female voice", previewUrl: nil, language: ["en"], voiceType: "default"),
+                VoiceInfo(id: "iu_singer", name: "IU Style", category: "K-Pop Female", description: "IU style voice", previewUrl: nil, language: ["ko", "en"], voiceType: "singer"),
+                VoiceInfo(id: "taylor_swift_singer", name: "Taylor Swift Style", category: "Western Pop Female", description: "Taylor Swift style voice", previewUrl: nil, language: ["en"], voiceType: "singer")
             ]
         },
-        convertVoice: { audioData, voiceId, outputFormat in
+        convertVoice: { audioData, voiceId, outputFormat, voiceType in
             // Return mock audio data
             return audioData
         }

@@ -11,48 +11,22 @@ import MusicKit
 
 // MARK: - AI Convert Helper Functions
 func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-    let url = URL(string: "\(Endpoints.baseURL)/ai-convert/remix")! // AI 변환 엔드포인트
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-
-    let boundary = "Boundary-\(UUID().uuidString)"
-    request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-
-    var data = Data()
-    let filename = fileURL.lastPathComponent
-    let mimetype = "audio/mpeg" // mp3 등 실제 파일 타입에 맞게
-
-    guard let fileData = try? Data(contentsOf: fileURL) else {
-        completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "파일을 읽을 수 없습니다."])))
-        return
-    }
-
-    data.append("--\(boundary)\r\n".data(using: .utf8)!)
-    data.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-    data.append("Content-Type: \(mimetype)\r\n\r\n".data(using: .utf8)!)
-    data.append(fileData)
-    data.append("\r\n".data(using: .utf8)!)
-    data.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-    let task = URLSession.shared.uploadTask(with: request, from: data) { responseData, response, error in
-        if let error = error {
-            completion(.failure(error))
-            return
-        }
-        guard let responseData = responseData else {
-            completion(.failure(NSError(domain: "NoData", code: 0, userInfo: nil)))
-            return
-        }
-        // 임시 파일로 저장
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
+    // LALAL.AI 직접 호출 (기본 남성 음성 ALEX_KAYE 사용)
+    let service = VoiceConversionService()
+    Task {
         do {
-            try responseData.write(to: tempURL)
-            completion(.success(tempURL))
+            let audioData = try Data(contentsOf: fileURL)
+            let convertedAudioData = try await service.performLalalAIVoiceChange(
+                audioData: audioData,
+                voiceId: "ALEX_KAYE"
+            )
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
+            try convertedAudioData.write(to: tempURL)
+            await MainActor.run { completion(.success(tempURL)) }
         } catch {
-            completion(.failure(error))
+            await MainActor.run { completion(.failure(error)) }
         }
     }
-    task.resume()
 }
 
 struct MusicSearchResult: Identifiable, Hashable, Equatable {
@@ -297,13 +271,20 @@ struct HomeView: View {
                                                             isRemixingDemo = false
                                                             switch result {
                                                             case .success(let url):
-                                                                Task {
-                                                                    do {
-                                                                        try await AudioManager.shared.playAIMusic(from: url.absoluteString, title: pair.artist2, artist: pair.artist1)
-                                                                    } catch {
-                                                                        print("AI 변환 곡 재생 실패: \(error)")
-                                                                    }
-                                                                }
+                                                                // MiniPlayer가 보이도록 playerState 세팅 후 재생
+                                                                let track = PlayableTrackDTO(
+                                                                    id: UUID(),
+                                                                    title: pair.artist2,
+                                                                    artistName: pair.artist1,
+                                                                    playbackUrl: nil,
+                                                                    playbackStoreID: nil,
+                                                                    isAIGenerated: true,
+                                                                    duration: nil,
+                                                                    fileUrl: url.absoluteString,
+                                                                    artworkURL: nil
+                                                                )
+                                                                let newPlayerState = PlayerReducer.State(playlist: [track], currentIndex: 0)
+                                                                store.send(.tabBar(.setPlayerState(newPlayerState)))
                                                             case .failure(let error):
                                                                 print("AI 변환 실패: \(error)")
                                                             }

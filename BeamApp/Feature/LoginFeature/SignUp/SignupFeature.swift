@@ -252,7 +252,17 @@ struct SignupFeature: Reducer {
                     return .run { [token] send in
                         do {
                             try await tokenStorage.saveToken(token)
+                            print("✅ 회원가입 완료 후 토큰 저장 성공: \(token.prefix(10))...")
+                            
+                            // 토큰 저장 확인
+                            if let savedToken = await tokenStorage.fetchToken() {
+                                print("🔍 저장된 토큰 확인: \(savedToken.prefix(10))...")
+                            } else {
+                                print("❌ 토큰 저장 후 검색 실패")
+                            }
+                            
                         } catch {
+                            print("❌ 토큰 저장 실패: \(error)")
                             await send(.verifyResponse(.failure(.serverError("토큰 저장에 실패했습니다: \(error.localizedDescription)"))))
                         }
                     }
@@ -273,7 +283,18 @@ struct SignupFeature: Reducer {
                 state.isLoggedIn = isLoggedIn
                 if isLoggedIn, let token = state.token {
                     return .run { _ in
-                        try await tokenStorage.saveToken(token)
+                        do {
+                            try await tokenStorage.saveToken(token)
+                            
+                            if let savedToken = await tokenStorage.fetchToken() {
+                                print("🔍 저장된 토큰 확인: \(savedToken.prefix(10))...")
+                            } else {
+                                print("❌ 토큰 저장 후 검색 실패")
+                            }
+                            
+                        } catch {
+                            print("❌ setIsLoggedIn 후 토큰 저장 실패: \(error)")
+                        }
                     }
                 }
                 return .none

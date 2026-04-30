@@ -10,12 +10,12 @@ struct AIPreferenceClient {
 extension AIPreferenceClient {
     static let live = Self(
         getPreference: { userId in
-            let url = URL(string: "http://your-server-url/api/ai-preferences/\(userId)")!
+            let url = URL(string: Endpoints.AIPreference.getPreference(userId: userId))!
             let (data, _) = try await URLSession.shared.data(from: url)
             return try JSONDecoder().decode(AIPreference.self, from: data)
         },
         updatePreference: { userId, enableAIMusic in
-            let url = URL(string: "http://your-server-url/api/ai-preferences/\(userId)")!
+            let url = URL(string: Endpoints.AIPreference.updatePreference(userId: userId))!
             var request = URLRequest(url: url)
             request.httpMethod = "PUT"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

@@ -208,7 +208,11 @@ struct PlaylistDetailView: View {
             errorMessage = "토큰이 없습니다. 로그인 필요"
             return
         }
-        var request = URLRequest(url: URL(string: urlString)!)
+        guard let url = URL(string: urlString) else {
+            errorMessage = "잘못된 URL입니다."
+            return
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         URLSession.shared.dataTask(with: request) { _, response, error in
@@ -250,7 +254,11 @@ struct PlaylistDetailView: View {
         }
         isDeleting = true
         let urlString = Endpoints.Playlist.userPlaylist + "/\(playlistID)"
-        var request = URLRequest(url: URL(string: urlString)!)
+        guard let url = URL(string: urlString) else {
+            errorMessage = "잘못된 URL입니다."
+            return
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         URLSession.shared.dataTask(with: request) { _, response, error in

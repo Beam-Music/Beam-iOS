@@ -1,7 +1,100 @@
+//
+//  LalalAIService.swift
+//  BeamApp
+//
+//  Created by freed on 9/10/24.
+//
+
 import Foundation
+import AVFoundation
+
+// MARK: - LALAL.AI Errors
+enum LalalAIError: Error, LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case serverError(String)
+    case taskCancelled
+    case timeout
+    case unknownTaskState(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid URL"
+        case .invalidResponse:
+            return "Invalid response from server"
+        case .serverError(let message):
+            return "Server error: \(message)"
+        case .taskCancelled:
+            return "Task was cancelled"
+        case .timeout:
+            return "Task timed out"
+        case .unknownTaskState(let state):
+            return "Unknown task state: \(state)"
+        }
+    }
+}
+
+// MARK: - AnyCodable for flexible JSON parsing
+struct AnyCodable: Codable {
+    let value: Any
+    
+    init(_ value: Any) {
+        self.value = value
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        
+        if container.decodeNil() {
+            self.value = NSNull()
+        } else if let bool = try? container.decode(Bool.self) {
+            self.value = bool
+        } else if let int = try? container.decode(Int.self) {
+            self.value = int
+        } else if let uint = try? container.decode(UInt.self) {
+            self.value = uint
+        } else if let double = try? container.decode(Double.self) {
+            self.value = double
+        } else if let string = try? container.decode(String.self) {
+            self.value = string
+        } else if let array = try? container.decode([AnyCodable].self) {
+            self.value = array.map { $0.value }
+        } else if let dictionary = try? container.decode([String: AnyCodable].self) {
+            self.value = dictionary.mapValues { $0.value }
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "AnyCodable cannot decode value")
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        
+        switch self.value {
+        case is NSNull:
+            try container.encodeNil()
+        case let bool as Bool:
+            try container.encode(bool)
+        case let int as Int:
+            try container.encode(int)
+        case let uint as UInt:
+            try container.encode(uint)
+        case let double as Double:
+            try container.encode(double)
+        case let string as String:
+            try container.encode(string)
+        case let array as [Any]:
+            try container.encode(array.map { AnyCodable($0) })
+        case let dictionary as [String: Any]:
+            try container.encode(dictionary.mapValues { AnyCodable($0) })
+        default:
+            let context = EncodingError.Context(codingPath: container.codingPath, debugDescription: "AnyCodable cannot encode value")
+            throw EncodingError.invalidValue(self.value, context)
+        }
+    }
+}
 
 // MARK: - LALAL.AI API Models
-
 struct LalalAIUploadResponse: Codable {
     let status: String
     let id: String?
@@ -20,7 +113,7 @@ struct LalalAIVoiceChangeResponse: Codable {
 
 struct LalalAICheckResponse: Codable {
     let status: String
-    let result: [String: LalalAIFileResult]
+    let result: [String: AnyCodable]
     let error: String?
 }
 
@@ -33,14 +126,24 @@ struct LalalAIFileResult: Codable {
     let stem: String?
     let split: LalalAISplitResult?
     let task: LalalAITaskInfo?
+    let archive: LalalAIArchiveResult?
     let error: String?
+}
+
+struct LalalAIArchiveResult: Codable {
+    let duration: Double?
+    let stem: String?
+    let stem_track: String?
+    let stem_track_size: Int?
+    let back_track: String?
+    let back_track_size: Int?
 }
 
 struct LalalAISplitResult: Codable {
     let duration: Double
     let stem: String
-    let stem_track: String
-    let stem_track_size: Int
+    let stem_track: String?
+    let stem_track_size: Int?
     let back_track: String
     let back_track_size: Int
 }
@@ -51,56 +154,22 @@ struct LalalAITaskInfo: Codable {
     let progress: Int?
 }
 
-struct LalalAIVoicePack: Codable, Identifiable {
-    let pack_id: String
-    let name: String
-    let created: String
-    let ready_to_use: Bool
-    let avatar_url: String?
-    let expiration_date: String?
-    let expires_after_days: Int?
-    let language: LalalAILanguage?
-    let previews: [LalalAIPreview]?
-    
-    var id: String { pack_id }
-}
-
-struct LalalAILanguage: Codable {
-    let code: String
-    let full: String
-}
-
-struct LalalAIPreview: Codable {
-    let label: String
-    let playlist: String
-    let waveform: String
-    let sample: LalalAISample?
-}
-
-struct LalalAISample: Codable {
-    let playlist: String
-    let waveform: String
-}
-
-struct LalalAIVoicePacksResponse: Codable {
-    let status: String
-    let packs: [LalalAIVoicePack]
-    let error: String?
-}
-
+// MARK: - LALAL.AI Client
 public class LalalAIClient {
     private let baseURL = "https://www.lalal.ai"
     private let apiKey: String
     private let session = URLSession.shared
     
-    public init(apiKey: String) {
+    init(apiKey: String) {
         self.apiKey = apiKey
     }
     
-    public func uploadFile(audioData: Data, filename: String) async throws -> LalalAIUploadResponse {
+    // MARK: - File Upload
+    func uploadFile(audioData: Data, filename: String) async throws -> LalalAIUploadResponse {
         guard let url = URL(string: "\(baseURL)/api/upload/") else {
             throw LalalAIError.invalidURL
         }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("license \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -126,7 +195,8 @@ public class LalalAIClient {
         return uploadResponse
     }
     
-    public func changeVoice(fileId: String, voice: String, accentEnhance: Float = 1.0, pitchShifting: Bool = true, dereverbEnabled: Bool = false) async throws -> LalalAIVoiceChangeResponse {
+    // MARK: - Voice Change
+    func changeVoice(fileId: String, voice: String, accentEnhance: Float = 1.0, pitchShifting: Bool = true, dereverbEnabled: Bool = false) async throws -> LalalAIVoiceChangeResponse {
         guard let url = URL(string: "\(baseURL)/api/change_voice/") else {
             throw LalalAIError.invalidURL
         }
@@ -169,7 +239,8 @@ public class LalalAIClient {
         return voiceChangeResponse
     }
     
-    public func checkTaskStatus(fileId: String) async throws -> LalalAIFileResult {
+    // MARK: - Check Task Status
+    func checkTaskStatus(fileId: String) async throws -> LalalAIFileResult {
         guard let url = URL(string: "\(baseURL)/api/check/") else {
             throw LalalAIError.invalidURL
         }
@@ -192,48 +263,45 @@ public class LalalAIClient {
             throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
         }
         
+        // 응답 데이터 디버깅
+        print("🔍 LALAL.AI check response:")
+        print("   Response size: \(data.count) bytes")
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("   Response body: \(responseString)")
+        }
+        
+        // JSON 응답 구조 확인
+        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            print("📋 JSON structure:")
+            print("   Keys: \(Array(json.keys))")
+            if let result = json["result"] as? [String: Any] {
+                print("   Result keys: \(Array(result.keys))")
+                if let fileResult = result[fileId] as? [String: Any] {
+                    print("   File result keys: \(Array(fileResult.keys))")
+                }
+            }
+        }
+        
         let checkResponse = try JSONDecoder().decode(LalalAICheckResponse.self, from: data)
         
         guard checkResponse.status == "success" else {
             throw LalalAIError.serverError(checkResponse.error ?? "Check failed")
         }
         
-        guard let fileResult = checkResponse.result[fileId] else {
+        // fileId에 해당하는 결과를 찾기
+        guard let fileResultAny = checkResponse.result[fileId] else {
             throw LalalAIError.serverError("File result not found")
         }
+        
+        // AnyCodable을 JSON으로 변환하여 파싱
+        let fileResultData = try JSONSerialization.data(withJSONObject: fileResultAny.value)
+        let fileResult = try JSONDecoder().decode(LalalAIFileResult.self, from: fileResultData)
         
         return fileResult
     }
     
-    func getVoicePacks() async throws -> [LalalAIVoicePack] {
-        guard let url = URL(string: "\(baseURL)/api/voice_packs/list/") else {
-            throw LalalAIError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("license \(apiKey)", forHTTPHeaderField: "Authorization")
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw LalalAIError.invalidResponse
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
-        }
-        
-        let voicePacksResponse = try JSONDecoder().decode(LalalAIVoicePacksResponse.self, from: data)
-        
-        guard voicePacksResponse.status == "success" else {
-            throw LalalAIError.serverError(voicePacksResponse.error ?? "Failed to get voice packs")
-        }
-        
-        return voicePacksResponse.packs
-    }
-    
-    public func downloadAudioFile(from urlString: String) async throws -> Data {
+    // MARK: - Download Audio File
+    func downloadAudioFile(from urlString: String) async throws -> Data {
         guard let url = URL(string: urlString) else {
             throw LalalAIError.invalidURL
         }
@@ -251,7 +319,8 @@ public class LalalAIClient {
         return data
     }
     
-    public func checkCredits() async throws -> (total: Double, used: Double, remaining: Double) {
+    // MARK: - Check Credits
+    func checkCredits() async throws -> (total: Double, used: Double, remaining: Double) {
         guard let url = URL(string: "\(baseURL)/billing/get-limits/?key=\(apiKey)") else {
             throw LalalAIError.invalidURL
         }
@@ -266,6 +335,7 @@ public class LalalAIClient {
             throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
         }
         
+        // 응답 파싱
         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let status = json["status"] as? String, status == "success" {
                 let total = json["process_duration_limit"] as? Double ?? 0.0
@@ -282,7 +352,8 @@ public class LalalAIClient {
         }
     }
     
-    public func waitForTaskCompletion(fileId: String, maxWaitTime: TimeInterval = 300) async throws -> LalalAIFileResult {
+    // MARK: - Wait for Task Completion
+    func waitForTaskCompletion(fileId: String, maxWaitTime: TimeInterval = 300) async throws -> LalalAIFileResult {
         let startTime = Date()
         
         while Date().timeIntervalSince(startTime) < maxWaitTime {
@@ -297,72 +368,18 @@ public class LalalAIClient {
                 case "cancelled":
                     throw LalalAIError.taskCancelled
                 case "progress":
-                    try await Task.sleep(nanoseconds: 2_000_000_000) 
+                    // 진행 중이면 잠시 대기
+                    try await Task.sleep(nanoseconds: 2_000_000_000) // 2초 대기
                     continue
                 default:
                     throw LalalAIError.unknownTaskState(task.state)
                 }
             } else {
+                // task 정보가 없으면 바로 반환
                 return fileResult
             }
         }
         
         throw LalalAIError.timeout
-    }
-}
-
-// MARK: - LALAL.AI Errors
-
-public enum LalalAIError: Error, LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case serverError(String)
-    case taskCancelled
-    case timeout
-    case unknownTaskState(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "Invalid URL"
-        case .invalidResponse:
-            return "Invalid response from server"
-        case .serverError(let message):
-            return "Server error: \(message)"
-        case .taskCancelled:
-            return "Task was cancelled"
-        case .timeout:
-            return "Task timed out"
-        case .unknownTaskState(let state):
-            return "Unknown task state: \(state)"
-        }
-    }
-}
-
-extension LalalAIClient {
-    static let legalVoicePacks = [
-        "ALEX_KAYE",
-        "STASIA_FAYE", 
-        "NICOLAAS_HAAS",
-        "NIK_ZEL",
-        "OLIA_CHEBO",
-        "YVAR_DE_GROOT",
-        "VETRANA"
-    ]
-    
-    static func isLegalVoicePack(_ voiceId: String) -> Bool {
-        return legalVoicePacks.contains(voiceId)
-    }
-}
-
-extension LalalAIClient: DependencyKey {
-    static var liveValue = LalalAIClient.live
-    static var testValue = LalalAIClient.mock
-}
-
-extension DependencyValues {
-    var lalalAIClient: LalalAIClient {
-        get { self[LalalAIClient.self] }
-        set { self[LalalAIClient.self] = newValue }
     }
 } 

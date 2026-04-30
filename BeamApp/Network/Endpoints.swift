@@ -6,9 +6,13 @@
 //
 import Foundation
 
+struct APIKeys {
+    static let lalalAI = "8aa542e9b334438f"
+}
+
 struct Endpoints {
 //    static let baseURL = "https://web-production-9874.up.railway.app"
-    static let baseURL = "http://192.168.99.77:8081"
+    static let baseURL = "http://172.30.1.24:8081"
     struct Auth {
         static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/api/users/register"

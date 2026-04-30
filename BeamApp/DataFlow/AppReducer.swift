@@ -19,6 +19,7 @@ struct AppReducer: Reducer {
         var isLoggedIn: Bool = false
         var isSignedUp: Bool = false
         var userProfile: UserProfile? = nil
+        var lastTokenCheck: Date = Date()
     }
     
     enum Action: Equatable {
@@ -32,6 +33,8 @@ struct AppReducer: Reducer {
         case fetchUserProfile
         case userProfileLoaded(UserProfile)
         case userProfileFailed(UserProfileError)
+        case checkTokenValidity
+        case tokenExpired
     }
 
     enum Tab: Equatable {
@@ -66,6 +69,7 @@ struct AppReducer: Reducer {
                 state.isLoggedIn = true
                 state.loginState.token = token
                 state.selectedTab = .home
+                state.lastTokenCheck = Date()
                 return .merge(
                     .none,
                     .send(.fetchUserProfile)
@@ -94,21 +98,20 @@ struct AppReducer: Reducer {
                  .signup(.passwordChanged),
                  .signup(.phoneChanged),
                  .signup(.verificationCodeChanged),
-                 .signup(.sendVerificationCodeButtonTapped),
-                 .signup(.sendVerificationCodeResponse),
                  .signup(.signupButtonTapped),
                  .signup(.verifyButtonTapped),
+                 .signup(.sendVerificationCodeButtonTapped),
+                 .signup(.sendVerificationCodeResponse),
                  .signup(.signupResponse(.failure)),
                  .signup(.verifyResponse(.failure)),
+                 .signup(.setIsLoggedIn),
+                 .signup(.profileImageChanged),
                  .signup(.reset):
                 return .none
                 
-             case .signup(.setIsLoggedIn(let isLoggedIn)):
-                 return .none
-             case .signup(.profileImageChanged):
-                 return .none
-             case .home, .tabBar:
-                 return .none
+            case .home, .tabBar:
+                return .none
+                
             case .fetchUserProfile:
                 print(">>> fetchUserProfile called")
                 guard let token = state.loginState.token ?? state.signupState.token,
@@ -130,31 +133,36 @@ struct AppReducer: Reducer {
                         await send(.userProfileFailed(.unknown))
                     }
                 }
+                
             case let .userProfileLoaded(profile):
                 print(">>> userProfileLoaded: \(profile)")
                 state.userProfile = profile
                 return .none
+                
             case .userProfileFailed:
                 print(">>> userProfileFailed")
                 // 에러 처리 (필요시)
                 return .none
-            case .home(.playMusic(let result)):
-                let track = PlayableTrackDTO(
-                    id: UUID(),
-                    title: result.title,
-                    artistName: result.artist,
-                    playbackUrl: nil,
-                    playbackStoreID: result.id,
-                    isAIGenerated: false,
-                    duration: nil,
-                    fileUrl: nil,
-                    artworkURL: result.artworkURL
-                )
-                let playerState = PlayerReducer.State(
-                    playlist: [track],
-                    currentIndex: 0
-                )
-                return .send(.tabBar(.setPlayerState(playerState)))
+                
+            case .checkTokenValidity:
+                // 토큰 유효성 주기적 확인
+                return .run { send in
+                    // 5분마다 토큰 유효성 확인
+                    try await Task.sleep(for: .seconds(300))
+                    
+                    if !(await tokenStorage.hasValidToken()) {
+                        await send(.tokenExpired)
+                    } else {
+                        // 계속 확인
+                        await send(.checkTokenValidity)
+                    }
+                }
+                
+            case .tokenExpired:
+                print("⏰ 토큰이 만료됨 - 자동 로그아웃")
+                state.isLoggedIn = false
+                state.userProfile = nil
+                return .send(.setLoggedIn(false))
             }
         }
         Scope(state: \.tabBarState, action: /Action.tabBar) {

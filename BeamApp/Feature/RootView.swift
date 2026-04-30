@@ -22,14 +22,16 @@ struct RootView: View {
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
+        let tabBarState: TabBarReducer.State
         
         init(state: AppReducer.State) {
             self.isLoggedIn = state.isLoggedIn
+            self.tabBarState = state.tabBarState
         }
     }
     
     var body: some View {
-        WithViewStore(self.store, observe: { $0 }) { viewStore in
+        WithViewStore(self.store, observe: ViewState.init) { viewStore in
             ZStack {
                 if isLoading {
                     ProgressView()
@@ -57,34 +59,25 @@ struct RootView: View {
                     }
                     
                     // MiniPlayerView: only show when not in full player
-                    if viewStore.isLoggedIn, let _ = viewStore.tabBarState.playerState, !isPlayerViewVisible {
-                        VStack {
-                            Spacer()
-                            MiniPlayerView(
-                                store: store.scope(
-                                    state: \ .tabBarState.playerState!,
-                                    action: { AppReducer.Action.tabBar(.player($0)) }
-                                ),
-                                isPlayerViewVisible: $isPlayerViewVisible,
-                                albumArtNamespace: albumArtNamespace
-                            )
-                            .onTapGesture {
-                                showFullPlayer()
-                            }
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .bottom).combined(with: .opacity),
-                                removal: .move(edge: .bottom).combined(with: .opacity)
-                            ))
-                            .padding(.bottom, 85)
-                        }
-                        .ignoresSafeArea(edges: .bottom)
+                    if viewStore.isLoggedIn, let playerState = viewStore.tabBarState.playerState, !isPlayerViewVisible {
+                        MiniPlayerView(
+                            store: store.scope(
+                                state: { _ in playerState },
+                                action: { AppReducer.Action.tabBar(.player($0)) }
+                            ),
+                            isPlayerViewVisible: $isPlayerViewVisible,
+                            albumArtNamespace: albumArtNamespace
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 49) // TabView tab bar height
+                        .zIndex(1)
                     }
 
                     // PlayerView: only show when in full player mode
-                    if isPlayerViewVisible, let _ = viewStore.tabBarState.playerState {
+                    if isPlayerViewVisible, let playerState = viewStore.tabBarState.playerState {
                         PlayerView(
                             store: store.scope(
-                                state: \ .tabBarState.playerState!,
+                                state: { _ in playerState },
                                 action: { AppReducer.Action.tabBar(.player($0)) }
                             ),
                             isMiniPlayerVisible: $isMiniPlayerVisible,
@@ -95,7 +88,7 @@ struct RootView: View {
                             insertion: .move(edge: .bottom).combined(with: .opacity),
                             removal: .move(edge: .bottom).combined(with: .opacity)
                         ))
-                        .offset(y: calculatePlayerOffset())
+                        .offset(y: max(dragOffset, 0)) // 드래그 다운할 때만 오프셋 적용
                         .gesture(
                             DragGesture()
                                 .updating($dragOffset) { value, state, _ in
@@ -111,54 +104,81 @@ struct RootView: View {
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isPlayerViewVisible)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: dragOffset)
             .task {
-                // Check for saved token on app launch
-                if let token = tokenStorage.fetchToken() {
-                    hasCompletedOnboarding = true
-                    viewStore.send(.setLoggedIn(true))
-                }
+                // 앱 시작 시 저장된 토큰 확인 및 자동 로그인
+                await checkSavedTokenAndAutoLogin(viewStore: viewStore)
                 isLoading = false
             }
         }
     }
     
-    private func calculatePlayerOffset() -> CGFloat {
-        if isPlayerViewVisible {
-            return max(0, dragOffset)
-        } else {
-            return UIScreen.main.bounds.height
+    // MARK: - Auto Login Logic
+    
+    private func checkSavedTokenAndAutoLogin(viewStore: ViewStore<ViewState, AppReducer.Action>) async {
+        print("🚀 앱 시작 - 저장된 토큰 확인 중...")
+        
+        // 1. 토큰 존재 여부 확인
+        guard let token = tokenStorage.fetchToken() else {
+            print("🔴 저장된 토큰이 없음 - 로그인 화면으로 이동")
+            return
         }
+        
+        #if DEBUG
+        print("✅ 저장된 토큰 발견: \(token.prefix(10))...")
+        #endif
+        
+        // 2. 토큰 유효성 확인
+        guard tokenStorage.hasValidToken() else {
+            print("⏰ 토큰이 만료됨 - 로그인 화면으로 이동")
+            return
+        }
+        
+        print("✅ 토큰이 유효함 - 자동 로그인 진행")
+        
+        // 3. 자동 로그인 처리
+        await performAutoLogin(token: token, viewStore: viewStore)
     }
     
-    private func calculateBackgroundOpacity() -> Double {
-        let maxDragDistance: CGFloat = 200
-        let dragPercentage = min(dragOffset / maxDragDistance, 1)
-        return 0.7 * (1 - Double(dragPercentage))
+    private func performAutoLogin(token: String, viewStore: ViewStore<ViewState, AppReducer.Action>) async {
+        do {
+            // 1. UserDefaults에 userID 설정 (토큰에서 파싱)
+            if let userId = SignupFeature.parseUserIdFromJWT(token) {
+                UserDefaults.standard.set(userId, forKey: "userID")
+                print("✅ userID 설정됨: \(userId)")
+            }
+            
+            // 2. 로그인 상태 설정
+            viewStore.send(.setLoggedIn(true))
+            hasCompletedOnboarding = true
+            
+            // 3. 사용자 프로필 로드
+            viewStore.send(.fetchUserProfile)
+            
+            // 4. 토큰 유효성 주기적 확인 시작
+            viewStore.send(.checkTokenValidity)
+            
+            print("🎉 자동 로그인 성공!")
+            
+        } catch {
+            print("❌ 자동 로그인 실패: \(error)")
+            // 자동 로그인 실패 시 토큰 삭제
+            try? tokenStorage.deleteAllTokens()
+        }
     }
     
     private func handleDragEnd(_ value: DragGesture.Value) {
         let threshold: CGFloat = 100
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            if value.translation.height > threshold || value.predictedEndTranslation.height > threshold {
-                hideFullPlayer()
-            } else {
-                showFullPlayer()
+        let translation = value.translation.height
+        
+        if translation > threshold {
+            // 아래로 드래그 - 플레이어 닫기
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                isPlayerViewVisible = false
             }
-        }
-    }
-    
-    private func showFullPlayer() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            isPlayerViewVisible = true
-            isMiniPlayerVisible = false
-            playerOffset = 0
-        }
-    }
-    
-    private func hideFullPlayer() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            isPlayerViewVisible = false
-            isMiniPlayerVisible = true
-            playerOffset = UIScreen.main.bounds.height
+        } else {
+            // 위로 드래그 또는 임계값 미달 - 플레이어 열기
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                isPlayerViewVisible = true
+            }
         }
     }
 }

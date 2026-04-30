@@ -7,24 +7,56 @@ public struct VoiceInfo: Codable, Identifiable {
     public let category: String
     public let description: String?
     public let previewUrl: String?
+    public let language: [String]?
+    public let voiceType: String? // "default", "singer", "custom"
     
-    public init(id: String, name: String, category: String, description: String?, previewUrl: String?) {
+    public init(id: String, name: String, category: String, description: String?, previewUrl: String?, language: [String]? = nil, voiceType: String? = nil) {
         self.id = id
         self.name = name
         self.category = category
         self.description = description
         self.previewUrl = previewUrl
+        self.language = language
+        self.voiceType = voiceType
     }
     
     enum CodingKeys: String, CodingKey {
-        case id = "voice_id"
+        case id = "voiceId"
         case name
         case category
         case description
         case previewUrl = "preview_url"
+        case language
+        case voiceType
     }
 }
 
+// Voice list response model
+public struct VoiceListResponse: Codable {
+    public let voices: [VoiceInfo]
+    public let categories: [String: [VoiceInfo]]
+    public let totalCount: Int
+    public let breakdown: VoiceBreakdown
+    
+    enum CodingKeys: String, CodingKey {
+        case voices
+        case categories
+        case totalCount = "total_count"
+        case breakdown
+    }
+}
+
+public struct VoiceBreakdown: Codable {
+    public let defaultCount: Int
+    public let singersCount: Int
+    public let customCount: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case defaultCount = "default"
+        case singersCount = "singers"
+        case customCount = "custom"
+    }
+}
 
 
 public struct VoiceConversionRequest: Codable {

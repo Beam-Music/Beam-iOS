@@ -19,15 +19,17 @@ struct MiniPlayerView: View {
             miniPlayerContent(viewStore: viewStore)
         }
     }
-    
+
     @ViewBuilder
     private func miniPlayerContent(viewStore: ViewStore<PlayerReducer.State, PlayerReducer.Action>) -> some View {
-        if let currentTrackTitle = audioManager.currentTrackMetadata.title,
-           currentTrackTitle != "No Track" {
+        let displayTitle = viewStore.currentTrack?.title ?? audioManager.currentTrackMetadata.title
+
+        if let title = displayTitle, !title.isEmpty, title != "No Track" {
+            let artist = viewStore.currentTrack?.artistName ?? audioManager.currentTrackMetadata.artist ?? "Unknown Artist"
             VStack {
                 HStack {
                     albumArtView
-                    trackInfoView
+                    trackInfoView(title: title, artist: artist)
                     Spacer()
                     playPauseButton
                 }
@@ -44,7 +46,7 @@ struct MiniPlayerView: View {
             EmptyView()
         }
     }
-    
+
     private var albumArtView: some View {
         Group {
             if let albumArt = audioManager.currentTrackMetadata.albumArt {
@@ -63,14 +65,14 @@ struct MiniPlayerView: View {
             }
         }
     }
-    
-    private var trackInfoView: some View {
+
+    private func trackInfoView(title: String, artist: String) -> some View {
         VStack(alignment: .leading) {
-            Text(audioManager.currentTrackMetadata.title ?? "")
+            Text(title)
                 .font(.headline)
                 .lineLimit(1)
-            
-            Text(audioManager.currentTrackMetadata.artist ?? "Unknown Artist")
+
+            Text(artist)
                 .font(.subheadline)
                 .foregroundColor(.gray)
                 .lineLimit(1)

@@ -8,12 +8,531 @@
 import SwiftUI
 import ComposableArchitecture
 import AVFoundation
+import MusicKit
+
+private let voiceConversionService = VoiceConversionService()
+
+class LalalAIClient {
+    private let baseURL = "https://www.lalal.ai"
+    private let apiKey: String
+    private let session = URLSession.shared
+    
+    init(apiKey: String) {
+        self.apiKey = apiKey
+    }
+    
+    func uploadFile(audioData: Data, filename: String) async throws -> LalalAIUploadResponse {
+        guard let url = URL(string: "\(baseURL)/api/upload/") else {
+            throw LalalAIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("license \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("attachment; filename=\(filename)", forHTTPHeaderField: "Content-Disposition")
+        request.httpBody = audioData
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LalalAIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
+        }
+        
+        let uploadResponse = try JSONDecoder().decode(LalalAIUploadResponse.self, from: data)
+        
+        guard uploadResponse.status == "success" else {
+            throw LalalAIError.serverError(uploadResponse.error ?? "Upload failed")
+        }
+        
+        return uploadResponse
+    }
+    
+    func changeVoice(fileId: String, voice: String, accentEnhance: Float = 1.0, pitchShifting: Bool = true, dereverbEnabled: Bool = false) async throws -> LalalAIVoiceChangeResponse {
+        guard let url = URL(string: "\(baseURL)/api/change_voice/") else {
+            throw LalalAIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("license \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        let parameters = [
+            "id": fileId,
+            "voice": voice,
+            "accent_enhance": String(accentEnhance),
+            "pitch_shifting": String(pitchShifting),
+            "dereverb_enabled": String(dereverbEnabled)
+        ]
+        
+        let formData = parameters.map { key, value in
+            "\(key)=\(value)"
+        }.joined(separator: "&")
+        
+        request.httpBody = formData.data(using: .utf8)
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LalalAIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
+        }
+        
+        let voiceChangeResponse = try JSONDecoder().decode(LalalAIVoiceChangeResponse.self, from: data)
+        
+        guard voiceChangeResponse.status == "success" else {
+            throw LalalAIError.serverError(voiceChangeResponse.error ?? "Voice change failed")
+        }
+        
+        return voiceChangeResponse
+    }
+    
+    func checkTaskStatus(fileId: String) async throws -> LalalAIFileResult {
+        guard let url = URL(string: "\(baseURL)/api/check/") else {
+            throw LalalAIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("license \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        let formData = "id=\(fileId)".data(using: .utf8)
+        request.httpBody = formData
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LalalAIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
+        }
+        
+        let checkResponse = try JSONDecoder().decode(LalalAICheckResponse.self, from: data)
+        
+        guard checkResponse.status == "success" else {
+            throw LalalAIError.serverError(checkResponse.error ?? "Check failed")
+        }
+        
+        guard let fileResultAny = checkResponse.result[fileId] else {
+            throw LalalAIError.serverError("File result not found")
+        }
+        
+        let fileResultData = try JSONSerialization.data(withJSONObject: fileResultAny.value)
+        let fileResult = try JSONDecoder().decode(LalalAIFileResult.self, from: fileResultData)
+        
+        return fileResult
+    }
+    
+    func downloadAudioFile(from urlString: String) async throws -> Data {
+        guard let url = URL(string: urlString) else {
+            throw LalalAIError.invalidURL
+        }
+        
+        let (data, response) = try await session.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LalalAIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
+        }
+        
+        return data
+    }
+    
+    func checkCredits() async throws -> (total: Double, used: Double, remaining: Double) {
+        guard let url = URL(string: "\(baseURL)/billing/get-limits/?key=\(apiKey)") else {
+            throw LalalAIError.invalidURL
+        }
+        
+        let (data, response) = try await session.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LalalAIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
+        }
+        
+        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let status = json["status"] as? String, status == "success" {
+                let total = json["process_duration_limit"] as? Double ?? 0.0
+                let used = json["process_duration_used"] as? Double ?? 0.0
+                let remaining = json["process_duration_left"] as? Double ?? 0.0
+                
+                return (total: total, used: used, remaining: remaining)
+            } else {
+                let error = json["error"] as? String ?? "Unknown error"
+                throw LalalAIError.serverError(error)
+            }
+        } else {
+            throw LalalAIError.serverError("Invalid response format")
+        }
+    }
+    
+    func waitForTaskCompletion(fileId: String, maxWaitTime: TimeInterval = 300) async throws -> LalalAIFileResult {
+        let startTime = Date()
+        
+        while Date().timeIntervalSince(startTime) < maxWaitTime {
+            let fileResult = try await checkTaskStatus(fileId: fileId)
+            
+            if let task = fileResult.task {
+                switch task.state {
+                case "success":
+                    return fileResult
+                case "error":
+                    throw LalalAIError.serverError(task.error ?? "Task failed")
+                case "cancelled":
+                    throw LalalAIError.taskCancelled
+                case "progress":
+                    try await Task.sleep(nanoseconds: 2_000_000_000) 
+                    continue
+                default:
+                    throw LalalAIError.unknownTaskState(task.state)
+                }
+            } else {
+                return fileResult
+            }
+        }
+        
+        throw LalalAIError.timeout
+    }
+}
+
+class VoiceConversionService {
+    
+    func performLalalAIVoiceChange(
+        audioData: Data,
+        voiceId: String
+    ) async throws -> Data {
+        let client = LalalAIClient(apiKey: APIKeys.lalalAI)
+
+        do {
+            let credits = try await client.checkCredits()
+            
+            let estimatedDuration = Double(audioData.count) / 16000.0
+            let requiredMinutes = estimatedDuration / 60.0
+            
+            if credits.remaining < requiredMinutes {
+                let maxAllowedDuration = credits.remaining * 60.0
+                let maxAllowedSeconds = min(maxAllowedDuration, 30.0)
+                
+                let trimmedAudioData = try await trimAudioToDuration(audioData, duration: maxAllowedSeconds)
+                
+                return try await performLalalAIVoiceChangeWithTrimmedAudio(
+                    audioData: trimmedAudioData,
+                    voiceId: voiceId
+                )
+            }
+            let filename = "audio_\(Int(Date().timeIntervalSince1970)).mp3"
+            let uploadResponse = try await client.uploadFile(audioData: audioData, filename: filename)
+            
+            guard let fileId = uploadResponse.id else {
+                throw VoiceConversionError.serverError("Failed to get file ID from upload")
+            }
+            
+            // 가수 음성 ID를 LALAL.AI voice pack으로 매핑
+            let lalalAIVoice = getLalalAIVoiceId(singerVoiceId: voiceId)
+            
+            let voiceChangeResponse = try await client.changeVoice(
+                fileId: fileId,
+                voice: lalalAIVoice,
+                accentEnhance: 1.0,      // 액센트 강화 활성화
+                pitchShifting: true,     // 피치 시프팅 활성화
+                dereverbEnabled: false   // 디리버브 비활성화
+            )
+            
+            guard let taskId = voiceChangeResponse.task_id else {
+                throw VoiceConversionError.serverError("Failed to get task ID from voice change")
+            }
+            
+            let fileResult = try await client.waitForTaskCompletion(fileId: fileId, maxWaitTime: 300)
+            
+            let downloadUrl: String
+            let fileSize: Int
+            
+            if let archive = fileResult.archive, let stemTrack = archive.stem_track, !stemTrack.isEmpty {
+                downloadUrl = stemTrack
+                fileSize = archive.stem_track_size ?? 0
+            } else if let split = fileResult.split, !split.back_track.isEmpty {
+                downloadUrl = split.back_track
+                fileSize = split.back_track_size
+            } else {
+                throw VoiceConversionError.serverError("No download URL available in result")
+            }
+            
+            // 변환된 음성 다운로드
+            let convertedAudioData = try await client.downloadAudioFile(from: downloadUrl)
+            
+            return convertedAudioData
+            
+        } catch {
+            print("❌ LALAL.AI Voice Change error: \(error)")
+            throw error
+        }
+    }
+    
+    // 크레딧이 부족할 때 자른 오디오로 음성 변환 (재귀 방지)
+    func performLalalAIVoiceChangeWithTrimmedAudio(
+        audioData: Data,
+        voiceId: String
+    ) async throws -> Data {
+        let client = LalalAIClient(apiKey: APIKeys.lalalAI)
+
+        do {
+            let filename = "trimmed_audio_\(Int(Date().timeIntervalSince1970)).mp3"
+            let uploadResponse = try await client.uploadFile(audioData: audioData, filename: filename)
+            
+            guard let fileId = uploadResponse.id else {
+                throw VoiceConversionError.serverError("Failed to get file ID from upload")
+            }
+            // 가수 음성 ID를 LALAL.AI voice pack으로 매핑
+            let lalalAIVoice = getLalalAIVoiceId(singerVoiceId: voiceId)
+            
+            let voiceChangeResponse = try await client.changeVoice(
+                fileId: fileId,
+                voice: lalalAIVoice,
+                accentEnhance: 1.0,      // 액센트 강화 활성화
+                pitchShifting: true,     // 피치 시프팅 활성화
+                dereverbEnabled: false   // 디리버브 비활성화
+            )
+            
+            guard let taskId = voiceChangeResponse.task_id else {
+                throw VoiceConversionError.serverError("Failed to get task ID from voice change")
+            }
+            
+            let fileResult = try await client.waitForTaskCompletion(fileId: fileId, maxWaitTime: 300)
+            
+            // archive 또는 split 결과에서 다운로드 URL 찾기
+            let downloadUrl: String
+            let fileSize: Int
+            
+            if let archive = fileResult.archive, let stemTrack = archive.stem_track, !stemTrack.isEmpty {
+                downloadUrl = stemTrack
+                fileSize = archive.stem_track_size ?? 0
+            } else if let split = fileResult.split, !split.back_track.isEmpty {
+                downloadUrl = split.back_track
+                fileSize = split.back_track_size
+            } else {
+                throw VoiceConversionError.serverError("No download URL available in result")
+            }
+            
+            let convertedAudioData = try await client.downloadAudioFile(from: downloadUrl)
+            
+            return convertedAudioData
+            
+        } catch {
+            print("❌ LALAL.AI Voice Change error for trimmed audio: \(error)")
+            throw error
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func getLalalAIVoiceId(singerVoiceId: String) -> String {
+        print("🎤 Getting LALAL.AI voice ID for singer: \(singerVoiceId)")
+        
+        // LALAL.AI에서 제공하는 Legal Voice Packs 매핑
+        let singerVoiceMapping: [String: String] = [
+            // Western Pop/Rap Artists 
+            "drake_singer": "ALEX_KAYE",           // Drake -> ALEX_KAYE (남성)
+            "bad_bunny_singer": "ALEX_KAYE",       // Bad Bunny -> ALEX_KAYE (남성)
+            "eminem_singer": "ALEX_KAYE",          // Eminem -> ALEX_KAYE (남성)
+            "kanye_west_singer": "ALEX_KAYE",      // Kanye West -> ALEX_KAYE (남성)
+            "21_savage_singer": "ALEX_KAYE",       // 21 Savage -> ALEX_KAYE (남성)
+            "morgan_wallen_singer": "ALEX_KAYE",   // Morgan Wallen -> ALEX_KAYE (남성)
+            "louis_armstrong_singer": "ALEX_KAYE", // Louis Armstrong -> ALEX_KAYE (남성)
+            "elvis_presley_singer": "ALEX_KAYE",   // Elvis Presley -> ALEX_KAYE (남성)
+            "frank_sinatra_singer": "ALEX_KAYE",   // Frank Sinatra -> ALEX_KAYE (남성)
+            
+            // Female Artists (여성 가수)
+            "lady_gaga_singer": "STASIA_FAYE",     // Lady Gaga -> STASIA_FAYE (여성)
+            "taylor_swift_singer": "STASIA_FAYE",  // Taylor Swift -> STASIA_FAYE (여성)
+            "beyonce_singer": "STASIA_FAYE",       // Beyoncé -> STASIA_FAYE (여성)
+            "adele_singer": "STASIA_FAYE",         // Adele -> STASIA_FAYE (여성)
+            
+            // K-Pop Artists (K-Pop 가수)
+            "bts_singer": "ALEX_KAYE",             // BTS -> ALEX_KAYE (남성 그룹)
+            "blackpink_singer": "STASIA_FAYE",     // BLACKPINK -> STASIA_FAYE (여성 그룹)
+            "twice_singer": "STASIA_FAYE",         // TWICE -> STASIA_FAYE (여성 그룹)
+            "exo_singer": "ALEX_KAYE",             // EXO -> ALEX_KAYE (남성 그룹)
+            
+            // 기본 음성들 (직접 매핑)
+            "ALEX_KAYE": "ALEX_KAYE",              // 남성 기본 음성
+            "STASIA_FAYE": "STASIA_FAYE",          // 여성 기본 음성
+            "NICOLAAS_HAAS": "NICOLAAS_HAAS",      // 남성 음성
+            "NIK_ZEL": "NIK_ZEL",                  // 남성 음성
+            "OLIA_CHEBO": "OLIA_CHEBO",            // 여성 음성
+            "YVAR_DE_GROOT": "YVAR_DE_GROOT",      // 남성 음성
+            "VETRANA": "VETRANA"                   // 여성 음성
+        ]
+        
+        // 지원되지 않는 가수는 기본 남성 음성 사용
+        let defaultVoice = "ALEX_KAYE"
+        
+        let voiceId = singerVoiceMapping[singerVoiceId] ?? defaultVoice
+        print("✅ Mapped singer \(singerVoiceId) -> LALAL.AI voice ID: \(voiceId)")
+        
+        return voiceId
+    }
+    
+    private func trimAudioToDuration(_ audioData: Data, duration: TimeInterval) async throws -> Data {
+        print("✂️ Trimming audio to \(duration) seconds")
+        
+        // Create temporary file
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_audio.mp3")
+        try audioData.write(to: tempURL)
+        
+        // Create asset
+        let asset = AVAsset(url: tempURL)
+        
+        // Create export session with MP3 preset
+        guard let exportSession = AVAssetExportSession(
+            asset: asset,
+            presetName: AVAssetExportPresetAppleM4A
+        ) else {
+            throw VoiceConversionError.invalidAudioData
+        }
+        
+        // Set output URL
+        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("trimmed_audio.m4a")
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .m4a
+        
+        // Set time range (0 to duration)
+        let startTime = CMTime.zero
+        let endTime = CMTime(seconds: duration, preferredTimescale: 600)
+        let timeRange = CMTimeRange(start: startTime, end: endTime)
+        exportSession.timeRange = timeRange
+        
+        // Export
+        await exportSession.export()
+        
+        // Check export status
+        guard exportSession.status == .completed else {
+            if let error = exportSession.error {
+                throw VoiceConversionError.serverError("Export failed: \(error.localizedDescription)")
+            } else {
+                throw VoiceConversionError.serverError("Export failed with unknown error")
+            }
+        }
+        
+        // Read trimmed audio data
+        let trimmedData = try Data(contentsOf: outputURL)
+        
+        // Clean up temporary files
+        try? FileManager.default.removeItem(at: tempURL)
+        try? FileManager.default.removeItem(at: outputURL)
+        
+        print("✅ Audio trimmed successfully")
+        print("   Original size: \(audioData.count) bytes")
+        print("   Trimmed size: \(trimmedData.count) bytes")
+        
+        return trimmedData
+    }
+}
+
+// MARK: - Audio Trimming Helper
+func trimAudioToDuration(_ audioData: Data, duration: TimeInterval) async throws -> Data {
+    print("✂️ Trimming audio to \(duration) seconds")
+    
+    // Create temporary file
+    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_audio.mp3")
+    try audioData.write(to: tempURL)
+    
+    // Create asset
+    let asset = AVAsset(url: tempURL)
+    
+    // Create export session with MP3 preset
+    guard let exportSession = AVAssetExportSession(
+        asset: asset,
+        presetName: AVAssetExportPresetAppleM4A
+    ) else {
+        throw VoiceConversionError.invalidAudioData
+    }
+    
+    // Set output URL
+    let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("trimmed_audio.m4a")
+    exportSession.outputURL = outputURL
+    exportSession.outputFileType = .m4a
+    
+    // Set time range (0 to duration)
+    let startTime = CMTime.zero
+    let endTime = CMTime(seconds: duration, preferredTimescale: 600)
+    let timeRange = CMTimeRange(start: startTime, end: endTime)
+    exportSession.timeRange = timeRange
+    
+    // Export
+    await exportSession.export()
+    
+    // Check export status
+    guard exportSession.status == .completed else {
+        if let error = exportSession.error {
+            throw VoiceConversionError.serverError("Export failed: \(error.localizedDescription)")
+        } else {
+            throw VoiceConversionError.serverError("Export failed with unknown error")
+        }
+    }
+    
+    // Read trimmed audio data
+    let trimmedData = try Data(contentsOf: outputURL)
+    
+    // Clean up temporary files
+    try? FileManager.default.removeItem(at: tempURL)
+    try? FileManager.default.removeItem(at: outputURL)
+    
+    print("✅ Audio trimmed successfully")
+    print("   Original size: \(audioData.count) bytes")
+    print("   Trimmed size: \(trimmedData.count) bytes")
+    
+    return trimmedData
+}
+
+// MARK: - LALAL.AI Errors
+enum LalalAIError: Error, LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case serverError(String)
+    case taskCancelled
+    case timeout
+    case unknownTaskState(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid URL"
+        case .invalidResponse:
+            return "Invalid response from server"
+        case .serverError(let message):
+            return "Server error: \(message)"
+        case .taskCancelled:
+            return "Task was cancelled"
+        case .timeout:
+            return "Task timed out"
+        case .unknownTaskState(let state):
+            return "Unknown task state: \(state)"
+        }
+    }
+}
 
 // MARK: - Voice Conversion Errors
 enum VoiceConversionError: LocalizedError {
     case serverError(String)
     case invalidAudioData
     case timeout
+    case lalalAIError(LalalAIError)
     
     var errorDescription: String? {
         switch self {
@@ -23,24 +542,162 @@ enum VoiceConversionError: LocalizedError {
             return "Invalid audio data received"
         case .timeout:
             return "Voice conversion timed out"
+        case .lalalAIError(let error):
+            return "LALAL.AI 오류: \(error.localizedDescription)"
+        }
+    }
+}
+
+
+
+// MARK: - LALAL.AI API Models
+struct LalalAIUploadResponse: Codable {
+    let status: String
+    let id: String?
+    let size: Int?
+    let duration: Double?
+    let expires: Int?
+    let error: String?
+}
+
+struct LalalAIVoiceChangeResponse: Codable {
+    let status: String
+    let id: String?
+    let task_id: String?
+    let error: String?
+}
+
+struct LalalAICheckResponse: Codable {
+    let status: String
+    let result: [String: AnyCodable]
+    let error: String?
+}
+
+struct LalalAIFileResult: Codable {
+    let status: String
+    let name: String?
+    let size: Int?
+    let duration: Double?
+    let splitter: String?
+    let stem: String?
+    let split: LalalAISplitResult?
+    let task: LalalAITaskInfo?
+    let archive: LalalAIArchiveResult?
+    let error: String?
+}
+
+struct LalalAIArchiveResult: Codable {
+    let duration: Double?
+    let stem: String?
+    let stem_track: String?
+    let stem_track_size: Int?
+    let back_track: String?
+    let back_track_size: Int?
+}
+
+struct LalalAISplitResult: Codable {
+    let duration: Double
+    let stem: String
+    let stem_track: String?
+    let stem_track_size: Int?
+    let back_track: String
+    let back_track_size: Int
+}
+
+struct LalalAITaskInfo: Codable {
+    let state: String
+    let error: String?
+    let progress: Int?
+}
+
+// MARK: - AnyCodable for flexible JSON parsing
+struct AnyCodable: Codable {
+    let value: Any
+    
+    init(_ value: Any) {
+        self.value = value
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        
+        if container.decodeNil() {
+            self.value = NSNull()
+        } else if let bool = try? container.decode(Bool.self) {
+            self.value = bool
+        } else if let int = try? container.decode(Int.self) {
+            self.value = int
+        } else if let uint = try? container.decode(UInt.self) {
+            self.value = uint
+        } else if let double = try? container.decode(Double.self) {
+            self.value = double
+        } else if let string = try? container.decode(String.self) {
+            self.value = string
+        } else if let array = try? container.decode([AnyCodable].self) {
+            self.value = array.map { $0.value }
+        } else if let dictionary = try? container.decode([String: AnyCodable].self) {
+            self.value = dictionary.mapValues { $0.value }
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "AnyCodable cannot decode value")
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        
+        switch self.value {
+        case is NSNull:
+            try container.encodeNil()
+        case let bool as Bool:
+            try container.encode(bool)
+        case let int as Int:
+            try container.encode(int)
+        case let uint as UInt:
+            try container.encode(uint)
+        case let double as Double:
+            try container.encode(double)
+        case let string as String:
+            try container.encode(string)
+        case let array as [Any]:
+            try container.encode(array.map { AnyCodable($0) })
+        case let dictionary as [String: Any]:
+            try container.encode(dictionary.mapValues { AnyCodable($0) })
+        default:
+            let context = EncodingError.Context(codingPath: container.codingPath, debugDescription: "AnyCodable cannot encode value")
+            throw EncodingError.invalidValue(self.value, context)
         }
     }
 }
 
 // MARK: - Voice Conversion Models
+
 struct VoiceInfo: Codable, Identifiable {
     let id: String
     let name: String
     let category: String
     let description: String?
     let previewUrl: String?
+    let language: [String]?
+    let voiceType: String? // "default", "singer", "custom"
+    
+    init(id: String, name: String, category: String, description: String?, previewUrl: String?, language: [String]? = nil, voiceType: String? = nil) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.description = description
+        self.previewUrl = previewUrl
+        self.language = language
+        self.voiceType = voiceType
+    }
     
     enum CodingKeys: String, CodingKey {
-        case id // Supertone API는 id 그대로 반환
+        case id = "voiceId"
         case name
         case category
         case description
         case previewUrl = "preview_url"
+        case language
+        case voiceType
     }
 }
 
@@ -144,15 +801,12 @@ struct RemixAIToggle: View {
             let circleOffset = isAIVersion ? width - circleSize - 4 : 4
             
             ZStack {
-                // Background
                 RoundedRectangle(cornerRadius: height / 2)
                     .fill(Color.white.opacity(0.1))
                     .overlay(
                         RoundedRectangle(cornerRadius: height / 2)
                             .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
-                
-                // Sliding circle
                 Circle()
                     .fill(
                         LinearGradient(
@@ -164,8 +818,6 @@ struct RemixAIToggle: View {
                     .frame(width: circleSize, height: circleSize)
                     .offset(x: circleOffset - width / 2 + circleSize / 2)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isAIVersion)
-                
-                // Labels
                 HStack {
                     Text("REMIX")
                         .font(.system(size: 12, weight: .semibold))
@@ -191,14 +843,12 @@ struct RemixAIToggle: View {
     }
 }
 
-// MARK: - Artist Model
 struct Artist {
     let id: UUID = UUID()
     let name: String
-    let imageName: String // asset name or URL
+    let imageName: String 
 }
 
-// MARK: - Main Player View
 @MainActor
 struct PlayerView: View {
     let store: Store<PlayerReducer.State, PlayerReducer.Action>
@@ -220,14 +870,12 @@ struct PlayerView: View {
         Artist(name: "Rihanna", imageName: "artist_rihanna")
     ]
     
-    // === IMSLP/AI Remix 관련 상태 ===
-    @State private var showIMSLPList = false // 더 이상 사용하지 않음
+    @State private var showIMSLPList = false 
     @State private var isRemixing = false
     @State private var remixedAudioURL: URL? = nil
     @State private var isAIVersion: Bool = false
     @State private var showNoMatchAlert = false
     
-    // Voice conversion states
     @State private var isVoiceConverting = false
     @State private var showVoiceSelectionSheet = false
     @State private var availableVoices: [VoiceInfo] = []
@@ -263,7 +911,6 @@ struct PlayerView: View {
     var body: some View {
         WithViewStore(self.store, observe: ViewState.init) { viewStore in
             ZStack {
-                // Figma background: solid #63477C + linear gradient (20% opacity)
                 Color(hex: "#63477C")
                     .ignoresSafeArea()
                 LinearGradient(
@@ -401,7 +1048,6 @@ struct PlayerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 18)
                     
-                    // === AI 버전/Remix/Voice Conversion 토글 ===
                     VStack(spacing: 12) {
                         HStack(spacing: 18) {
                             Button(action: {
@@ -416,13 +1062,19 @@ struct PlayerView: View {
                                             isRemixing = false
                                             switch result {
                                             case .success(let url):
-                                                Task {
-                                                    do {
-                                                        try await AudioManager.shared.playAIMusic(from: url.absoluteString, title: demoTrack.title, artist: demoTrack.artist)
-                                                    } catch {
-                                                        print("AI 변환 곡 재생 실패: \(error)")
-                                                    }
-                                                }
+                                                // 변환된 AI 트랙을 PlayerReducer로 흘려 MiniPlayer/컨트롤 상태 일관화
+                                                let track = PlayableTrackDTO(
+                                                    id: UUID(),
+                                                    title: demoTrack.title,
+                                                    artistName: demoTrack.artist,
+                                                    playbackUrl: nil,
+                                                    playbackStoreID: nil,
+                                                    isAIGenerated: true,
+                                                    duration: nil,
+                                                    fileUrl: url.absoluteString,
+                                                    artworkURL: nil
+                                                )
+                                                viewStore.send(.startPlayback([track]))
                                             case .failure(let error):
                                                 print("AI 변환 실패: \(error)")
                                             }
@@ -452,7 +1104,6 @@ struct PlayerView: View {
                             .disabled(!viewStore.isAIMusicEnabled)
                             .opacity(viewStore.isAIMusicEnabled ? 1 : 0.4)
                             
-                            // Voice Conversion Button
                             Button(action: {
                                 Task {
                                     await loadAvailableVoices()
@@ -474,12 +1125,12 @@ struct PlayerView: View {
                                 )
                             }
                         }
-                        
-                        RemixAIToggle(isAIVersion: Binding(
-                            get: { viewStore.isAIMusicEnabled },
-                            set: { newValue in viewStore.send(.toggleAIMusic(newValue)) }
-                        ))
-                        .frame(width: 180)
+                       // TODO: remix & ai 토글 디자인 
+                        // RemixAIToggle(isAIVersion: Binding(
+                        //     get: { viewStore.isAIMusicEnabled },
+                        //     set: { newValue in viewStore.send(.toggleAIMusic(newValue)) }
+                        // ))
+                        // .frame(width: 180)
                     }
                     .padding(.bottom, 28)
                     
@@ -494,7 +1145,6 @@ struct PlayerView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)
                 
-                // === AI 변환 중 ProgressView ===
                 if isRemixing {
                     ProgressView("AI 변환/리믹스 중...")
                         .padding()
@@ -503,7 +1153,6 @@ struct PlayerView: View {
                         .zIndex(100)
                 }
                 
-                // === Voice Conversion 중 ProgressView ===
                 if isVoiceConverting {
                     VStack(spacing: 12) {
                         ProgressView()
@@ -536,19 +1185,16 @@ struct PlayerView: View {
             }) {
                 let playlists = ViewStore(libraryStore, observe: { $0.playlists }).state
                 if let track = viewStore.currentTrack {
-                    // PlaylistSelectSheet implementation would go here
                 }
             }
             .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {
                 Button("확인", role: .cancel) { showAddSuccess = false }
             }
             
-            // === 매칭 실패 Alert ===
             .alert("퍼블릭 도메인 곡을 찾을 수 없습니다.", isPresented: $showNoMatchAlert) {
                 Button("확인", role: .cancel) { showNoMatchAlert = false }
             }
             
-            // === Voice Conversion Error Alert ===
             .alert("음성 변환 실패", isPresented: $showVoiceConversionError) {
                 Button("확인", role: .cancel) { showVoiceConversionError = false }
             } message: {
@@ -575,7 +1221,6 @@ struct PlayerView: View {
                         user: nil
                     ),
                     onAdd: { _ in
-                        // Handle adding current track to playlist
                         isAddToPlaylistSheetPresented = false
                     }
                 )
@@ -605,7 +1250,6 @@ struct PlayerView: View {
         }
     }
     
-    // MARK: - Helper Functions
     private func formatTime(_ time: Double) -> String {
         guard time.isFinite else { return "00:00" }
         let minutes = Int(time) / 60
@@ -613,12 +1257,11 @@ struct PlayerView: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
     
-    // === Demo Tracks Section ===
     struct LocalDemoTrack: Identifiable, Equatable {
         let id = UUID()
         let title: String
         let artist: String
-        let fileName: String // 번들 내 파일명
+        let fileName: String 
     }
     
     let demoTracks: [LocalDemoTrack] = [
@@ -626,7 +1269,6 @@ struct PlayerView: View {
         LocalDemoTrack(title: "Feels Like Falling In Love", artist: "Coldplay", fileName: "feelslikefallinginlove.mp3")
     ]
     
-    // MARK: - Helper Functions (Outside PlayerView)
     func remixDemoTrack(_ track: LocalDemoTrack, completion: @escaping (Result<URL, Error>) -> Void) {
         if let fileURL = Bundle.main.url(forResource: track.fileName, withExtension: nil) {
             uploadFileToAIConvert(fileURL: fileURL, completion: completion)
@@ -636,216 +1278,69 @@ struct PlayerView: View {
     }
     
     func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-        let url = URL(string: "\(Endpoints.baseURL)/ai-convert/remix")! // AI 변환 엔드포인트
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-
-        let boundary = "Boundary-\(UUID().uuidString)"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-
-        var data = Data()
-        let filename = fileURL.lastPathComponent
-        let mimetype = "audio/mpeg" // mp3 등 실제 파일 타입에 맞게
-
-        guard let fileData = try? Data(contentsOf: fileURL) else {
-            completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "파일을 읽을 수 없습니다."])))
-            return
-        }
-
-        data.append("--\(boundary)\r\n".data(using: .utf8)!)
-        data.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        data.append("Content-Type: \(mimetype)\r\n\r\n".data(using: .utf8)!)
-        data.append(fileData)
-        data.append("\r\n".data(using: .utf8)!)
-        data.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-        let task = URLSession.shared.uploadTask(with: request, from: data) { responseData, response, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-            guard let responseData = responseData else {
-                completion(.failure(NSError(domain: "NoData", code: 0, userInfo: nil)))
-                return
-            }
-            // 임시 파일로 저장
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
+        // LALAL.AI 직접 호출 (기본 남성 음성 ALEX_KAYE 사용)
+        Task {
             do {
-                try responseData.write(to: tempURL)
-                completion(.success(tempURL))
+                let audioData = try Data(contentsOf: fileURL)
+                let convertedAudioData = try await voiceConversionService.performLalalAIVoiceChange(
+                    audioData: audioData,
+                    voiceId: "ALEX_KAYE"
+                )
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
+                try convertedAudioData.write(to: tempURL)
+                await MainActor.run { completion(.success(tempURL)) }
             } catch {
-                completion(.failure(error))
+                await MainActor.run { completion(.failure(error)) }
             }
         }
-        task.resume()
     }
     
     @MainActor
     private func loadAvailableVoices() async {
-        do {
-            guard let url = URL(string: Endpoints.VoiceConversion.list) else {
-                throw URLError(.badURL)
-            }
-            
-            print("🎤 Loading available voices from: \(url)")
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.badServerResponse)
-            }
-            
-            print("📡 Voice list response:")
-            print("   Status code: \(httpResponse.statusCode)")
-            print("   Response size: \(data.count) bytes")
-            
-            if let responseString = String(data: data, encoding: .utf8) {
-                print("   Response body: \(responseString)")
-            }
-            
-            guard (200...299).contains(httpResponse.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
-            
-            // 서버 응답을 직접 파싱하여 VoiceInfo 배열로 변환
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let voicesArray = json["voices"] as? [[String: Any]] {
-                    // 서버에서 voices 배열로 반환하는 경우
-                    availableVoices = voicesArray.compactMap { voiceDict in
-                        guard let voiceId = voiceDict["voiceId"] as? String,
-                              let name = voiceDict["name"] as? String,
-                              let language = voiceDict["language"] as? [String],
-                              let description = voiceDict["description"] as? String else {
-                            return nil
-                        }
-                        
-                        return VoiceInfo(
-                            id: voiceId,
-                            name: name,
-                            category: language.first ?? "en",
-                            description: description,
-                            previewUrl: nil
-                        )
-                    }
-                    
-                    print("✅ Loaded \(availableVoices.count) voices successfully from voices array")
-                } else if let availableVoicesArray = json["available_voices"] as? [String] {
-                    // 기존 SeedVC API 형식
-                    availableVoices = availableVoicesArray.map { voiceId in
-                        VoiceInfo(
-                            id: voiceId,
-                            name: voiceId.replacingOccurrences(of: "-", with: " ").capitalized,
-                            category: "SeedVC",
-                            description: "Voice ID: \(voiceId)",
-                            previewUrl: nil
-                        )
-                    }
-                    
-                    print("✅ Loaded \(availableVoices.count) voices successfully from available_voices array")
-                } else {
-                    throw URLError(.cannotParseResponse)
-                }
-            } else {
-                throw URLError(.cannotParseResponse)
-            }
-            
-        } catch {
-            print("❌ Failed to load voices: \(error)")
-            voiceConversionErrorMessage = "음성 목록을 불러오는데 실패했습니다: \(error.localizedDescription)"
-            showVoiceConversionError = true
-        }
+        // LALAL.AI Legal Voice Packs (iOS 로컬 목록)
+        availableVoices = [
+            VoiceInfo(id: "ALEX_KAYE",     name: "Alex Kaye",     category: "Default", description: "남성 기본 음성", previewUrl: nil, language: ["en"], voiceType: "default"),
+            VoiceInfo(id: "STASIA_FAYE",   name: "Stasia Faye",   category: "Default", description: "여성 기본 음성", previewUrl: nil, language: ["en"], voiceType: "default"),
+            VoiceInfo(id: "NICOLAAS_HAAS", name: "Nicolaas Haas", category: "Default", description: "남성 음성",     previewUrl: nil, language: ["en"], voiceType: "default"),
+            VoiceInfo(id: "NIK_ZEL",       name: "Nik Zel",       category: "Default", description: "남성 음성",     previewUrl: nil, language: ["en"], voiceType: "default"),
+            VoiceInfo(id: "YVAR_DE_GROOT", name: "Yvar De Groot", category: "Default", description: "남성 음성",     previewUrl: nil, language: ["en"], voiceType: "default"),
+            VoiceInfo(id: "OLIA_CHEBO",    name: "Olia Chebo",    category: "Default", description: "여성 음성",     previewUrl: nil, language: ["en"], voiceType: "default"),
+            VoiceInfo(id: "VETRANA",       name: "Vetrana",       category: "Default", description: "여성 음성",     previewUrl: nil, language: ["en"], voiceType: "default")
+        ]
+        print("✅ Loaded \(availableVoices.count) local LALAL.AI voice packs")
     }
     
-    // MARK: - Voice Conversion Functions
-    private func loadVoices() {
-        Task {
-            do {
-                let url = URL(string: "http://192.168.99.77:8081/ai-convert/voices")!
-                let (data, response) = try await URLSession.shared.data(from: url)
-                
-                guard let httpResponse = response as? HTTPURLResponse,
-                      httpResponse.statusCode == 200 else {
-                    print("❌ Failed to load voices")
-                    return
-                }
-                
-                // Parse the response
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let voicesArray = json["voices"] as? [[String: Any]] {
-                    
-                    let voices = voicesArray.compactMap { voiceDict -> VoiceInfo? in
-                        guard let voiceId = voiceDict["voiceId"] as? String,
-                              let name = voiceDict["name"] as? String,
-                              let language = voiceDict["language"] as? [String],
-                              let description = voiceDict["description"] as? String else {
-                            return nil
-                        }
-                        
-                        return VoiceInfo(
-                            id: voiceId,
-                            name: name,
-                            category: language.first ?? "en",
-                            description: description,
-                            previewUrl: nil
-                        )
-                    }
-                    
-                    await MainActor.run {
-                        self.availableVoices = voices
-                        print("✅ Loaded \(voices.count) voices from Vapor server")
-                    }
-                }
-            } catch {
-                print("❌ Error loading voices: \(error)")
-            }
-        }
-    }
-    
-    private func performVoiceConversion(with voice: VoiceInfo) {
-        let currentTrack = audioManager.currentTrackMetadata
-        guard currentTrack.title != nil || currentTrack.artist != nil else {
+    private func performVoiceConversion(with voice: VoiceInfo, shouldTrim: Bool = false, trimDuration: Double = 120.0) {
+        // PlayerReducer 상태(selected track) 우선, AudioManager 메타는 보조
+        let reducerTrack = ViewStore(store, observe: { $0.currentTrack }).state
+        let audioMeta = audioManager.currentTrackMetadata
+        let resolvedTitle = reducerTrack?.title ?? audioMeta.title
+        let resolvedArtist = reducerTrack?.artistName ?? audioMeta.artist
+
+        guard resolvedTitle != nil || resolvedArtist != nil else {
             showVoiceConversionError = true
             voiceConversionErrorMessage = "현재 재생 중인 트랙이 없습니다."
             return
         }
-        
+
         isVoiceConverting = true
-        
+
         Task {
             do {
-                // Get the current audio file URL
-                let audioURL: URL
-                if let currentURL = audioManager.currentAudioURL {
-                    audioURL = currentURL
-                } else {
-                    // Fallback to demo file if no current audio URL
-                    guard let demoURL = Bundle.main.url(forResource: "fixyou", withExtension: "mp3") else {
-                        throw VoiceConversionError.invalidAudioData
-                    }
-                    audioURL = demoURL
-                }
+                let audioData: Data = try await resolveAudioData(reducerTrack: reducerTrack, title: resolvedTitle)
                 
-                // Load audio data
-                let audioData = try Data(contentsOf: audioURL)
-                
-                // Trim audio to 1 minute for "Fix You" track
                 let trimmedAudioData: Data
-                if currentTrack.title?.contains("Fix You") == true {
-                    print("✂️ Trimming Fix You track to 1 minute")
-                    trimmedAudioData = try await trimAudioToDuration(audioData, duration: 60.0)
+                if shouldTrim {
+                    trimmedAudioData = try await trimAudioToDuration(audioData, duration: trimDuration)
                 } else {
                     trimmedAudioData = audioData
+                    print("🎵 Using full audio data for voice conversion (\(audioData.count) bytes)")
                 }
                 
-                // Perform voice conversion
-                let convertedAudioData = try await performVaporServerVoiceConversion(
+                let convertedAudioData = try await performDirectLalalAIVoiceConversion(
                     audioData: trimmedAudioData,
                     voiceId: voice.id,
-                    originalTitle: currentTrack.title ?? "Unknown Track"
+                    voiceType: voice.voiceType
                 )
                 
                 // Save converted audio
@@ -855,26 +1350,27 @@ struct PlayerView: View {
                 
                 try convertedAudioData.write(to: fileURL)
                 
-                print("✅ Voice conversion successful, saved to: \(fileURL)")
-                print("File size: \(convertedAudioData.count) bytes")
-                print("File exists: \(FileManager.default.fileExists(atPath: fileURL.path))")
+                // print("✅ Voice conversion successful, saved to: \(fileURL)")
                 
-                // Get audio duration
                 let asset = AVAsset(url: fileURL)
                 let duration = try await asset.load(.duration)
                 let durationSeconds = CMTimeGetSeconds(duration)
-                print("Audio duration: \(durationSeconds) seconds")
-                
-                // Update audio manager with converted track
+
                 await MainActor.run {
-                    Task {
-                        try await audioManager.playAIMusic(
-                            from: fileURL.path,
-                            title: "\(currentTrack.title ?? "Unknown") (Voice: \(voice.name))",
-                            artist: currentTrack.artist ?? "Unknown Artist"
-                        )
-                    }
-                    
+                    // PlayerReducer를 통해 재생 (playerState 유지 → MiniPlayer 표시됨)
+                    let track = PlayableTrackDTO(
+                        id: UUID(),
+                        title: "\(resolvedTitle ?? "Unknown") (Voice: \(voice.name))",
+                        artistName: resolvedArtist ?? "Unknown Artist",
+                        playbackUrl: nil,
+                        playbackStoreID: nil,
+                        isAIGenerated: true,
+                        duration: durationSeconds.isFinite ? durationSeconds : nil,
+                        fileUrl: fileURL.path,
+                        artworkURL: nil
+                    )
+                    store.send(.startPlayback([track]))
+
                     isVoiceConverting = false
                 }
                 
@@ -889,159 +1385,75 @@ struct PlayerView: View {
         }
     }
     
-    private func performVaporServerVoiceConversion(
+    private func performDirectLalalAIVoiceConversion(
         audioData: Data,
         voiceId: String,
-        originalTitle: String
+        voiceType: String?
     ) async throws -> Data {
-        print("🎵 Starting voice conversion with Vapor server")
-        print("Voice ID: \(voiceId)")
-        print("Audio data size: \(audioData.count) bytes")
-        
-        let url = URL(string: "http://192.168.99.77:8081/ai-convert/voice-conversion")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 1800 // 30 minutes
-        
-        // Configure URLSession with longer timeouts
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 1800 // 30 minutes
-        config.timeoutIntervalForResource = 3600 // 60 minutes
-        let session = URLSession(configuration: config)
-        
-        // Create multipart form data
-        let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        var body = Data()
-        
-        // Add audio file
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"source_audio\"; filename=\"\(originalTitle).mp3\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/mpeg\r\n\r\n".data(using: .utf8)!)
-        body.append(audioData)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // Add voice ID
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"voiceId\"\r\n\r\n".data(using: .utf8)!)
-        body.append(voiceId.data(using: .utf8)!)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // Add language
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
-        body.append("en".data(using: .utf8)!)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // Add output format
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"outputFormat\"\r\n\r\n".data(using: .utf8)!)
-        body.append("mp3".data(using: .utf8)!)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // Add use separation
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"useSeparation\"\r\n\r\n".data(using: .utf8)!)
-        body.append("true".data(using: .utf8)!)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // End boundary
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        request.httpBody = body
-        
-        print("⏱️ Voice conversion may take up to 30 minutes. Please wait...")
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw VoiceConversionError.serverError("Invalid response")
+        let isSingerVoice = voiceId.contains("_singer") || voiceType == "singer"
+
+        if isSingerVoice {
+            return try await voiceConversionService.performLalalAIVoiceChange(audioData: audioData, voiceId: voiceId)
+        } else {
+            return try await voiceConversionService.performLalalAIVoiceChange(audioData: audioData, voiceId: voiceId)
         }
-        
-        print("🔍 Voice conversion response: Status code: \(httpResponse.statusCode)")
-        print("Content-Type: \(httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown")")
-        print("Response size: \(data.count) bytes")
-        print("Response headers: \(httpResponse.allHeaderFields)")
-        
-        // Check if response is JSON (error) or audio data
-        if let responseString = String(data: data, encoding: .utf8),
-           responseString.hasPrefix("{") {
-            // This is a JSON error response
-            print("First 10 bytes: \(Array(data.prefix(10)))")
-            
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                print("JSON response keys: \(json.keys)")
-                if let error = json["error"] as? String {
-                    throw VoiceConversionError.serverError(error)
-                } else if let success = json["success"] as? Bool, !success {
-                    throw VoiceConversionError.serverError("Voice conversion failed")
-                }
-            }
-            throw VoiceConversionError.invalidAudioData
-        }
-        
-        // This is audio data
-        guard httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 else {
-            throw VoiceConversionError.serverError("HTTP \(httpResponse.statusCode)")
-        }
-        
-        return data
     }
-    
-    private func trimAudioToDuration(_ audioData: Data, duration: TimeInterval) async throws -> Data {
-        print("✂️ Trimming audio to \(duration) seconds")
-        
-        // Create temporary file
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_audio.mp3")
-        try audioData.write(to: tempURL)
-        
-        // Create asset
-        let asset = AVAsset(url: tempURL)
-        
-        // Create export session with MP3 preset
-        guard let exportSession = AVAssetExportSession(
-            asset: asset,
-            presetName: AVAssetExportPresetAppleM4A
-        ) else {
-            throw VoiceConversionError.invalidAudioData
+
+    /// Resolve audio Data for voice conversion.
+    /// Order: currently-playing AVPlayer URL → AI track fileUrl → Apple Music preview (via playbackStoreID or title search) → bundled demo.
+    private func resolveAudioData(reducerTrack: PlayableTrackDTO?, title: String?) async throws -> Data {
+        // 1. Currently playing via AudioManager
+        if let currentURL = audioManager.currentAudioURL {
+            print("🎵 VoiceConversion: using currentAudioURL=\(currentURL)")
+            return try Data(contentsOf: currentURL)
         }
-        
-        // Set output URL
-        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("trimmed_audio.m4a")
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .m4a
-        
-        // Set time range (0 to duration)
-        let startTime = CMTime.zero
-        let endTime = CMTime(seconds: duration, preferredTimescale: 600)
-        exportSession.timeRange = CMTimeRange(start: startTime, end: endTime)
-        
-        // Export
-        await exportSession.export()
-        
-        // Check result
-        guard exportSession.status == .completed else {
-            print("❌ Export failed with status: \(exportSession.status.rawValue)")
-            if let error = exportSession.error {
-                print("Export error: \(error)")
+
+        // 2. AI track local fileUrl
+        if let track = reducerTrack, track.isAIGenerated, let fileUrlString = track.fileUrl {
+            let url: URL? = {
+                if fileUrlString.hasPrefix("file://") { return URL(string: fileUrlString) }
+                if fileUrlString.hasPrefix("/") { return URL(fileURLWithPath: fileUrlString) }
+                return URL(string: fileUrlString)
+            }()
+            if let url = url {
+                print("🎵 VoiceConversion: using AI track fileUrl=\(url)")
+                return try Data(contentsOf: url)
             }
-            throw VoiceConversionError.invalidAudioData
         }
-        
-        // Read trimmed data
-        let trimmedData = try Data(contentsOf: outputURL)
-        
-        // Clean up
-        try? FileManager.default.removeItem(at: tempURL)
-        try? FileManager.default.removeItem(at: outputURL)
-        
-        print("✅ Audio trimmed successfully: \(trimmedData.count) bytes")
-        return trimmedData
+
+        // 3. Apple Music preview via MusicKit
+        if let previewURL = try await fetchApplePreviewURL(reducerTrack: reducerTrack, fallbackTitle: title) {
+            print("🎵 VoiceConversion: downloading Apple Music preview=\(previewURL)")
+            let (data, _) = try await URLSession.shared.data(from: previewURL)
+            return data
+        }
+
+        // 4. Last resort: bundled demo sample
+        if let demoURL = Bundle.main.url(forResource: "fixyou", withExtension: "mp3") {
+            print("⚠️ VoiceConversion: falling back to bundled demo sample")
+            return try Data(contentsOf: demoURL)
+        }
+
+        throw VoiceConversionError.invalidAudioData
+    }
+
+    private func fetchApplePreviewURL(reducerTrack: PlayableTrackDTO?, fallbackTitle: String?) async throws -> URL? {
+        let song: MusicKit.Song?
+        if let storeID = reducerTrack?.playbackStoreID, !storeID.isEmpty {
+            let request = MusicCatalogResourceRequest<MusicKit.Song>(matching: \.id, equalTo: MusicItemID(storeID))
+            let response = try await request.response()
+            song = response.items.first
+        } else if let searchTerm = fallbackTitle, !searchTerm.isEmpty {
+            let request = MusicCatalogSearchRequest(term: searchTerm, types: [MusicKit.Song.self])
+            let response = try await request.response()
+            song = response.songs.first
+        } else {
+            song = nil
+        }
+        return song?.previewAssets?.first?.url
     }
 }
 
-// MARK: - Voice Selection Sheet
 struct VoiceSelectionSheet: View {
     let voices: [VoiceInfo]
     let onVoiceSelected: (VoiceInfo) -> Void
@@ -1055,8 +1467,15 @@ struct VoiceSelectionSheet: View {
         } else {
             return voices.filter { voice in
                 voice.name.localizedCaseInsensitiveContains(searchText) ||
-                voice.description?.localizedCaseInsensitiveContains(searchText) == true
+                voice.description?.localizedCaseInsensitiveContains(searchText) == true ||
+                voice.category.localizedCaseInsensitiveContains(searchText)
             }
+        }
+    }
+    
+    var groupedVoices: [String: [VoiceInfo]] {
+        Dictionary(grouping: filteredVoices) { voice in
+            voice.category
         }
     }
     
@@ -1066,7 +1485,6 @@ struct VoiceSelectionSheet: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // Header
                 HStack {
                     Text("음성 선택")
                         .font(.system(size: 24, weight: .bold))
@@ -1083,7 +1501,6 @@ struct VoiceSelectionSheet: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
                 
-                // Search bar
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.white.opacity(0.7))
@@ -1097,12 +1514,20 @@ struct VoiceSelectionSheet: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
                 
-                // Voice list
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(filteredVoices) { voice in
-                            VoiceRowView(voice: voice) {
-                                onVoiceSelected(voice)
+                    LazyVStack(spacing: 16) {
+                        ForEach(Array(groupedVoices.keys.sorted()), id: \.self) { category in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(category)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .padding(.horizontal, 24)
+                                
+                                ForEach(groupedVoices[category] ?? [], id: \.id) { voice in
+                                    VoiceRowView(voice: voice) {
+                                        onVoiceSelected(voice)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1135,7 +1560,6 @@ struct VoiceRowView: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 16) {
-                // Voice icon
                 ZStack {
                     Circle()
                         .fill(Color.purple.opacity(0.3))
@@ -1151,6 +1575,11 @@ struct VoiceRowView: View {
                         Text(voice.name)
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
+                        
+                        if let voiceType = voice.voiceType {
+                            Text(voiceType == "singer" ? "🎤" : "🎵")
+                                .font(.system(size: 14))
+                        }
                     }
                     
                     if let description = voice.description {
@@ -1160,9 +1589,17 @@ struct VoiceRowView: View {
                             .lineLimit(2)
                     }
                     
-                    Text(voice.category)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.5))
+                    HStack {
+                        Text(voice.category)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.5))
+                        
+                        if let language = voice.language, !language.isEmpty {
+                            Text("• \(language.joined(separator: ", "))")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                    }
                 }
                 
                 Spacer()

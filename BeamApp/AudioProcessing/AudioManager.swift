@@ -137,6 +137,46 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             self?.handlePlaybackStateChange()
         }
         musicPlayerController.beginGeneratingPlaybackNotifications()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc private func handleAudioInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            if isPlayingAIMusic {
+                avPlayer?.pause()
+            } else {
+                musicPlayerController.pause()
+            }
+            isPlayingMusic = false
+
+        case .ended:
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            if options.contains(.shouldResume) {
+                if isPlayingAIMusic {
+                    avPlayer?.play()
+                } else {
+                    musicPlayerController.play()
+                }
+                isPlayingMusic = true
+            }
+
+        @unknown default:
+            break
+        }
     }
     
     private func handlePlaybackStateChange() {
@@ -225,45 +265,37 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAppleMusicTrack(title: String?, storeID: String?) async throws {
-        try await stop()
-        
+        // Apple Music 카탈로그 전체 재생은 구독이 필요하므로,
+        // MusicKit에서 30초 프리뷰 URL을 받아 AVPlayer로 폴백 재생한다.
         do {
-            // Ensure audio session is active with proper error handling
-            let audioSession = AVAudioSession.sharedInstance()
-            do {
-                try audioSession.setCategory(.playback, mode: .default, options: [])
-                try audioSession.setActive(true)
-            } catch {
-                print("⚠️ AudioManager: Audio session activation failed for Apple Music, trying alternative approach: \(error)")
-                try audioSession.setActive(true, options: [])
-            }
-            
+            let song: MusicKit.Song
             if let storeID = storeID {
-                musicPlayerController.setQueue(with: [storeID])
-                try await musicPlayerController.prepareToPlay()
-                try await musicPlayerController.play()
+                let request = MusicCatalogResourceRequest<MusicKit.Song>(matching: \.id, equalTo: MusicItemID(storeID))
+                let response = try await request.response()
+                guard let found = response.items.first else {
+                    throw PlayerError.trackNotFound(title ?? storeID)
+                }
+                song = found
             } else if let title = title {
                 let request = MusicCatalogSearchRequest(term: title, types: [MusicKit.Song.self])
                 let response = try await request.response()
-                
-                if let song = response.songs.first {
-                    musicPlayerController.setQueue(with: [song.id.rawValue])
-                    try await musicPlayerController.prepareToPlay()
-                    try await musicPlayerController.play()
-                } else {
+                guard let found = response.songs.first else {
                     throw PlayerError.trackNotFound(title)
                 }
+                song = found
             } else {
                 throw PlayerError.invalidTrackTitle
             }
-            
-            musicPlayerController.play()
-            isPlayingMusic = true
-            isPlayingAIMusic = false
+
+            guard let previewURL = song.previewAssets?.first?.url else {
+                throw PlayerError.playbackError("No preview available for '\(song.title)'")
+            }
+
+            print("🎵 AudioManager: Playing 30s preview for '\(song.title)' by \(song.artistName)")
+            try await playAIMusic(from: previewURL.absoluteString, title: song.title, artist: song.artistName)
+            await updateTrackMetadata(song: song)
         } catch {
-            isPlayingMusic = false
-            isPlayingAIMusic = false
-            print("AudioManager Error: Failed to play Apple Music track: \(error)")
+            print("AudioManager Error: Failed to play Apple Music preview: \(error)")
             throw error
         }
     }
@@ -393,6 +425,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
                 self.currentTime = time.seconds
             }
             
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(playerItemDidReachEnd),
@@ -593,6 +626,8 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             NotificationCenter.default.removeObserver(observer)
             playbackStateObserver = nil
         }
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
         removeAVPlayerObservers()
         removePeriodicTimeObserver()
 

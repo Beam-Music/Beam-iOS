@@ -483,6 +483,7 @@ struct PlayerReducer {
             case .loadAIPreference:
                 return .none
             case .audioDidFinish:
+                state.isTransitioning = false
                 return .none
 
             case .nextTrackResponse(_):
