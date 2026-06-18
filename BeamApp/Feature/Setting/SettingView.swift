@@ -12,6 +12,13 @@ struct SettingsView: View {
     let store: StoreOf<AppReducer>
     @Binding var isLoggedIn: Bool
     @State private var showDeleteAlert = false
+    @State private var isEditingNickname = false
+    @State private var nickname = ""
+    @State private var isSavingNickname = false
+    @State private var nicknameErrorMessage = ""
+    @State private var showNicknameError = false
+    @State private var toastMessage = ""
+    @State private var showToast = false
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
@@ -54,28 +61,106 @@ struct SettingsView: View {
                             .foregroundColor(.white.opacity(0.7))
                             .padding(.top, 40)
                     }
-                    Text(viewStore.userProfile?.username ?? "닉네임 없음")
-                        .font(.title2.bold())
-                        .foregroundColor(.white)
+                    if isEditingNickname {
+                        VStack(spacing: 10) {
+                            TextField("새 닉네임을 입력해 주세요", text: $nickname)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(.system(size: 16, weight: .medium))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(Color.white.opacity(0.14))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 14)
+                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                                .foregroundColor(.white)
+                                .tint(.white)
+
+                            HStack(spacing: 10) {
+                                Button("취소") {
+                                    nickname = viewStore.userProfile?.username ?? ""
+                                    isEditingNickname = false
+                                }
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.9))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Capsule())
+
+                                Button(action: {
+                                    Task {
+                                        await updateNickname(viewStore: viewStore)
+                                    }
+                                }) {
+                                    if isSavingNickname {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        Text("저장")
+                                    }
+                                }
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.18))
+                                .clipShape(Capsule())
+                                .disabled(isSavingNickname)
+                            }
+                        }
                         .padding(.top, 12)
-                    Button(action: {
-                        isLoggedIn = false
-                    }) {
-                        Text("Log out")
-                            .padding()
-                            .background(Color.red)
-                            .foregroundColor(.primaryBackground)
-                            .cornerRadius(10)
-                    }
-                    Button(action: {
-                        showDeleteAlert = true
-                    }) {
-                        Text("회원 탈퇴")
-                            .padding()
-                            .background(Color.gray)
+                        .padding(.horizontal, 24)
+                    } else {
+                        Text(viewStore.userProfile?.username ?? "닉네임 없음")
+                            .font(.title2.bold())
                             .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .padding(.top, 12)
+
+                        Button("닉네임 수정") {
+                            nickname = viewStore.userProfile?.username ?? ""
+                            isEditingNickname = true
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.14))
+                        .clipShape(Capsule())
+                        .padding(.top, 8)
                     }
+
+                    Spacer()
+
+                    VStack(spacing: 10) {
+                        Button(action: {
+                            isLoggedIn = false
+                        }) {
+                            Text("Log out")
+                                .font(.system(size: 14, weight: .semibold))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.10))
+                                .foregroundColor(.white.opacity(0.92))
+                                .clipShape(Capsule())
+                        }
+                        Button(action: {
+                            showDeleteAlert = true
+                        }) {
+                            Text("회원 탈퇴")
+                                .font(.system(size: 14, weight: .semibold))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.08))
+                                .foregroundColor(.white.opacity(0.82))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.bottom, 36)
                     .alert(isPresented: $showDeleteAlert) {
                         Alert(
                             title: Text("정말 탈퇴하시겠습니까?"),
@@ -98,17 +183,26 @@ struct SettingsView: View {
                                 URLSession.shared.dataTask(with: request) { data, response, error in
                                     if let error = error {
                                         print("회원 탈퇴 실패: \(error)")
+                                        DispatchQueue.main.async {
+                                            presentToast(message: "회원 탈퇴에 실패했어요")
+                                        }
                                         return
                                     }
                                     if let httpResponse = response as? HTTPURLResponse {
                                         print("회원 탈퇴 응답 코드: \(httpResponse.statusCode)")
                                         if httpResponse.statusCode == 200 || httpResponse.statusCode == 204 {
                                             DispatchQueue.main.async {
-                                                UserDefaults.standard.removeObject(forKey: "userID")
-                                                isLoggedIn = false
+                                                presentToast(message: "회원 탈퇴가 완료되었어요")
+                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                                    UserDefaults.standard.removeObject(forKey: "userID")
+                                                    isLoggedIn = false
+                                                }
                                             }
                                         } else {
                                             print("회원 탈퇴 실패: 서버 응답 오류 (status: \(httpResponse.statusCode))")
+                                            DispatchQueue.main.async {
+                                                presentToast(message: "회원 탈퇴에 실패했어요")
+                                            }
                                         }
                                     }
                                 }.resume()
@@ -116,12 +210,78 @@ struct SettingsView: View {
                             secondaryButton: .cancel(Text("취소"))
                         )
                     }
-                    Spacer()
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if showToast {
+                    Text(toastMessage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.28))
+                        .clipShape(Capsule())
+                        .padding(.bottom, 120)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
         .onAppear {
             store.send(.fetchUserProfile)
+        }
+        .alert("닉네임 수정 실패", isPresented: $showNicknameError) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(nicknameErrorMessage)
+        }
+        .animation(.easeInOut(duration: 0.2), value: showToast)
+    }
+
+    @MainActor
+    private func updateNickname(viewStore: ViewStore<AppReducer.State, AppReducer.Action>) async {
+        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedNickname.isEmpty else {
+            nicknameErrorMessage = "닉네임을 입력해 주세요."
+            showNicknameError = true
+            return
+        }
+
+        guard let userId = UserDefaults.standard.string(forKey: "userID") else {
+            nicknameErrorMessage = "사용자 정보를 찾을 수 없습니다."
+            showNicknameError = true
+            return
+        }
+
+        guard let token = viewStore.loginState.token ?? viewStore.signupState.token ?? TokenStorage.shared.fetchToken() else {
+            nicknameErrorMessage = "로그인 토큰이 없습니다."
+            showNicknameError = true
+            return
+        }
+
+        isSavingNickname = true
+        defer { isSavingNickname = false }
+
+        do {
+            try await UserProfileClient.updateUsername(userId: userId, token: token, username: trimmedNickname)
+            isEditingNickname = false
+            store.send(.fetchUserProfile)
+            presentToast(message: "닉네임이 저장되었어요")
+        } catch {
+            nicknameErrorMessage = error.localizedDescription.isEmpty ? "닉네임 수정에 실패했습니다." : error.localizedDescription
+            showNicknameError = true
+        }
+    }
+
+    @MainActor
+    private func presentToast(message: String) {
+        toastMessage = message
+        showToast = true
+
+        Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            await MainActor.run {
+                showToast = false
+            }
         }
     }
 }
