@@ -38,7 +38,7 @@ struct OnboardView: View {
                 }, loginStore: loginStore)
                     .tag(0)
                 
-                OnboardSignupView(store: signupStore, onNext: {
+                OnboardSignupView(store: signupStore, loginStore: loginStore, onNext: {
                     if !isOnboardingCompleted && !isPaging {
                         isPaging = true
                         page += 1

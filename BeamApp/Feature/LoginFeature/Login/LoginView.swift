@@ -91,6 +91,11 @@ struct LoginView: View {
                 .onAppear {
                     viewStore.send(.reset)
                 }
+                .onChange(of: viewStore.token) { token in
+                    if token != nil {
+                        self.presentationMode.wrappedValue.dismiss()
+                    }
+                }
             }
         }
     }

@@ -29,6 +29,8 @@ struct BeamApp: App {
                 ._printChanges()
         }
 
+        VoiceConversionConfig.currentProvider = .beamSVC
+
         // do {
         //     try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
         //     try AVAudioSession.sharedInstance().setActive(true)

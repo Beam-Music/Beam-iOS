@@ -37,9 +37,21 @@ struct LoginFeature: Reducer {
             return .none
             
         case .loginButtonTapped:
+            let trimmedEmail = AuthValidation.normalizedEmail(state.email)
+            guard !trimmedEmail.isEmpty, !state.password.isEmpty else {
+                state.errorMessage = "이메일과 비밀번호를 입력해 주세요."
+                state.isLoading = false
+                return .none
+            }
+            guard AuthValidation.isValidEmail(trimmedEmail) else {
+                state.errorMessage = "올바른 이메일 형식을 입력해 주세요."
+                state.isLoading = false
+                return .none
+            }
             state.isLoading = true
             state.errorMessage = nil
-            return .run { [email = state.email, password = state.password] send in
+            state.email = trimmedEmail
+            return .run { [email = trimmedEmail, password = state.password] send in
                 await send(.loginResponse(TaskResult {
                     try await self.authService.login(email, password)
                 }))
@@ -61,15 +73,15 @@ struct LoginFeature: Reducer {
             if let loginError = error as? LoginError {
                 switch loginError {
                 case .invalidCredentials:
-                    state.errorMessage = "Invalid username or password"
-                case .serverError:
-                    state.errorMessage = "Server error occurred. Please try again later."
+                    state.errorMessage = "이메일 또는 비밀번호가 올바르지 않습니다."
+                case .serverError, .invalidResponse:
+                    state.errorMessage = "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
                 case .networkError:
-                    state.errorMessage = "Network error occurred. Please check your connection."
+                    state.errorMessage = "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해 주세요."
                 case .emailNotVerified:
                     state.errorMessage = "이메일 인증을 먼저 완료해 주세요."
                 default:
-                    state.errorMessage = "An unexpected error occurred"
+                    state.errorMessage = "알 수 없는 오류가 발생했습니다."
                 }
             } else {
                 state.errorMessage = error.localizedDescription

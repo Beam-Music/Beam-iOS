@@ -18,14 +18,17 @@ struct RootView: View {
     @Dependency(\.tokenStorage) var tokenStorage
     let libraryStore = Store(initialState: LibraryReducer.State(), reducer: { LibraryReducer() })
     @State private var hasCompletedOnboarding = false
+    @State private var keyboardHeight: CGFloat = 0
     @Namespace private var albumArtNamespace
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
+        let hasAuthToken: Bool
         let tabBarState: TabBarReducer.State
         
         init(state: AppReducer.State) {
             self.isLoggedIn = state.isLoggedIn
+            self.hasAuthToken = state.loginState.token != nil || state.signupState.token != nil
             self.tabBarState = state.tabBarState
         }
     }
@@ -53,7 +56,9 @@ struct RootView: View {
                             onOnboardingFinished: {
                                 hasCompletedOnboarding = true
                                 viewStore.send(.setSelectedTab(.home))
-                                viewStore.send(.setLoggedIn(true))
+                                if viewStore.hasAuthToken || tokenStorage.fetchToken() != nil {
+                                    viewStore.send(.setLoggedIn(true))
+                                }
                             }
                         )
                     }
@@ -69,7 +74,7 @@ struct RootView: View {
                             albumArtNamespace: albumArtNamespace
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, 49) // TabView tab bar height
+                        .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 49)
                         .zIndex(1)
                     }
 
@@ -107,6 +112,17 @@ struct RootView: View {
                 // 앱 시작 시 저장된 토큰 확인 및 자동 로그인
                 await checkSavedTokenAndAutoLogin(viewStore: viewStore)
                 isLoading = false
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+                guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+                      let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let window = windowScene.windows.first
+                else { return }
+                let overlap = max(0, window.bounds.maxY - frame.minY - window.safeAreaInsets.bottom)
+                keyboardHeight = overlap
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardHeight = 0
             }
         }
     }

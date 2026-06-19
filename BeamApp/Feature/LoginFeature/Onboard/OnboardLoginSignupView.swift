@@ -23,6 +23,7 @@ enum Agreement {
 
 struct OnboardSignupView: View {
     let store: StoreOf<SignupFeature>
+    let loginStore: StoreOf<LoginFeature>
     let onNext: () -> Void
     @Environment(\.colorScheme) var colorScheme
     @State private var didAutoAdvance = false
@@ -40,12 +41,22 @@ struct OnboardSignupView: View {
     @State private var profileImage: UIImage? = nil
     @State private var showImagePicker = false
     @State private var showVerificationModal = false
+    @State private var showLogin = false
     @State private var codeDigits: [String] = Array(repeating: "", count: 6)
     @FocusState private var focusedField: Field?
-    enum Field: Hashable { case name, email, password, phone }
+    enum Field: Hashable { case name, email, password }
 
     var body: some View {
         WithViewStore(self.store, observe: \.self) { viewStore in
+            let isSignupFormValid = !viewStore.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !viewStore.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !viewStore.password.isEmpty
+            let canSubmitSignup = viewStore.isVerified &&
+                isSignupFormValid &&
+                !viewStore.isLoading &&
+                privacyAgreement == .agree &&
+                termsAgreement == .agree
+
             ZStack {
                 LinearGradient(
                     gradient: Gradient(colors: [Color(red: 0.91, green: 0.74, blue: 0.72), Color(red: 0.67, green: 0.62, blue: 0.87)]),
@@ -171,12 +182,6 @@ struct OnboardSignupView: View {
                                 ))
                                 .id(Field.password)
                                 .focused($focusedField, equals: .password)
-                                CustomTextField("전화번호", text: viewStore.binding(
-                                    get: \.phone,
-                                    send: SignupFeature.Action.phoneChanged
-                                ), keyboardType: .phonePad)
-                                .id(Field.phone)
-                                .focused($focusedField, equals: .phone)
                             }
                             .padding(.horizontal, 32)
                             .padding(.bottom, 8)
@@ -223,13 +228,8 @@ struct OnboardSignupView: View {
                             }
 
                             Button(action: {
-                                if viewStore.isVerified {
-                                    viewStore.send(.signupButtonTapped)
-                                    onNext()
-                                } else {
-                                    // 이메일 인증이 완료되지 않았다는 안내 메시지를 띄울 수 있습니다.
-                                    // 예: showAlert = true
-                                }
+                                guard canSubmitSignup else { return }
+                                viewStore.send(.signupButtonTapped)
                             }) {
                                 HStack {
                                     Spacer()
@@ -241,10 +241,10 @@ struct OnboardSignupView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background((viewStore.verificationCode.count == 6 && privacyAgreement == .agree && termsAgreement == .agree && !viewStore.isLoading) ? Color.purple : Color.gray.opacity(0.5))
+                                .background(canSubmitSignup ? Color.purple : Color.gray.opacity(0.5))
                                 .cornerRadius(12)
                             }
-                            .disabled(viewStore.verificationCode.count != 6 || viewStore.isLoading || privacyAgreement != .agree || termsAgreement != .agree)
+                            .disabled(!canSubmitSignup)
                             .padding(.horizontal, 32)
                             .padding(.top, 16)
 
@@ -254,7 +254,7 @@ struct OnboardSignupView: View {
                                 Text("계정이 이미 있으신가요?")
                                     .foregroundColor(.white.opacity(0.7))
                                 Button("로그인하기") {
-                                    // 로그인 이동 액션 필요시 구현
+                                    showLogin = true
                                 }
                                 .foregroundColor(.white)
                                 .underline()
@@ -280,48 +280,57 @@ struct OnboardSignupView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showVerificationModal, onDismiss: {
-                if let errorMessage = viewStore.errorMessage, errorMessage.contains("이미 가입된 이메일") {
-                    // errorMessage를 nil로 리셋하는 액션이 있다면 아래처럼 사용
-                    // viewStore.send(.resetErrorMessage)
-                    // 없으면 아래처럼 직접 리셋 (Binding이 아니므로 State로 관리 필요)
+            .sheet(isPresented: Binding(
+                get: { showVerificationModal },
+                set: { newValue in
+                    showVerificationModal = newValue
+                    if !newValue {
+                        viewStore.send(.setVerificationModalPresented(false))
+                    }
                 }
-            }) {
+            )) {
                 VerificationCodeModal(
                     code: $codeDigits,
                     errorMessage: viewStore.errorMessage,
+                    isLoading: viewStore.isLoading,
                     onClose: { showVerificationModal = false },
                     onVerify: {
                         let code = codeDigits.joined()
                         viewStore.send(.verificationCodeChanged(code))
                         viewStore.send(.verifyButtonTapped)
-                        // showVerificationModal = false  // 인증 성공 시에만 닫히도록 변경
+                    },
+                    onResend: {
+                        viewStore.send(.sendVerificationCodeButtonTapped)
                     }
                 )
             }
-            .onChange(of: viewStore.errorMessage) { newValue in
-                if newValue == "인증 메일이 발송되었습니다. 이메일을 확인해주세요." ||
-                   newValue == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요." {
-                    showVerificationModal = true
-                } else if newValue == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요." ||
-                          newValue == "이미 인증된 이메일입니다." {
-                    showVerificationModal = false
-                } else if newValue == "이메일 인증 성공! 회원가입을 진행하세요." {
-                    showVerificationModal = false
-                }
+            .onChange(of: viewStore.isVerificationModalPresented) { isPresented in
+                showVerificationModal = isPresented
             }
-            .onChange(of: viewStore.isVerified) { isVerified in
-                // if isVerified, let token = viewStore.token {
-                //     Task {
-                //         try? await TokenStorage.shared.saveToken(token)
-                //         onNext()
-                //     }
-                // } else if isVerified {
-                //     onNext()
-                // }
+            .onChange(of: viewStore.isSignupCompleted) { isSignupCompleted in
+                guard isSignupCompleted, !didAutoAdvance else { return }
+                didAutoAdvance = true
+                onNext()
             }
             .onAppear {
+                didAutoAdvance = false
                 viewStore.send(.reset)
+            }
+            .onChange(of: viewStore.shouldShowLoginPrompt) { shouldShow in
+                if shouldShow {
+                    showLogin = true
+                }
+            }
+            .fullScreenCover(isPresented: Binding(
+                get: { showLogin },
+                set: { newValue in
+                    showLogin = newValue
+                    if !newValue {
+                        viewStore.send(.setShouldShowLoginPrompt(false))
+                    }
+                }
+            )) {
+                LoginView(store: loginStore)
             }
         }
     }
@@ -515,8 +524,10 @@ extension View {
 struct VerificationCodeModal: View {
     @Binding var code: [String]
     var errorMessage: String?
+    var isLoading: Bool
     var onClose: () -> Void
     var onVerify: () -> Void
+    var onResend: () -> Void
     @FocusState private var focusedIndex: Int?
     @State private var attempted: Bool = false
 
@@ -539,7 +550,7 @@ struct VerificationCodeModal: View {
                 .scaledToFit()
                 .frame(height: 120)
                 .padding(.vertical, 12)
-            Text("verification code를 입력해주세요.")
+            Text("인증 코드를 입력해 주세요.")
                 .foregroundColor(.gray)
                 .padding(.bottom, 16)
             HStack(spacing: 12) {
@@ -586,21 +597,30 @@ struct VerificationCodeModal: View {
                     .font(.caption)
                     .padding(.top, 4)
             }
-            Button(action: {
-                attempted = true
-                onVerify()
-            }) {
-                Text("확인")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(code.joined().count == 6 ? Color.purple : Color.gray.opacity(0.5))
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .contentShape(Rectangle())
+            VStack(spacing: 12) {
+                Button(action: {
+                    attempted = true
+                    onVerify()
+                }) {
+                    Text("확인")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(code.joined().count == 6 ? Color.purple : Color.gray.opacity(0.5))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .contentShape(Rectangle())
+                }
+                .disabled(code.joined().count != 6 || isLoading)
+
+                Button(action: onResend) {
+                    Text(isLoading ? "재전송 중..." : "인증 코드 재전송")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.purple)
+                }
+                .disabled(isLoading)
             }
             .padding(.horizontal, 32)
-            .disabled(code.joined().count != 6)
             Spacer()
         }
         .padding()

@@ -21,8 +21,11 @@ struct SignupFeature: Reducer {
         var isLoggedIn: Bool = false
         var errorMessage: String? = nil
         var showVerificationSection: Bool = false
+        var isVerificationModalPresented: Bool = false
+        var shouldShowLoginPrompt: Bool = false
         var token: String? = nil
         var profileImage: UIImage? = nil
+        var isSignupCompleted: Bool = false
         static func == (lhs: State, rhs: State) -> Bool {
             return lhs.username == rhs.username &&
                 lhs.email == rhs.email &&
@@ -34,7 +37,10 @@ struct SignupFeature: Reducer {
                 lhs.isLoggedIn == rhs.isLoggedIn &&
                 lhs.errorMessage == rhs.errorMessage &&
                 lhs.showVerificationSection == rhs.showVerificationSection &&
-                lhs.token == rhs.token
+                lhs.isVerificationModalPresented == rhs.isVerificationModalPresented &&
+                lhs.shouldShowLoginPrompt == rhs.shouldShowLoginPrompt &&
+                lhs.token == rhs.token &&
+                lhs.isSignupCompleted == rhs.isSignupCompleted
         }
     }
     
@@ -52,6 +58,8 @@ struct SignupFeature: Reducer {
         case verifyResponse(Result<VerifyResponseType, SignupError>)
         case setIsLoggedIn(Bool)
         case profileImageChanged(UIImage?)
+        case setVerificationModalPresented(Bool)
+        case setShouldShowLoginPrompt(Bool)
         case reset
         static func == (lhs: Action, rhs: Action) -> Bool {
             switch (lhs, rhs) {
@@ -67,6 +75,8 @@ struct SignupFeature: Reducer {
             case let (.verifyResponse(a), .verifyResponse(b)): return a == b
             case let (.setIsLoggedIn(a), .setIsLoggedIn(b)): return a == b
             case (.profileImageChanged, .profileImageChanged): return true
+            case let (.setVerificationModalPresented(a), .setVerificationModalPresented(b)): return a == b
+            case let (.setShouldShowLoginPrompt(a), .setShouldShowLoginPrompt(b)): return a == b
             case (.reset, .reset): return true
             case (.sendVerificationCodeResponse, .sendVerificationCodeResponse): return false
             default: return false
@@ -86,6 +96,12 @@ struct SignupFeature: Reducer {
     
     enum SignupError: Error, Equatable {
         case invalidResponse
+        case invalidEmailFormat
+        case emailAlreadyRegistered
+        case emailAlreadyVerified
+        case verificationCodeMismatch
+        case verificationCodeExpired
+        case tokenStorageFailed(String)
         case serverError(String)
         case internalServerError(String)
         case emailServiceError
@@ -94,6 +110,18 @@ struct SignupFeature: Reducer {
             switch self {
             case .invalidResponse:
                 return "서버 응답이 올바르지 않습니다."
+            case .invalidEmailFormat:
+                return "올바른 이메일 형식을 입력해 주세요."
+            case .emailAlreadyRegistered:
+                return "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
+            case .emailAlreadyVerified:
+                return "이미 인증된 이메일입니다. 로그인 화면으로 이동해주세요."
+            case .verificationCodeMismatch:
+                return "인증 번호가 일치하지 않습니다."
+            case .verificationCodeExpired:
+                return "인증 코드가 만료되었습니다. 다시 요청해 주세요."
+            case .tokenStorageFailed(let message):
+                return "토큰 저장에 실패했습니다: \(message)"
             case .serverError(let message):
                 return message
             case .internalServerError(let message):
@@ -121,10 +149,13 @@ struct SignupFeature: Reducer {
                 
             case let .emailChanged(email):
                 state.email = email
+                state.errorMessage = nil
+                state.shouldShowLoginPrompt = false
                 return .none
                 
             case let .passwordChanged(password):
                 state.password = password
+                state.errorMessage = nil
                 return .none
                 
             case let .phoneChanged(phone):
@@ -140,9 +171,19 @@ struct SignupFeature: Reducer {
                 return .none
                 
             case .sendVerificationCodeButtonTapped:
+                let trimmedEmail = AuthValidation.normalizedEmail(state.email)
+                guard !trimmedEmail.isEmpty else {
+                    state.errorMessage = "이메일을 입력해 주세요."
+                    return .none
+                }
+                guard AuthValidation.isValidEmail(trimmedEmail) else {
+                    state.errorMessage = SignupError.invalidEmailFormat.localizedDescription
+                    return .none
+                }
                 state.isLoading = true
                 state.errorMessage = nil
-                let email = state.email
+                state.email = trimmedEmail
+                let email = trimmedEmail
                 return .run { send in
                     do {
                         try await sendVerificationCodeRequest(email)
@@ -160,19 +201,43 @@ struct SignupFeature: Reducer {
                 state.isLoading = false
                 state.errorMessage = "인증 메일이 발송되었습니다. 이메일을 확인해주세요."
                 state.showVerificationSection = true
+                state.isVerificationModalPresented = true
+                state.shouldShowLoginPrompt = false
                 return .none
                 
             case let .sendVerificationCodeResponse(.failure(error)):
                 state.isLoading = false
                 state.errorMessage = error.localizedDescription
+                state.isVerificationModalPresented = false
                 return .none
                 
             case .signupButtonTapped:
+                let trimmedUsername = state.username.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedEmail = AuthValidation.normalizedEmail(state.email)
+                guard !trimmedUsername.isEmpty else {
+                    state.errorMessage = "이름을 입력해 주세요."
+                    return .none
+                }
+                guard !trimmedEmail.isEmpty, AuthValidation.isValidEmail(trimmedEmail) else {
+                    state.errorMessage = SignupError.invalidEmailFormat.localizedDescription
+                    return .none
+                }
+                guard state.password.count >= 6 else {
+                    state.errorMessage = "비밀번호는 6자 이상 입력해 주세요."
+                    return .none
+                }
+                guard state.isVerified else {
+                    state.errorMessage = "이메일 인증을 먼저 완료해 주세요."
+                    return .none
+                }
                 state.isLoading = true
                 state.errorMessage = nil
+                state.isSignupCompleted = false
+                state.username = trimmedUsername
+                state.email = trimmedEmail
 
-                let username = state.username
-                let email = state.email
+                let username = trimmedUsername
+                let email = trimmedEmail
                 let password = state.password
                 let profileImage = state.profileImage
 
@@ -191,6 +256,7 @@ struct SignupFeature: Reducer {
                 
             case let .signupResponse(.success(response)):
                 state.isLoading = false
+                state.isSignupCompleted = true
                 // 회원가입 응답에서 토큰이 있으면 저장
                 let token: String? = {
                     switch response {
@@ -200,18 +266,17 @@ struct SignupFeature: Reducer {
                 }()
                 if let token {
                     state.token = token
-                    // 토큰 저장
-                    return .run { _ in
-                        try? await tokenStorage.saveToken(token)
-                    }
                 }
                 return .none
                 
             case let .signupResponse(.failure(error)):
                 state.isLoading = false
-                if error.localizedDescription.contains("이미 인증된 이메일") {
-                    state.errorMessage = "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
-                } else {
+                state.isSignupCompleted = false
+                switch error {
+                case .emailAlreadyRegistered, .emailAlreadyVerified:
+                    state.errorMessage = error.localizedDescription
+                    state.shouldShowLoginPrompt = true
+                default:
                     state.errorMessage = error.localizedDescription
                 }
                 return .none
@@ -240,6 +305,7 @@ struct SignupFeature: Reducer {
                     state.isVerified = true
                     state.token = token
                     state.errorMessage = "이메일 인증이 완료되었습니다."
+                    state.isVerificationModalPresented = false
 
                     // userID를 토큰에서 파싱하여 UserDefaults에 저장
                     if let userId = Self.parseUserIdFromJWT(token) {
@@ -263,12 +329,13 @@ struct SignupFeature: Reducer {
                             
                         } catch {
                             print("❌ 토큰 저장 실패: \(error)")
-                            await send(.verifyResponse(.failure(.serverError("토큰 저장에 실패했습니다: \(error.localizedDescription)"))))
+                            await send(.verifyResponse(.failure(.tokenStorageFailed(error.localizedDescription))))
                         }
                     }
                 case .emailVerifiedOnly:
                     state.isVerified = true
                     state.errorMessage = "이메일 인증 성공! 회원가입을 진행하세요."
+                    state.isVerificationModalPresented = false
                     return .none
                 }
                 
@@ -277,30 +344,23 @@ struct SignupFeature: Reducer {
                 state.errorMessage = error.localizedDescription
                 state.isVerified = false
                 state.token = nil
+                state.isVerificationModalPresented = true
                 return .none
                 
             case let .setIsLoggedIn(isLoggedIn):
                 state.isLoggedIn = isLoggedIn
-                if isLoggedIn, let token = state.token {
-                    return .run { _ in
-                        do {
-                            try await tokenStorage.saveToken(token)
-                            
-                            if let savedToken = await tokenStorage.fetchToken() {
-                                print("🔍 저장된 토큰 확인: \(savedToken.prefix(10))...")
-                            } else {
-                                print("❌ 토큰 저장 후 검색 실패")
-                            }
-                            
-                        } catch {
-                            print("❌ setIsLoggedIn 후 토큰 저장 실패: \(error)")
-                        }
-                    }
-                }
                 return .none
                 
             case let .profileImageChanged(image):
                 state.profileImage = image
+                return .none
+
+            case let .setVerificationModalPresented(isPresented):
+                state.isVerificationModalPresented = isPresented
+                return .none
+
+            case let .setShouldShowLoginPrompt(shouldShow):
+                state.shouldShowLoginPrompt = shouldShow
                 return .none
                 
             case .reset:
@@ -316,6 +376,52 @@ private struct ErrorResponse: Decodable {
     let reason: String
     let error: Bool?
     let status: Int?
+}
+
+private func normalizedReason(from data: Data) -> String? {
+    if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+        return errorResponse.reason.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func mapSignupError(statusCode: Int, reason: String?) -> SignupFeature.SignupError {
+    let normalized = reason?.lowercased() ?? ""
+
+    if normalized.contains("already verified") || normalized.contains("이미 인증된 이메일") {
+        return .emailAlreadyVerified
+    }
+    if normalized.contains("already") || normalized.contains("이미 가입된 이메일") || normalized.contains("already exists") {
+        return .emailAlreadyRegistered
+    }
+    if normalized.contains("sendgrid") {
+        return .emailServiceError
+    }
+    if statusCode == 500 {
+        return .internalServerError(reason ?? "알 수 없는 서버 오류가 발생했습니다.")
+    }
+    return .serverError(reason ?? "알 수 없는 오류가 발생했습니다.")
+}
+
+private func mapVerificationError(statusCode: Int, reason: String?) -> SignupFeature.SignupError {
+    let normalized = reason?.lowercased() ?? ""
+
+    if normalized.contains("expired") || normalized.contains("만료") {
+        return .verificationCodeExpired
+    }
+    if normalized.contains("invalid code") || normalized.contains("invalid verification code") || normalized.contains("does not match") || normalized.contains("일치하지") {
+        return .verificationCodeMismatch
+    }
+    if normalized.contains("already verified") || normalized.contains("이미 인증된 이메일") {
+        return .emailAlreadyVerified
+    }
+    if normalized.contains("sendgrid") {
+        return .emailServiceError
+    }
+    if statusCode == 500 {
+        return .internalServerError(reason ?? "알 수 없는 서버 오류가 발생했습니다.")
+    }
+    return .serverError(reason ?? "이메일 인증에 실패했습니다.")
 }
 
 // MARK: - Success Response for Verification
@@ -393,22 +499,8 @@ private struct SignupRequestKey: DependencyKey {
             return .newUser(token: token)
         case 200:
             return .existingUnverifiedUser(token: token)
-        case 500:
-            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                let errorMessage = errorResponse.reason
-                if errorMessage.contains("SendGrid") {
-                    throw SignupFeature.SignupError.emailServiceError
-                }
-                throw SignupFeature.SignupError.internalServerError(errorMessage)
-            }
-            throw SignupFeature.SignupError.internalServerError("알 수 없는 서버 오류가 발생했습니다.")
         default:
-            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                throw SignupFeature.SignupError.serverError(errorResponse.reason)
-            } else {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
-            }
+            throw mapSignupError(statusCode: httpResponse.statusCode, reason: normalizedReason(from: data))
         }
     }
 }
@@ -435,29 +527,15 @@ private struct VerifyRequestKey: DependencyKey {
         case 200:
             let result = try JSONDecoder().decode(SuccessResponse.self, from: data)
             guard result.success else {
-                throw SignupFeature.SignupError.serverError(result.reason ?? "이메일 인증에 실패했습니다.")
+                throw mapVerificationError(statusCode: httpResponse.statusCode, reason: result.reason)
             }
             if let token = result.token {
                 return .success(token: token)
             } else {
                 return .emailVerifiedOnly
             }
-        case 500:
-            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                let errorMessage = errorResponse.reason
-                if errorMessage.contains("SendGrid") {
-                    throw SignupFeature.SignupError.emailServiceError
-                }
-                throw SignupFeature.SignupError.internalServerError(errorMessage)
-            }
-            throw SignupFeature.SignupError.internalServerError("알 수 없는 서버 오류가 발생했습니다.")
         default:
-            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                throw SignupFeature.SignupError.serverError(errorResponse.reason)
-            } else {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
-            }
+            throw mapVerificationError(statusCode: httpResponse.statusCode, reason: normalizedReason(from: data))
         }
     }
 }
@@ -480,8 +558,7 @@ private struct SendVerificationCodeRequestKey: DependencyKey {
         if httpResponse.statusCode == 200 {
             return
         } else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw SignupFeature.SignupError.serverError("Status code: \(httpResponse.statusCode), Message: \(errorMessage)")
+            throw mapSignupError(statusCode: httpResponse.statusCode, reason: normalizedReason(from: data))
         }
     }
 }
