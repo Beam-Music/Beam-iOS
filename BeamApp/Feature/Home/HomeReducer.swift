@@ -87,7 +87,7 @@ struct HomeReducer {
                     id: UUID(),
                     title: result.title,
                     artistName: result.artist,
-                    playbackUrl: nil,
+                    playbackUrl: result.playbackURL,
                     playbackStoreID: result.id,
                     isAIGenerated: false,
                     duration: nil,
@@ -194,11 +194,18 @@ struct HomeReducer {
                 guard let firstTrack = playlistTracks.first else {
                     return .none
                 }
-                let trackTitle = firstTrack.title
-                let trackStoreID = firstTrack.playbackStoreID
                 return .run { send async in
                     do {
-                        try await AudioManager.shared.playAppleMusicTrack(title: trackTitle, storeID: trackStoreID)
+                        guard let audioURL = firstTrack.fileUrl ?? firstTrack.playbackUrl else {
+                            await send(.playlistFailed("Playback failed: No audio URL available"))
+                            return
+                        }
+                        try await AudioManager.shared.playAIMusic(
+                            from: audioURL,
+                            title: firstTrack.title,
+                            artist: firstTrack.artistName ?? "Unknown Artist",
+                            artworkURL: firstTrack.artworkURL
+                        )
                     } catch {
                         await send(.playlistFailed("Playback failed: \(error.localizedDescription)"))
                     }

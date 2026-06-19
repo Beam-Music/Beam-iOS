@@ -147,7 +147,8 @@ struct PlayerReducer {
                                     try await audioManager.playAIMusic(
                                         from: fileUrl,
                                         title: track.title,
-                                        artist: track.artistName ?? "AI Generated"
+                                        artist: track.artistName ?? "AI Generated",
+                                        artworkURL: track.artworkURL
                                     )
                                     await send(.internalPlaybackStateResponse(true))
                                     await send(.playbackFinished)
@@ -155,9 +156,18 @@ struct PlayerReducer {
                                     await send(.playbackError("Missing file URL for AI track"))
                                 }
                             } else {
-                                try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
-                                await send(.internalPlaybackStateResponse(true))
-                                await send(.playbackFinished)
+                                if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                    try await audioManager.playAIMusic(
+                                        from: audioURL,
+                                        title: track.title,
+                                        artist: track.artistName ?? "Unknown Artist",
+                                        artworkURL: track.artworkURL
+                                    )
+                                    await send(.internalPlaybackStateResponse(true))
+                                    await send(.playbackFinished)
+                                } else {
+                                    await send(.playbackError("No audio URL available"))
+                                }
                             }
                         } catch {
                             await send(.playbackError(error.localizedDescription))
@@ -182,7 +192,8 @@ struct PlayerReducer {
                                     try await audioManager.playAIMusic(
                                         from: fileUrl,
                                         title: track.title,
-                                        artist: track.artistName ?? "AI Generated"
+                                        artist: track.artistName ?? "AI Generated",
+                                        artworkURL: track.artworkURL
                                     )
                                     await send(.internalPlaybackStateResponse(true))
                                     await send(.playbackFinished)
@@ -190,9 +201,18 @@ struct PlayerReducer {
                                     await send(.playbackError("Missing file URL for AI track"))
                                 }
                             } else {
-                                try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
-                                await send(.internalPlaybackStateResponse(true))
-                                await send(.playbackFinished)
+                                if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                    try await audioManager.playAIMusic(
+                                        from: audioURL,
+                                        title: track.title,
+                                        artist: track.artistName ?? "Unknown Artist",
+                                        artworkURL: track.artworkURL
+                                    )
+                                    await send(.internalPlaybackStateResponse(true))
+                                    await send(.playbackFinished)
+                                } else {
+                                    await send(.playbackError("No audio URL available"))
+                                }
                             }
                         } catch {
                             await send(.playbackError(error.localizedDescription))
@@ -218,7 +238,8 @@ struct PlayerReducer {
                                         try await audioManager.playAIMusic(
                                             from: fileUrl,
                                             title: track.title,
-                                            artist: track.artistName ?? "AI Generated"
+                                            artist: track.artistName ?? "AI Generated",
+                                            artworkURL: track.artworkURL
                                         )
                                         await send(.internalPlaybackStateResponse(true))
                                         await send(.playbackFinished)
@@ -226,9 +247,18 @@ struct PlayerReducer {
                                         await send(.playbackError("Missing file URL for AI track"))
                                     }
                                 } else {
-                                    try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
-                                    await send(.internalPlaybackStateResponse(true))
-                                    await send(.playbackFinished)
+                                    if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                        try await audioManager.playAIMusic(
+                                            from: audioURL,
+                                            title: track.title,
+                                            artist: track.artistName ?? "Unknown Artist",
+                                            artworkURL: track.artworkURL
+                                        )
+                                        await send(.internalPlaybackStateResponse(true))
+                                        await send(.playbackFinished)
+                                    } else {
+                                        await send(.playbackError("No audio URL available"))
+                                    }
                                 }
                             } catch {
                                 await send(.playbackError(error.localizedDescription))
@@ -246,7 +276,8 @@ struct PlayerReducer {
                                 try await audioManager.playAIMusic(
                                     from: fileUrl,
                                     title: track.title,
-                                    artist: track.artistName ?? "AI Generated"
+                                    artist: track.artistName ?? "AI Generated",
+                                    artworkURL: track.artworkURL
                                 )
                                 await send(.internalPlaybackStateResponse(true))
                                 await send(.playbackFinished)
@@ -254,9 +285,18 @@ struct PlayerReducer {
                                 await send(.playbackError("Missing file URL for AI track"))
                             }
                         } else {
-                            try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
-                            await send(.internalPlaybackStateResponse(true))
-                            await send(.playbackFinished)
+                            if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                try await audioManager.playAIMusic(
+                                    from: audioURL,
+                                    title: track.title,
+                                    artist: track.artistName ?? "Unknown Artist",
+                                    artworkURL: track.artworkURL
+                                )
+                                await send(.internalPlaybackStateResponse(true))
+                                await send(.playbackFinished)
+                            } else {
+                                await send(.playbackError("No audio URL available"))
+                            }
                         }
                     } catch {
                         await send(.playbackError(error.localizedDescription))
@@ -283,7 +323,8 @@ struct PlayerReducer {
                                 try await audioManager.playAIMusic(
                                     from: fileUrl,
                                     title: track.title,
-                                    artist: track.artistName ?? "AI Generated"
+                                    artist: track.artistName ?? "AI Generated",
+                                    artworkURL: track.artworkURL
                                 )
                                 await send(.internalPlaybackStateResponse(true))
                                 await send(.playbackFinished)
@@ -291,9 +332,18 @@ struct PlayerReducer {
                                 await send(.playbackError("Missing file URL for AI track"))
                             }
                         } else {
-                            try await audioManager.playAppleMusicTrack(title: track.title, storeID: track.playbackStoreID)
-                            await send(.internalPlaybackStateResponse(true))
-                            await send(.playbackFinished)
+                            if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                try await audioManager.playAIMusic(
+                                    from: audioURL,
+                                    title: track.title,
+                                    artist: track.artistName ?? "Unknown Artist",
+                                    artworkURL: track.artworkURL
+                                )
+                                await send(.internalPlaybackStateResponse(true))
+                                await send(.playbackFinished)
+                            } else {
+                                await send(.playbackError("No audio URL available"))
+                            }
                         }
                     } catch {
                         await send(.playbackError(error.localizedDescription))
@@ -509,8 +559,7 @@ protocol AudioManagerProtocol {
     func play() async
     func pause() async
     func stop() async
-    func playAppleMusicTrack(title: String?, storeID: String?) async throws
-    func playAIMusic(from urlString: String, title: String, artist: String) async throws
+    func playAIMusic(from urlString: String, title: String, artist: String, artworkURL: URL?) async throws
     func isPlaying() async -> Bool
     func tryResume() async -> Bool
     func seek(to seconds: Double) async

@@ -7,12 +7,17 @@
 import Foundation
 
 struct APIKeys {
-    static let lalalAI = "8aa542e9b334438f"
+    static let lalalAI = "66811d1fc63d48bc"
+    static let kitsAI = "WTRMTTD1.OSRELYWRZHlJPgGMD8H8spVw"
 }
 
 struct Endpoints {
 //    static let baseURL = "https://web-production-9874.up.railway.app"
-    static let baseURL = "http://172.30.1.24:8081"
+    #if targetEnvironment(simulator)
+    static let baseURL = "http://127.0.0.1:8081"
+    #else
+    static let baseURL = "http://192.168.0.75:8081"
+    #endif
     struct Auth {
         static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/api/users/register"
@@ -57,6 +62,11 @@ struct Endpoints {
     struct VoiceConversion {
         static let list = "\(baseURL)/ai-convert/voices"
         static let convert = "\(baseURL)/ai-convert/voice-conversion"
+    }
+
+    struct Jamendo {
+        static let baseURL = "https://api.jamendo.com/v3.0"
+        static let clientId = "YOUR_CLIENT_ID"
     }
 }
 

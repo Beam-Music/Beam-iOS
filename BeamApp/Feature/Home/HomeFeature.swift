@@ -6,7 +6,6 @@
 //
 import SwiftData
 import Foundation
-import MusicKit
 
 struct RegisterAISongRequestDTO: Codable {
     let title: String

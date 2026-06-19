@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import MusicKit
 
 struct OnboardTasteView: View {
     let onNext: () -> Void
@@ -417,14 +416,14 @@ struct ArtistChipView: View {
 
 func fetchArtistImageURL(artistName: String, completion: @escaping (URL?) -> Void) {
     Task {
-        let artistType: any MusicCatalogSearchable.Type = MusicKit.Artist.self
-        var request = MusicCatalogSearchRequest(term: artistName, types: [artistType])
-        request.limit = 1
-        let response = try? await request.response()
-        if let artist = response?.artists.first, let artwork = artist.artwork {
-            let url = artwork.url(width: 200, height: 200)
-            completion(url)
-        } else {
+        do {
+            let artists = try await JamendoService.shared.searchArtists(name: artistName, limit: 1)
+            if let first = artists.first, let url = URL(string: first.image) {
+                completion(url)
+            } else {
+                completion(nil)
+            }
+        } catch {
             completion(nil)
         }
     }

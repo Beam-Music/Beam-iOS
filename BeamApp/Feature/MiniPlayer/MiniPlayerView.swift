@@ -34,14 +34,20 @@ struct MiniPlayerView: View {
                     playPauseButton
                 }
                 .padding()
-                .background(Color.gray.opacity(0.2))
+                .background(Color.white.opacity(0.06))
                 .onTapGesture {
                     isPlayerViewVisible = true
                 }
             }
             .frame(maxWidth: .infinity)
             .frame(height: 70)
-            .background(Color.black.opacity(0.9))
+            .background(Color.gray.opacity(0.18))
+            .overlay(
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1),
+                alignment: .top
+            )
         } else {
             EmptyView()
         }
@@ -58,7 +64,7 @@ struct MiniPlayerView: View {
                     .cornerRadius(5)
             } else {
                 Rectangle()
-                    .fill(Color.gray)
+                    .fill(Color.white.opacity(0.28))
                     .frame(width: 50, height: 50)
                     .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                     .cornerRadius(5)
@@ -74,7 +80,7 @@ struct MiniPlayerView: View {
 
             Text(artist)
                 .font(.subheadline)
-                .foregroundColor(.gray)
+                .foregroundColor(.white.opacity(0.7))
                 .lineLimit(1)
         }
         .padding(.leading, 10)

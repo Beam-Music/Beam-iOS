@@ -65,20 +65,72 @@ struct TabBarReducer {
                 }
                 return .none
             case let .home(.playMusic(musicResult)):
-                // Convert MusicSearchResult to PlayableTrackDTO
-                let track = PlayableTrackDTO(
+                let seedTrack = PlayableTrackDTO(
                     id: UUID(),
                     title: musicResult.title,
                     artistName: musicResult.artist,
-                    playbackUrl: nil,
+                    playbackUrl: musicResult.playbackURL,
                     playbackStoreID: musicResult.id,
                     isAIGenerated: false,
                     duration: nil,
                     fileUrl: nil,
                     artworkURL: musicResult.artworkURL
                 )
-                let playerState = PlayerReducer.State(playlist: [track], currentIndex: 0)
-                return .send(.setPlayerState(playerState))
+
+                return .run { send in
+                    do {
+                        let relatedResults = try await AudiusService.shared.searchTracks(
+                            query: musicResult.artist,
+                            limit: 12
+                        )
+                        let filtered = relatedResults
+                            .map { $0.toMusicSearchResult() }
+                            .filter { $0.id != musicResult.id && $0.playbackURL != nil }
+
+                        var playlist = [seedTrack]
+                        playlist.append(contentsOf: filtered.prefix(9).map {
+                            PlayableTrackDTO(
+                                id: UUID(),
+                                title: $0.title,
+                                artistName: $0.artist,
+                                playbackUrl: $0.playbackURL,
+                                playbackStoreID: $0.id,
+                                isAIGenerated: false,
+                                duration: nil,
+                                fileUrl: nil,
+                                artworkURL: $0.artworkURL
+                            )
+                        })
+
+                        if playlist.count == 1, let genre = musicResult.genre, !genre.isEmpty {
+                            let fallbackResults = try await AudiusService.shared.searchTracks(query: genre, limit: 12)
+                            playlist.append(contentsOf: fallbackResults
+                                .map { $0.toMusicSearchResult() }
+                                .filter { $0.id != musicResult.id && $0.playbackURL != nil }
+                                .prefix(9)
+                                .map {
+                                    PlayableTrackDTO(
+                                        id: UUID(),
+                                        title: $0.title,
+                                        artistName: $0.artist,
+                                        playbackUrl: $0.playbackURL,
+                                        playbackStoreID: $0.id,
+                                        isAIGenerated: false,
+                                        duration: nil,
+                                        fileUrl: nil,
+                                        artworkURL: $0.artworkURL
+                                    )
+                                }
+                            )
+                        }
+
+                        let playerState = PlayerReducer.State(playlist: playlist, currentIndex: 0)
+                        await send(.setPlayerState(playerState))
+                    } catch {
+                        let playerState = PlayerReducer.State(playlist: [seedTrack], currentIndex: 0)
+                        await send(.setPlayerState(playerState))
+                    }
+                }
             default:
                 return .none
             }

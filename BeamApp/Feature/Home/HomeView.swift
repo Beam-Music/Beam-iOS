@@ -7,18 +7,16 @@
 
 import SwiftUI
 import ComposableArchitecture
-import MusicKit
 
 // MARK: - AI Convert Helper Functions
 func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-    // LALAL.AI 직접 호출 (기본 남성 음성 ALEX_KAYE 사용)
-    let service = VoiceConversionService()
     Task {
         do {
             let audioData = try Data(contentsOf: fileURL)
-            let convertedAudioData = try await service.performLalalAIVoiceChange(
+            let convertedAudioData = try await voiceConversionService.convert(
                 audioData: audioData,
-                voiceId: "ALEX_KAYE"
+                voiceId: "ALEX_KAYE",
+                voiceType: nil
             )
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
             try convertedAudioData.write(to: tempURL)
@@ -35,6 +33,8 @@ struct MusicSearchResult: Identifiable, Hashable, Equatable {
     let artist: String
     let artworkURL: URL?
     let isExplicit: Bool
+    let playbackURL: String?
+    let genre: String?
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -48,23 +48,8 @@ struct MusicSearchResult: Identifiable, Hashable, Equatable {
 // MARK: - Music Search Service
 class MusicSearchService {
     func searchMusic(query: String) async throws -> [MusicSearchResult] {
-        let status = await MusicAuthorization.request()
-        guard status == .authorized else {
-            throw NSError(domain: "MusicAuthorizationFailed", code: 401)
-        }
-        var searchRequest = MusicCatalogSearchRequest(term: query, types: [MusicKit.Song.self])
-        searchRequest.limit = 25
-        let response = try await searchRequest.response()
-        let songResults: [MusicSearchResult] = response.songs.compactMap { song in
-            MusicSearchResult(
-                id: song.id.rawValue,
-                title: song.title,
-                artist: song.artistName,
-                artworkURL: song.artwork?.url(width: 100, height: 100),
-                isExplicit: song.contentRating == .explicit
-            )
-        }
-        return songResults
+        let tracks = try await AudiusService.shared.searchTracks(query: query, limit: 25)
+        return tracks.map { $0.toMusicSearchResult() }
     }
 }
 
@@ -148,6 +133,12 @@ struct HomeView: View {
     @State private var isLoadingHitSongs: Bool = true
     @State private var isLoadingRemixPairs: Bool = true
     @State private var isRemixingDemo = false
+    @State private var showAllHitSongsSheet = false
+    @State private var showAllRemixPairsSheet = false
+    @State private var showSearchScreen = false
+    @State private var searchDraft = ""
+    @State private var recentSearches: [String] = []
+    @FocusState private var isSearchFieldFocused: Bool
     
     private var homeStore: StoreOf<HomeReducer> {
         store.scope(state: \.tabBarState.homeState, action: { AppReducer.Action.tabBar(.home($0)) })
@@ -169,30 +160,24 @@ struct HomeView: View {
             
             VStack(spacing: 0) {
                 // Search bar
-                HStack {
-                    TextField("노래/가수 검색하기", text: viewStore.binding(
-                        get: \.searchText,
-                        send: HomeReducer.Action.searchTextChanged
-                    ))
+                Button(action: {
+                    searchDraft = viewStore.searchText
+                    showSearchScreen = true
+                }) {
+                    HStack {
+                        Text(viewStore.searchText.isEmpty ? "노래/가수 검색하기" : viewStore.searchText)
+                            .foregroundColor(viewStore.searchText.isEmpty ? .white.opacity(0.35) : .white)
+                            .font(.system(size: 17, weight: .medium))
+                        Spacer()
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 18)
                     .background(
                         RoundedRectangle(cornerRadius: 18)
                             .stroke(Color.white.opacity(0.7), lineWidth: 1.2)
                     )
-                    .foregroundColor(.white)
-                    .font(.system(size: 17, weight: .medium))
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    
-                    if !viewStore.searchText.isEmpty {
-                        Button(action: {
-                            viewStore.send(.clearSearchResults)
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                    }
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 32)
@@ -200,17 +185,29 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("히트 음악")
+                            Text("인기 음악")
                                 .font(.title2).bold()
                                 .foregroundColor(.white)
                             Spacer()
                             Button("전체보기") {
-                                // 전체보기 액션 (필요시)
+                                showAllHitSongsSheet = true
                             }
                             .foregroundColor(.white.opacity(0.7))
                             .font(.subheadline)
                         }
                         .padding(.horizontal)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Audius 트렌딩 기준으로 집계된 재생 가능한 인기 곡이에요")
+                                .font(.footnote)
+                                .foregroundColor(.white.opacity(0.9))
+
+                            Text("음성 변환 테스트는 먼저 아래 인기 곡을 재생한 뒤 진행해 주세요")
+                                .font(.footnote)
+                                .foregroundColor(.white.opacity(0.75))
+                        }
+                        .padding(.horizontal)
+
                         Spacer().frame(height: 10)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 28) {
@@ -225,6 +222,7 @@ struct HomeView: View {
                                         HitSongCardView(
                                             song: song,
                                             onPlay: {
+                                                isSearchFieldFocused = false
                                                 viewStore.send(.playMusic(song))
                                                 isMiniPlayerVisible = true
                                             },
@@ -248,7 +246,7 @@ struct HomeView: View {
                                     .foregroundColor(.white)
                                 Spacer()
                                 Button("전체보기") {
-                                    // 전체보기 액션 (필요시)
+                                    showAllRemixPairsSheet = true
                                 }
                                 .foregroundColor(.white.opacity(0.7))
                                 .font(.subheadline)
@@ -263,34 +261,8 @@ struct HomeView: View {
                                         }
                                     } else {
                                         ForEach(remixArtistPairs) { pair in
-                                            RemixArtistPairView(pair: pair, onRemix: { fileName in
-                                                if let fileURL = Bundle.main.url(forResource: fileName, withExtension: nil) {
-                                                    isRemixingDemo = true
-                                                    uploadFileToAIConvert(fileURL: fileURL) { result in
-                                                        DispatchQueue.main.async {
-                                                            isRemixingDemo = false
-                                                            switch result {
-                                                            case .success(let url):
-                                                                // MiniPlayer가 보이도록 playerState 세팅 후 재생
-                                                                let track = PlayableTrackDTO(
-                                                                    id: UUID(),
-                                                                    title: pair.artist2,
-                                                                    artistName: pair.artist1,
-                                                                    playbackUrl: nil,
-                                                                    playbackStoreID: nil,
-                                                                    isAIGenerated: true,
-                                                                    duration: nil,
-                                                                    fileUrl: url.absoluteString,
-                                                                    artworkURL: nil
-                                                                )
-                                                                let newPlayerState = PlayerReducer.State(playlist: [track], currentIndex: 0)
-                                                                store.send(.tabBar(.setPlayerState(newPlayerState)))
-                                                            case .failure(let error):
-                                                                print("AI 변환 실패: \(error)")
-                                                            }
-                                                        }
-                                                    }
-                                                }
+                                            RemixArtistPairView(pair: pair, onRemix: {
+                                                performRemix(for: pair)
                                             })
                                         }
                                     }
@@ -309,43 +281,7 @@ struct HomeView: View {
                     }
                     .frame(height: 0)
                     
-                    if viewStore.isSearching {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.5)
-                            .frame(maxWidth: .infinity, minHeight: 100)
-                            .padding(.top, 20)
-                    }
-                    
-                    if let error = viewStore.error {
-                        Text("검색 오류: \(error)")
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.red.opacity(0.5))
-                            .cornerRadius(8)
-                            .padding()
-                    }
-                    
-                    if !viewStore.searchResults.isEmpty {
-                        VStack(spacing: 12) {
-                            Text("검색 결과")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                            
-                            ForEach(viewStore.searchResults) { result in
-                                MusicSearchResultView(result: result) {
-                                    viewStore.send(.playMusic(result))
-                                    isMiniPlayerVisible = true
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.vertical)
-                    }
-                    else if viewStore.searchText.isEmpty {
+                    if viewStore.searchText.isEmpty {
                         if !viewStore.playlists.isEmpty {
                             PlaylistListView(
                                 playlists: viewStore.playlists,
@@ -353,60 +289,155 @@ struct HomeView: View {
                                     viewStore.send(.playlistSelected(playlist))
                                 }
                             )
-                        } else {
-                            // VStack(spacing: 16) {
-                            //     Text("재생 목록이 없습니다")
-                            //         .font(.headline)
-                            //         .foregroundColor(.white)
-                            //         .padding(.top, 40)
-                                
-                            //     Text("첫 번째 재생 목록을 만들어보세요!")
-                            //         .font(.subheadline)
-                            //         .foregroundColor(.white.opacity(0.8))
-                            // }
-                            // .frame(maxWidth: .infinity)
-                            // .padding(.top, 60)
                         }
                     }
                 }
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
                     scrollOffset = value
                 }
+                .onTapGesture {
+                    isSearchFieldFocused = false
+                }
             }
 
-            MusicSearchView(isMiniPlayerVisible: $isMiniPlayerVisible)
         }
         .navigationBarItems(trailing: HomeNavigationBarView(store: store, isLoggedIn: $isLoggedIn))
         .navigationBarTitle("", displayMode: .inline)
         .onAppear {
+            recentSearches = loadRecentSearches()
             Task {
-                await fetchAppleMusicHitSongs()
+                await fetchTrendingSongs()
                 await fetchRemixArtistPairs()
+            }
+        }
+        .fullScreenCover(isPresented: $showSearchScreen) {
+            SearchScreenView(
+                searchText: $searchDraft,
+                results: viewStore.searchResults,
+                isSearching: viewStore.isSearching,
+                recentSearches: recentSearches,
+                suggestedSearches: ["pop", "dua lipa", "taylor swift", "weeknd", "newjeans", "house", "hip hop"],
+                onClose: {
+                    showSearchScreen = false
+                },
+                onChangeText: { text in
+                    searchDraft = text
+                    if text.isEmpty {
+                        viewStore.send(.clearSearchResults)
+                    } else {
+                        viewStore.send(.searchTextChanged(text))
+                    }
+                },
+                onSubmitSearch: { keyword in
+                    addRecentSearch(keyword)
+                    if keyword.isEmpty {
+                        viewStore.send(.clearSearchResults)
+                    } else {
+                        viewStore.send(.searchTextChanged(keyword))
+                    }
+                },
+                onSelectRecent: { keyword in
+                    searchDraft = keyword
+                    addRecentSearch(keyword)
+                    viewStore.send(.searchTextChanged(keyword))
+                },
+                onDeleteRecent: { keyword in
+                    recentSearches.removeAll { $0 == keyword }
+                    saveRecentSearches(recentSearches)
+                },
+                onClearRecent: {
+                    recentSearches.removeAll()
+                    saveRecentSearches([])
+                },
+                onPlay: { result in
+                    addRecentSearch(result.title + " " + result.artist)
+                    showSearchScreen = false
+                    viewStore.send(.playMusic(result))
+                    isMiniPlayerVisible = true
+                }
+            )
+        }
+        .sheet(isPresented: $showAllHitSongsSheet) {
+            NavigationView {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(hitSongs) { song in
+                            MusicSearchResultView(result: song) {
+                                showAllHitSongsSheet = false
+                                isSearchFieldFocused = false
+                                viewStore.send(.playMusic(song))
+                                isMiniPlayerVisible = true
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.purple.opacity(0.95), Color.pink.opacity(0.8)]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                )
+                .navigationTitle("Audius 인기 음악")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .sheet(isPresented: $showAllRemixPairsSheet) {
+            NavigationView {
+                ScrollView {
+                    LazyVStack(spacing: 20) {
+                        ForEach(remixArtistPairs) { pair in
+                            VStack(alignment: .leading, spacing: 12) {
+                                RemixArtistPairView(pair: pair, onRemix: {
+                                    showAllRemixPairsSheet = false
+                                    performRemix(for: pair)
+                                })
+                                .frame(maxWidth: .infinity)
+
+                                Text("\(pair.artist1) × \(pair.artist2)")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.08))
+                            .cornerRadius(20)
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.purple.opacity(0.95), Color.pink.opacity(0.8)]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                )
+                .navigationTitle("리믹스 가능한 가수 조합")
+                .navigationBarTitleDisplayMode(.inline)
             }
         }
     }
     
-    // 실시간 차트 곡 불러오는 함수
-    private func fetchAppleMusicHitSongs() async {
+    // Audius 인기 곡 불러오기
+    private func fetchTrendingSongs() async {
         do {
-            var request = MusicCatalogChartsRequest(types: [MusicKit.Song.self])
-            request.limit = 10
-            let response = try await request.response()
-            let topSongs = response.songCharts.first?.items ?? []
-            let results = topSongs.map { song in
-                MusicSearchResult(
-                    id: song.id.rawValue,
-                    title: song.title,
-                    artist: song.artistName,
-                    artworkURL: song.artwork?.url(width: 100, height: 100),
-                    isExplicit: song.contentRating == .explicit
-                )
-            }
+            let trendingTracks = try await AudiusService.shared.getTrendingTracks(limit: 100)
+            let playableTracks = trendingTracks
+                .map { $0.toMusicSearchResult() }
+                .filter { $0.playbackURL != nil }
+
             await MainActor.run {
-                self.hitSongs = results
+                self.hitSongs = Array(playableTracks.prefix(20))
                 self.isLoadingHitSongs = false
             }
         } catch {
+            print("Failed to fetch Audius popular tracks: \(error)")
             await MainActor.run {
                 self.isLoadingHitSongs = false
             }
@@ -420,19 +451,26 @@ struct HomeView: View {
         let artist2: String
         var artworkURL1: URL?
         var artworkURL2: URL?
-        var fileName: String? // 내장 mp3 파일명 (있으면 AI Remix 가능)
+        let track1: MusicSearchResult
+        let track2: MusicSearchResult
     }
 
     struct RemixArtistPairView: View {
         let pair: RemixArtistPair
-        var onRemix: ((String) -> Void)? // fileName 전달
+        var onRemix: (() -> Void)?
 
         var body: some View {
             VStack(spacing: 10) {
                 ZStack {
+                    HalfCircle(left: true)
+                        .fill(Color.white.opacity(0.12))
+                    HalfCircle(left: false)
+                        .fill(Color.white.opacity(0.12))
+
                     if let url1 = pair.artworkURL1 {
                         AsyncImage(url: url1) { image in
                             image.resizable()
+                                .scaledToFill()
                         } placeholder: {
                             Color.gray.opacity(0.3)
                         }
@@ -441,6 +479,7 @@ struct HomeView: View {
                     if let url2 = pair.artworkURL2 {
                         AsyncImage(url: url2) { image in
                             image.resizable()
+                                .scaledToFill()
                         } placeholder: {
                             Color.gray.opacity(0.3)
                         }
@@ -448,10 +487,23 @@ struct HomeView: View {
                     }
                 }
                 .frame(width: 100, height: 100)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+
+                VStack(spacing: 2) {
+                    Text(pair.artist1)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Text(pair.artist2)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+                .frame(width: 120)
+
                 Button(action: {
-                    if let fileName = pair.fileName {
-                        onRemix?(fileName)
-                    }
+                    onRemix?()
                 }) {
                     HStack(spacing: 4) {
                         Text("청음하기")
@@ -460,8 +512,6 @@ struct HomeView: View {
                     .foregroundColor(.white)
                     .font(.headline)
                 }
-                .disabled(pair.fileName == nil)
-                .opacity(pair.fileName == nil ? 0.5 : 1.0)
             }
         }
     }
@@ -483,37 +533,101 @@ struct HomeView: View {
         }
     }
 
-    // 가수조합을 MusicKit으로 검색해서 artworkURL을 채움 (데모용 하드코딩)
+    // Audius에서 실제 재생 가능한 pop 계열 아티스트 조합 생성
     private func fetchRemixArtistPairs() async {
-        let pairs: [(String, String, String?)] = [
-            ("Dua Lipa", "H.E.R", nil),
-            ("Rihanna", "BlackPink", nil),
-            ("WOODZ", "NewJeans", nil),
-            // 내장곡 추가
-            ("Coldplay", "Fix You", "fixyou.mp3"),
-            ("Coldplay", "Feels Like Falling In Love", "feelslikefallinginlove.mp3")
-        ]
-        var result: [RemixArtistPair] = []
-        for (a1, a2, fileName) in pairs {
-            let url1 = await fetchArtistArtworkURL(artist: a1)
-            let url2 = await fetchArtistArtworkURL(artist: a2)
-            result.append(RemixArtistPair(artist1: a1, artist2: a2, artworkURL1: url1, artworkURL2: url2, fileName: fileName))
-        }
-        await MainActor.run { 
-            self.remixArtistPairs = result 
-            self.isLoadingRemixPairs = false
+        do {
+            let tracks = try await AudiusService.shared.searchTracks(query: "pop", limit: 30)
+            let candidates = tracks
+                .map { $0.toMusicSearchResult() }
+                .filter { $0.playbackURL != nil && $0.artworkURL != nil }
+
+            var uniqueArtists: [MusicSearchResult] = []
+            var seenArtists = Set<String>()
+            for track in candidates {
+                let key = track.artist.lowercased()
+                if !seenArtists.contains(key) {
+                    seenArtists.insert(key)
+                    uniqueArtists.append(track)
+                }
+            }
+
+            var result: [RemixArtistPair] = []
+            var index = 0
+            while index + 1 < uniqueArtists.count, result.count < 8 {
+                let first = uniqueArtists[index]
+                let second = uniqueArtists[index + 1]
+                result.append(
+                    RemixArtistPair(
+                        artist1: first.artist,
+                        artist2: second.artist,
+                        artworkURL1: first.artworkURL,
+                        artworkURL2: second.artworkURL,
+                        track1: first,
+                        track2: second
+                    )
+                )
+                index += 2
+            }
+
+            await MainActor.run {
+                self.remixArtistPairs = result
+                self.isLoadingRemixPairs = false
+            }
+        } catch {
+            print("Failed to fetch remix artist pairs: \(error)")
+            await MainActor.run {
+                self.isLoadingRemixPairs = false
+            }
         }
     }
 
     private func fetchArtistArtworkURL(artist: String) async -> URL? {
         do {
-            let request = MusicCatalogSearchRequest(term: artist, types: [MusicKit.Artist.self])
-            let response = try await request.response()
-            if let artist = response.artists.first, let url = artist.artwork?.url(width: 200, height: 200) {
-                return url
+            let artists = try await AudiusService.shared.searchUsers(query: artist, limit: 1)
+            if let first = artists.first {
+                return first.profilePicture?.url480 ?? first.profilePicture?.url150 ?? first.profilePicture?.url1000
             }
-        } catch {}
+        } catch {
+            print("Failed to fetch artist artwork: \(error)")
+        }
         return nil
+    }
+
+    private func performRemix(for pair: RemixArtistPair) {
+        let playlist = [pair.track1, pair.track2].compactMap { item in
+            PlayableTrackDTO(
+                id: UUID(),
+                title: item.title,
+                artistName: item.artist,
+                playbackUrl: item.playbackURL,
+                playbackStoreID: item.id,
+                isAIGenerated: false,
+                duration: nil,
+                fileUrl: nil,
+                artworkURL: item.artworkURL
+            )
+        }
+
+        guard !playlist.isEmpty else { return }
+        let newPlayerState = PlayerReducer.State(playlist: playlist, currentIndex: 0)
+        store.send(.tabBar(.setPlayerState(newPlayerState)))
+    }
+
+    private func loadRecentSearches() -> [String] {
+        UserDefaults.standard.stringArray(forKey: "home.recentSearches") ?? []
+    }
+
+    private func saveRecentSearches(_ items: [String]) {
+        UserDefaults.standard.set(items, forKey: "home.recentSearches")
+    }
+
+    private func addRecentSearch(_ keyword: String) {
+        let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        recentSearches.removeAll { $0.caseInsensitiveCompare(trimmed) == .orderedSame }
+        recentSearches.insert(trimmed, at: 0)
+        recentSearches = Array(recentSearches.prefix(10))
+        saveRecentSearches(recentSearches)
     }
 }
 
@@ -609,10 +723,158 @@ struct PlaylistListView: View {
     }
 }
 
-struct MusicSearchView: View {
-    @Binding var isMiniPlayerVisible: Bool
+struct SearchScreenView: View {
+    @Binding var searchText: String
+    let results: [MusicSearchResult]
+    let isSearching: Bool
+    let recentSearches: [String]
+    let suggestedSearches: [String]
+    let onClose: () -> Void
+    let onChangeText: (String) -> Void
+    let onSubmitSearch: (String) -> Void
+    let onSelectRecent: (String) -> Void
+    let onDeleteRecent: (String) -> Void
+    let onClearRecent: () -> Void
+    let onPlay: (MusicSearchResult) -> Void
+    @FocusState private var isFocused: Bool
+
     var body: some View {
-        EmptyView()
+        NavigationView {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Button("취소") { onClose() }
+                        .foregroundColor(.white)
+
+                    TextField("노래/가수 검색하기", text: $searchText)
+                        .focused($isFocused)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .submitLabel(.search)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 14)
+                        .background(Color.white.opacity(0.12))
+                        .cornerRadius(14)
+                        .onChange(of: searchText) { _, newValue in
+                            onChangeText(newValue)
+                        }
+                        .onSubmit {
+                            onSubmitSearch(searchText)
+                        }
+                }
+                .padding()
+
+                if isSearching {
+                    Spacer()
+                    ProgressView()
+                        .tint(.white)
+                    Spacer()
+                } else if !results.isEmpty {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(results) { result in
+                                MusicSearchResultView(result: result) {
+                                    onPlay(result)
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        .padding(.vertical)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 22) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("최근 검색")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    if !recentSearches.isEmpty {
+                                        Button("전체 삭제") {
+                                            onClearRecent()
+                                        }
+                                        .font(.subheadline)
+                                        .foregroundColor(.white.opacity(0.8))
+                                    }
+                                }
+                                .padding(.horizontal)
+
+                                if recentSearches.isEmpty {
+                                    Text("최근 검색어가 없습니다")
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .padding(.horizontal)
+                                } else {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 10) {
+                                            ForEach(recentSearches, id: \.self) { item in
+                                                HStack(spacing: 8) {
+                                                    Button(action: { onSelectRecent(item) }) {
+                                                        Text(item)
+                                                            .foregroundColor(.white)
+                                                            .lineLimit(1)
+                                                    }
+                                                    Button(action: { onDeleteRecent(item) }) {
+                                                        Image(systemName: "xmark")
+                                                            .font(.caption)
+                                                            .foregroundColor(.white.opacity(0.7))
+                                                    }
+                                                }
+                                                .padding(.vertical, 10)
+                                                .padding(.horizontal, 14)
+                                                .background(Color.white.opacity(0.12))
+                                                .clipShape(Capsule())
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("추천 검색어")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal)
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(suggestedSearches, id: \.self) { item in
+                                            Button(action: {
+                                                onSelectRecent(item)
+                                            }) {
+                                                Text(item)
+                                                    .foregroundColor(.white)
+                                                    .padding(.vertical, 10)
+                                                    .padding(.horizontal, 14)
+                                                    .background(Color.white.opacity(0.1))
+                                                    .clipShape(Capsule())
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top)
+                    }
+                }
+            }
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.purple.opacity(0.95), Color.pink.opacity(0.8)]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            .background(Color.white.opacity(0.03))
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                isFocused = true
+            }
+        }
     }
 }
 
@@ -669,6 +931,11 @@ struct HitSongCardView: View {
             Text(song.artist)
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.8))
+                .lineLimit(1)
+
+            Text("Audius 트렌딩")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.65))
                 .lineLimit(1)
         }
         .frame(width: 130)
