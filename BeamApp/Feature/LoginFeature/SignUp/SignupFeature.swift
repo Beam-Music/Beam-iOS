@@ -9,6 +9,17 @@ import ComposableArchitecture
 import Foundation
 import UIKit
 
+private enum SignupAuthValidation {
+    static func normalizedEmail(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func isValidEmail(_ email: String) -> Bool {
+        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        return NSPredicate(format: "SELF MATCHES %@", emailRegex).evaluate(with: email)
+    }
+}
+
 struct SignupFeature: Reducer {
     struct State: Equatable {
         var username: String = ""
@@ -171,12 +182,12 @@ struct SignupFeature: Reducer {
                 return .none
                 
             case .sendVerificationCodeButtonTapped:
-                let trimmedEmail = AuthValidation.normalizedEmail(state.email)
+                let trimmedEmail = SignupAuthValidation.normalizedEmail(state.email)
                 guard !trimmedEmail.isEmpty else {
                     state.errorMessage = "이메일을 입력해 주세요."
                     return .none
                 }
-                guard AuthValidation.isValidEmail(trimmedEmail) else {
+                guard SignupAuthValidation.isValidEmail(trimmedEmail) else {
                     state.errorMessage = SignupError.invalidEmailFormat.localizedDescription
                     return .none
                 }
@@ -213,12 +224,12 @@ struct SignupFeature: Reducer {
                 
             case .signupButtonTapped:
                 let trimmedUsername = state.username.trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedEmail = AuthValidation.normalizedEmail(state.email)
+                let trimmedEmail = SignupAuthValidation.normalizedEmail(state.email)
                 guard !trimmedUsername.isEmpty else {
                     state.errorMessage = "이름을 입력해 주세요."
                     return .none
                 }
-                guard !trimmedEmail.isEmpty, AuthValidation.isValidEmail(trimmedEmail) else {
+                guard !trimmedEmail.isEmpty, SignupAuthValidation.isValidEmail(trimmedEmail) else {
                     state.errorMessage = SignupError.invalidEmailFormat.localizedDescription
                     return .none
                 }

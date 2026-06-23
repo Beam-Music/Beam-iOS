@@ -113,6 +113,12 @@ struct RootView: View {
                 await checkSavedTokenAndAutoLogin(viewStore: viewStore)
                 isLoading = false
             }
+            .onChange(of: viewStore.isLoggedIn) { _, isLoggedIn in
+                if !isLoggedIn {
+                    isMiniPlayerVisible = false
+                    isPlayerViewVisible = false
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
                 guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
                       let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,

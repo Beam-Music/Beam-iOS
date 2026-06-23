@@ -12,12 +12,38 @@ struct APIKeys {
 }
 
 struct Endpoints {
-//    static let baseURL = "https://web-production-9874.up.railway.app"
-    #if targetEnvironment(simulator)
-    static let baseURL = "http://127.0.0.1:8081"
-    #else
-    static let baseURL = "http://192.168.0.75:8081"
-    #endif
+    private static func configuredURL(for key: String, fallback: String) -> String {
+        if let envValue = ProcessInfo.processInfo.environment[key], !envValue.isEmpty {
+            return envValue
+        }
+
+        if let plistValue = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+           !plistValue.isEmpty {
+            return plistValue
+        }
+
+        return fallback
+    }
+
+    private static let defaultLocalBaseURL: String = {
+        #if targetEnvironment(simulator)
+        return "http://127.0.0.1:8080"
+        #else
+        return "http://192.168.0.75:8080"
+        #endif
+    }()
+
+    private static let defaultLocalBeamSVCBaseURL: String = {
+        #if targetEnvironment(simulator)
+        return "http://127.0.0.1:8081"
+        #else
+        return "http://192.168.0.75:8081"
+        #endif
+    }()
+
+    static let baseURL = configuredURL(for: "BEAM_API_BASE_URL", fallback: defaultLocalBaseURL)
+    static let beamSVCBaseURL = configuredURL(for: "BEAM_SVC_BASE_URL", fallback: defaultLocalBeamSVCBaseURL)
+
     struct Auth {
         static let login = "\(baseURL)/api/users/login"
         static let register = "\(baseURL)/api/users/register"
@@ -57,7 +83,7 @@ struct Endpoints {
         static let createPreference = "\(baseURL)/api/ai-preferences"
     }
 
-    static let aiConvert = "\(baseURL)/ai-convert"
+    static let aiConvert = "\(beamSVCBaseURL)/ai-convert"
     
     struct VoiceConversion {
         static let list = "\(baseURL)/ai-convert/voices"

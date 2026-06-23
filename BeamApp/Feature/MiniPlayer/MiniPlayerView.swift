@@ -80,7 +80,7 @@ struct MiniPlayerView: View {
 
             Text(artist)
                 .font(.subheadline)
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundColor(.white)
                 .lineLimit(1)
         }
         .padding(.leading, 10)

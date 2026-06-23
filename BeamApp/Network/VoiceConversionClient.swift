@@ -219,11 +219,8 @@ extension VoiceConversionClient {
     static let mock = Self(
         getAvailableVoices: {
             return [
-                VoiceInfo(id: "pNInz6obpgDQGcFmaJgB", name: "Adam", category: "Default", description: "Male voice", previewUrl: nil, language: ["en"], voiceType: "default"),
-                VoiceInfo(id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", category: "Default", description: "Female voice", previewUrl: nil, language: ["en"], voiceType: "default"),
-                VoiceInfo(id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", category: "Default", description: "Female voice", previewUrl: nil, language: ["en"], voiceType: "default"),
-                VoiceInfo(id: "iu_singer", name: "IU Style", category: "K-Pop Female", description: "IU style voice", previewUrl: nil, language: ["ko", "en"], voiceType: "singer"),
-                VoiceInfo(id: "taylor_swift_singer", name: "Taylor Swift Style", category: "Western Pop Female", description: "Taylor Swift style voice", previewUrl: nil, language: ["en"], voiceType: "singer")
+                VoiceInfo(id: "dionn_v1_singing", name: "Dionn V1 Singing", category: "Custom Licensed", description: "Beam SVC singing model", previewUrl: nil, language: ["en"], voiceType: "singer"),
+                VoiceInfo(id: "freya_idol", name: "Freya Idol", category: "Open Source", description: "Beam SVC default voice model", previewUrl: nil, language: ["id"], voiceType: "default")
             ]
         },
         convertVoice: { audioData, voiceId, outputFormat, voiceType in

@@ -24,6 +24,12 @@ extension AuthService: DependencyKey {
                 #if DEBUG
                 print("🌐 Login request URL: \(url.absoluteString)")
                 print("📧 Login request email: \(username)")
+                print("🧭 Login baseURL: \(Endpoints.baseURL)")
+                #if targetEnvironment(simulator)
+                print("📱 Running on simulator")
+                #else
+                print("📱 Running on device")
+                #endif
                 #endif
 
                 var request = URLRequest(url: url)
@@ -101,11 +107,14 @@ extension AuthService: DependencyKey {
                 } catch let urlError as URLError {
                     #if DEBUG
                     print("❌ Login network error: \(urlError)")
+                    print("❌ Login network error code: \(urlError.code.rawValue) / \(urlError.code)")
+                    print("❌ Login network error description: \(urlError.localizedDescription)")
                     #endif
                     throw LoginError.networkError(urlError)
                 } catch {
                     #if DEBUG
                     print("❌ Login network/error: \(error)")
+                    print("❌ Login error type: \(String(describing: type(of: error)))")
                     #endif
                     if let loginError = error as? LoginError {
                         throw loginError

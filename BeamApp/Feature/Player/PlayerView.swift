@@ -15,7 +15,7 @@ import AVFoundation
 /// 음성 변환 제공자 추상화. 호출부는 이 프로토콜만 사용한다.
 protocol VoiceConversionProvider {
     /// 보컬 변환 수행. `voiceType`은 "singer" / "default" / "custom" / nil.
-    func convert(audioData: Data, voiceId: String, voiceType: String?) async throws -> Data
+    func convert(audioData: Data, voiceId: String, voiceType: String?, trimStart: Double?, trimDuration: Double?) async throws -> Data
 }
 
 enum VoiceProviderKind: String {
@@ -45,7 +45,8 @@ enum VoiceConversionConfig {
     }
 
     static func makeProvider() -> VoiceConversionProvider {
-        BeamSVCVoiceConversionProvider()
+        print("🧭 VoiceConversionConfig.makeProvider -> BeamSVCVoiceConversionProvider")
+        return BeamSVCVoiceConversionProvider()
     }
 }
 
@@ -258,8 +259,8 @@ class LalalAIClient {
 final class LalalAIVoiceConversionProvider: VoiceConversionProvider {
 
     // MARK: - VoiceConversionProvider
-    func convert(audioData: Data, voiceId: String, voiceType: String?) async throws -> Data {
-        // 기존 동작 그대로: voiceType은 lalal 경로에서는 사용되지 않음 (호환성을 위해 시그니처만 통일)
+    func convert(audioData: Data, voiceId: String, voiceType: String?, trimStart: Double?, trimDuration: Double?) async throws -> Data {
+        // 기존 동작 그대로: voiceType/trim 파라미터는 lalal 경로에서 사용되지 않음
         return try await performLalalAIVoiceChange(audioData: audioData, voiceId: voiceId)
     }
 
@@ -496,8 +497,8 @@ final class LalalAIVoiceConversionProvider: VoiceConversionProvider {
 }
 
 // MARK: - Audio Trimming Helper
-func trimAudioToDuration(_ audioData: Data, duration: TimeInterval) async throws -> Data {
-    print("✂️ Trimming audio to \(duration) seconds")
+func trimAudioToDuration(_ audioData: Data, duration: TimeInterval, startTime: TimeInterval = 0) async throws -> Data {
+    print("✂️ Trimming audio from \(startTime)s for \(duration) seconds")
     
     // Create temporary file
     let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_audio.mp3")
@@ -519,10 +520,10 @@ func trimAudioToDuration(_ audioData: Data, duration: TimeInterval) async throws
     exportSession.outputURL = outputURL
     exportSession.outputFileType = .m4a
     
-    // Set time range (0 to duration)
-    let startTime = CMTime.zero
-    let endTime = CMTime(seconds: duration, preferredTimescale: 600)
-    let timeRange = CMTimeRange(start: startTime, end: endTime)
+    // Set time range
+    let start = CMTime(seconds: startTime, preferredTimescale: 600)
+    let endTime = CMTime(seconds: startTime + duration, preferredTimescale: 600)
+    let timeRange = CMTimeRange(start: start, end: endTime)
     exportSession.timeRange = timeRange
     
     // Export
@@ -605,9 +606,24 @@ enum ConvertedVoiceTrackStore {
 /// docs/SVC_MIGRATION.md Phase 0을 위해 BeamApp/Network/VoiceConversionClient.swift의 multipart 로직을 이식함.
 final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
 
+    struct AsyncJobResponse: Decodable {
+        let jobId: String
+        let status: String
+    }
+
+    struct AsyncJobStatusResponse: Decodable {
+        let jobId: String
+        let status: String
+        let progress: Int
+        let stage: String?
+        let resultUrl: String?
+        let resultPath: String?
+        let error: String?
+    }
+
     private let maxRetries = 3
 
-    func convert(audioData: Data, voiceId: String, voiceType: String?) async throws -> Data {
+    func convert(audioData: Data, voiceId: String, voiceType: String?, trimStart: Double?, trimDuration: Double?) async throws -> Data {
         var lastError: Error?
         for attempt in 1...maxRetries {
             do {
@@ -615,12 +631,14 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
                     audioData: audioData,
                     voiceId: voiceId,
                     voiceType: voiceType,
-                    outputFormat: "mp3"
+                    outputFormat: "mp3",
+                    trimStart: trimStart,
+                    trimDuration: trimDuration,
+                    returnJob: false
                 )
             } catch {
                 lastError = error
                 if attempt < maxRetries {
-                    // exponential backoff: 2s, 4s
                     let delayNs = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
                     try? await Task.sleep(nanoseconds: delayNs)
                     continue
@@ -631,15 +649,55 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         throw lastError ?? VoiceConversionError.timeout
     }
 
+    func submitAsyncJob(audioData: Data, voiceId: String, voiceType: String?) async throws -> AsyncJobResponse {
+        let data = try await performRequest(
+            audioData: audioData,
+            voiceId: voiceId,
+            voiceType: voiceType,
+            outputFormat: "mp3",
+            trimStart: nil,
+            trimDuration: nil,
+            returnJob: true
+        )
+        return try JSONDecoder().decode(AsyncJobResponse.self, from: data)
+    }
+
+    func pollJobUntilFinished(jobId: String, pollInterval: UInt64 = 2_000_000_000) async throws -> Data {
+        guard let statusURL = URL(string: "\(Endpoints.aiConvert)/jobs/\(jobId)") else {
+            throw VoiceConversionError.serverError("Invalid Beam SVC job URL")
+        }
+
+        while true {
+            let (data, _) = try await URLSession.shared.data(from: statusURL)
+            let status = try JSONDecoder().decode(AsyncJobStatusResponse.self, from: data)
+            switch status.status {
+            case "completed":
+                guard let resultURLString = status.resultUrl, let resultURL = URL(string: resultURLString) else {
+                    throw VoiceConversionError.serverError("Beam SVC result URL이 없습니다.")
+                }
+                let (resultData, _) = try await URLSession.shared.data(from: resultURL)
+                return resultData
+            case "failed":
+                throw VoiceConversionError.serverError(status.error ?? "Beam SVC async job failed")
+            default:
+                try await Task.sleep(nanoseconds: pollInterval)
+            }
+        }
+    }
+
     private func performRequest(
         audioData: Data,
         voiceId: String,
         voiceType: String?,
-        outputFormat: String
+        outputFormat: String,
+        trimStart: Double?,
+        trimDuration: Double?,
+        returnJob: Bool
     ) async throws -> Data {
         guard let url = URL(string: Endpoints.VoiceConversion.convert) else {
             throw VoiceConversionError.serverError("Invalid Beam SVC URL")
         }
+        print("🌐 Beam SVC convert URL: \(url.absoluteString)")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -683,6 +741,27 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         body.append("true".data(using: .utf8)!)
         body.append("\r\n".data(using: .utf8)!)
 
+        if let trimStart {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"trim_start\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(trimStart)".data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
+        if let trimDuration {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"trim_duration\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(trimDuration)".data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
+        if returnJob {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"return_job\"\r\n\r\n".data(using: .utf8)!)
+            body.append("true".data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
 
@@ -693,9 +772,20 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
 
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw VoiceConversionError.serverError("Beam SVC HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VoiceConversionError.serverError("Beam SVC 응답을 확인할 수 없습니다.")
+        }
+
+        if !(200...299).contains(httpResponse.statusCode) {
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let message = (json["message"] as? String) ?? (json["error"] as? String) ?? "Beam SVC HTTP \(httpResponse.statusCode)"
+                throw VoiceConversionError.serverError(message)
+            }
+            throw VoiceConversionError.serverError("Beam SVC HTTP \(httpResponse.statusCode)")
+        }
+
+        if returnJob {
+            return data
         }
 
         // JSON이면 에러, 그 외엔 오디오 바이너리
@@ -1096,6 +1186,9 @@ struct PlayerView: View {
     @State private var selectedVoice: VoiceInfo?
     @State private var showVoiceConversionError = false
     @State private var voiceConversionErrorMessage = ""
+    @State private var voiceConversionStatusTitle = "음성 변환 중..."
+    @State private var voiceConversionStatusSubtitle = "미리듣기 구간을 준비하고 있어요"
+    @State private var isFullTrackConversionInProgress = false
     @State private var showLyricsSheet = false
     @State private var lyricsText = ""
     @State private var lyricsTitle = "가사보기"
@@ -1401,12 +1494,18 @@ struct PlayerView: View {
                     VStack(spacing: 12) {
                         ProgressView()
                             .scaleEffect(1.2)
-                        Text("음성 변환 중...")
+                        Text(voiceConversionStatusTitle)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
-                        Text("기본 30초 구간만 변환합니다")
+                        Text(voiceConversionStatusSubtitle)
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.7))
+                        if isFullTrackConversionInProgress {
+                            Text("미리듣기는 먼저 재생되고, 전체 곡은 완료되면 자동으로 바뀌어요")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                        }
                     }
                     .padding(24)
                     .background(Color.black.opacity(0.8))
@@ -1615,14 +1714,16 @@ struct PlayerView: View {
     }
     
     func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-        // LALAL.AI 직접 호출 (기본 남성 음성 ALEX_KAYE 사용)
+        // 자체 Beam SVC 서버 호출
         Task {
             do {
                 let audioData = try Data(contentsOf: fileURL)
                 let convertedAudioData = try await voiceConversionService.convert(
                     audioData: audioData,
-                    voiceId: "ALEX_KAYE",
-                    voiceType: "default"
+                    voiceId: "dionn_v1_singing",
+                    voiceType: "singer",
+                    trimStart: 0,
+                    trimDuration: 60
                 )
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
                 try convertedAudioData.write(to: tempURL)
@@ -1636,20 +1737,30 @@ struct PlayerView: View {
     @MainActor
     private func loadAvailableVoices() async {
         do {
-            let voices = try await VoiceConversionClient.live.getAvailableVoices()
-            availableVoices = voices
+            guard let url = URL(string: Endpoints.VoiceConversion.list) else {
+                throw VoiceConversionError.serverError("Invalid Beam SVC voices URL")
+            }
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                throw VoiceConversionError.serverError("Beam SVC voices HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+            }
+            struct VoiceListPayload: Decodable {
+                let voices: [VoiceInfo]
+            }
+            let payload = try JSONDecoder().decode(VoiceListPayload.self, from: data)
+            availableVoices = payload.voices
             print("✅ Loaded \(availableVoices.count) Beam SVC voices")
         } catch {
             availableVoices = [
-                VoiceInfo(id: "pNInz6obpgDQGcFmaJgB", name: "Adam", category: "Default", description: "Male voice", previewUrl: nil, language: ["en"], voiceType: "default"),
-                VoiceInfo(id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", category: "Default", description: "Female voice", previewUrl: nil, language: ["en"], voiceType: "default")
+                VoiceInfo(id: "dionn_v1_singing", name: "Dionn V1 Singing", category: "Custom Licensed", description: "Beam SVC fallback voice", previewUrl: nil, language: ["en"], voiceType: "singer")
             ]
             showVoiceConversionError = true
             voiceConversionErrorMessage = "Beam SVC 음성 목록을 불러오지 못했습니다: \(error.localizedDescription)"
         }
     }
     
-    private func performVoiceConversion(with voice: VoiceInfo, shouldTrim: Bool = true, trimDuration: Double = 30.0) {
+    private func performVoiceConversion(with voice: VoiceInfo, shouldTrim: Bool = true, trimDuration: Double = 60.0) {
         // PlayerReducer 상태(selected track) 우선, AudioManager 메타는 보조
         let reducerTrack = ViewStore(store, observe: { $0.currentTrack }).state
         let audioMeta = audioManager.currentTrackMetadata
@@ -1663,73 +1774,108 @@ struct PlayerView: View {
         }
 
         isVoiceConverting = true
+        isFullTrackConversionInProgress = false
+        voiceConversionStatusTitle = "음성 변환 중..."
+        voiceConversionStatusSubtitle = "현재 위치부터 최대 1분 미리듣기를 만들고 있어요"
 
         Task {
             do {
                 let audioData: Data = try await resolveAudioData(reducerTrack: reducerTrack, title: resolvedTitle)
-                
+                let currentPlaybackTime = max(0, audioManager.currentTime)
+
                 let trimmedAudioData: Data
                 if shouldTrim {
-                    print("✂️ Using trimmed audio for voice conversion (\(trimDuration) seconds)")
-                    trimmedAudioData = try await trimAudioToDuration(audioData, duration: trimDuration)
+                    print("✂️ Using preview trim for voice conversion (start: \(currentPlaybackTime)s, duration: \(trimDuration)s)")
+                    trimmedAudioData = try await trimAudioToDuration(audioData, duration: trimDuration, startTime: currentPlaybackTime)
                 } else {
                     trimmedAudioData = audioData
                     print("🎵 Using full audio data for voice conversion (\(audioData.count) bytes)")
                 }
-                
-                let convertedAudioData = try await performDirectLalalAIVoiceConversion(
+
+                let convertedAudioData = try await performDirectBeamSVCVoiceConversion(
                     audioData: trimmedAudioData,
                     voiceId: voice.id,
-                    voiceType: voice.voiceType
+                    voiceType: voice.voiceType,
+                    trimStart: nil,
+                    trimDuration: nil
                 )
-                
-                // Save converted audio
-                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let safeTitle = (resolvedTitle ?? "Unknown")
-                    .replacingOccurrences(of: "/", with: "-")
-                    .replacingOccurrences(of: ":", with: "-")
-                let safeVoice = voice.name
-                    .replacingOccurrences(of: "/", with: "-")
-                    .replacingOccurrences(of: ":", with: "-")
-                let fileName = "voice_converted_\(safeTitle)_\(safeVoice)_\(Int(Date().timeIntervalSince1970)).mp3"
-                let fileURL = documentsPath.appendingPathComponent(fileName)
 
-                try convertedAudioData.write(to: fileURL)
-                _ = try? ConvertedVoiceTrackStore.save(
+                let previewFileURL = try await saveConvertedAudio(
+                    audioData: convertedAudioData,
                     title: resolvedTitle ?? "Unknown",
                     artistName: resolvedArtist,
                     voiceName: voice.name,
-                    filePath: fileURL.path,
                     artworkURL: reducerTrack?.artworkURL
                 )
-                
-                // print("✅ Voice conversion successful, saved to: \(fileURL)")
-                
-                let asset = AVAsset(url: fileURL)
-                let duration = try await asset.load(.duration)
-                let durationSeconds = CMTimeGetSeconds(duration)
 
                 await MainActor.run {
-                    // PlayerReducer를 통해 재생 (playerState 유지 → MiniPlayer 표시됨)
-                    let track = PlayableTrackDTO(
-                        id: UUID(),
-                        title: "\(resolvedTitle ?? "Unknown") (Voice: \(voice.name))",
-                        artistName: resolvedArtist ?? "Unknown Artist",
-                        playbackUrl: nil,
-                        playbackStoreID: nil,
-                        isAIGenerated: true,
-                        duration: durationSeconds.isFinite ? durationSeconds : nil,
-                        fileUrl: fileURL.path,
+                    startConvertedPlayback(
+                        fileURL: previewFileURL,
+                        title: resolvedTitle ?? "Unknown",
+                        artistName: resolvedArtist,
+                        voiceName: voice.name,
                         artworkURL: reducerTrack?.artworkURL
                     )
-                    store.send(.startPlayback([track]))
-
                     isVoiceConverting = false
+                    isFullTrackConversionInProgress = shouldTrim
+                    if shouldTrim {
+                        voiceConversionStatusTitle = "전체 곡 변환 중..."
+                        voiceConversionStatusSubtitle = "미리듣기는 재생 중이고, 전체 곡을 백그라운드에서 준비하고 있어요"
+                    }
+                }
+
+                if shouldTrim, let provider = voiceConversionService as? BeamSVCVoiceConversionProvider {
+                    Task(priority: .background) {
+                        do {
+                            await MainActor.run {
+                                isVoiceConverting = true
+                                voiceConversionStatusTitle = "전체 곡 변환 요청 중..."
+                                voiceConversionStatusSubtitle = "서버에 전체 곡 변환을 요청하고 있어요"
+                            }
+                            let job = try await provider.submitAsyncJob(
+                                audioData: audioData,
+                                voiceId: voice.id,
+                                voiceType: voice.voiceType
+                            )
+                            await MainActor.run {
+                                voiceConversionStatusTitle = "전체 곡 변환 중..."
+                                voiceConversionStatusSubtitle = "전체 버전을 준비 중이에요. 잠시만 기다려 주세요"
+                            }
+                            let fullTrackData = try await provider.pollJobUntilFinished(jobId: job.jobId)
+                            let fullFileURL = try await saveConvertedAudio(
+                                audioData: fullTrackData,
+                                title: resolvedTitle ?? "Unknown",
+                                artistName: resolvedArtist,
+                                voiceName: "\(voice.name) Full",
+                                artworkURL: reducerTrack?.artworkURL
+                            )
+                            await MainActor.run {
+                                isVoiceConverting = false
+                                isFullTrackConversionInProgress = false
+                                if (audioManager.currentTrackMetadata.title ?? "").contains("(Voice: \(voice.name))") {
+                                    startConvertedPlayback(
+                                        fileURL: fullFileURL,
+                                        title: resolvedTitle ?? "Unknown",
+                                        artistName: resolvedArtist,
+                                        voiceName: voice.name,
+                                        artworkURL: reducerTrack?.artworkURL
+                                    )
+                                }
+                            }
+                        } catch {
+                            await MainActor.run {
+                                isVoiceConverting = false
+                                isFullTrackConversionInProgress = false
+                            }
+                            print("⚠️ Full-track async voice conversion failed: \(error)")
+                        }
+                    }
                 }
                 
             } catch {
                 await MainActor.run {
                     isVoiceConverting = false
+                    isFullTrackConversionInProgress = false
                     showVoiceConversionError = true
                     if let nsError = error as NSError?,
                        nsError.domain == NSCocoaErrorDomain,
@@ -1744,18 +1890,77 @@ struct PlayerView: View {
         }
     }
     
-    private func performDirectLalalAIVoiceConversion(
+    private func performDirectBeamSVCVoiceConversion(
         audioData: Data,
         voiceId: String,
-        voiceType: String?
+        voiceType: String?,
+        trimStart: Double?,
+        trimDuration: Double?
     ) async throws -> Data {
         let isSingerVoice = voiceId.contains("_singer") || voiceType == "singer"
         let resolvedVoiceType = isSingerVoice ? "singer" : (voiceType ?? "default")
+        print("🧭 performVoiceConversion provider=beam_svc voiceId=\(voiceId) voiceType=\(resolvedVoiceType)")
         return try await voiceConversionService.convert(
             audioData: audioData,
             voiceId: voiceId,
-            voiceType: resolvedVoiceType
+            voiceType: resolvedVoiceType,
+            trimStart: trimStart,
+            trimDuration: trimDuration
         )
+    }
+
+    private func saveConvertedAudio(
+        audioData: Data,
+        title: String,
+        artistName: String?,
+        voiceName: String,
+        artworkURL: URL?
+    ) async throws -> URL {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let safeTitle = title
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let safeVoice = voiceName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let fileName = "voice_converted_\(safeTitle)_\(safeVoice)_\(Int(Date().timeIntervalSince1970)).mp3"
+        let fileURL = documentsPath.appendingPathComponent(fileName)
+        try audioData.write(to: fileURL)
+        _ = try? ConvertedVoiceTrackStore.save(
+            title: title,
+            artistName: artistName,
+            voiceName: voiceName,
+            filePath: fileURL.path,
+            artworkURL: artworkURL
+        )
+        return fileURL
+    }
+
+    @MainActor
+    private func startConvertedPlayback(
+        fileURL: URL,
+        title: String,
+        artistName: String?,
+        voiceName: String,
+        artworkURL: URL?
+    ) {
+        let asset = AVAsset(url: fileURL)
+        Task {
+            let duration = try? await asset.load(.duration)
+            let durationSeconds: Double? = duration.map(CMTimeGetSeconds)
+            let track = PlayableTrackDTO(
+                id: UUID(),
+                title: "\(title) (Voice: \(voiceName))",
+                artistName: artistName ?? "Unknown Artist",
+                playbackUrl: nil,
+                playbackStoreID: nil,
+                isAIGenerated: true,
+                duration: (durationSeconds?.isFinite == true) ? durationSeconds : nil,
+                fileUrl: fileURL.path,
+                artworkURL: artworkURL
+            )
+            store.send(.startPlayback([track]))
+        }
     }
 
     @MainActor

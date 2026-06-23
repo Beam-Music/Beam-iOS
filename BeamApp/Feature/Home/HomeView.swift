@@ -15,8 +15,10 @@ func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Erro
             let audioData = try Data(contentsOf: fileURL)
             let convertedAudioData = try await voiceConversionService.convert(
                 audioData: audioData,
-                voiceId: "ALEX_KAYE",
-                voiceType: nil
+                voiceId: "dionn_v1_singing",
+                voiceType: "singer",
+                trimStart: 0,
+                trimDuration: 60
             )
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
             try convertedAudioData.write(to: tempURL)

@@ -240,7 +240,7 @@ final class KitsAIClient {
 }
 
 final class KitsAIVoiceConversionProvider: VoiceConversionProvider {
-    func convert(audioData: Data, voiceId: String, voiceType: String?) async throws -> Data {
+    func convert(audioData: Data, voiceId: String, voiceType: String?, trimStart: Double?, trimDuration: Double?) async throws -> Data {
         guard let voiceModelId = Int(voiceId) else {
             throw KitsAIError.invalidVoiceModelId
         }

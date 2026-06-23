@@ -7,6 +7,17 @@
 import ComposableArchitecture
 import Foundation
 
+private enum LoginAuthValidation {
+    static func normalizedEmail(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func isValidEmail(_ email: String) -> Bool {
+        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        return NSPredicate(format: "SELF MATCHES %@", emailRegex).evaluate(with: email)
+    }
+}
+
 struct LoginFeature: Reducer {
     struct State: Equatable {
         var email: String = ""
@@ -37,13 +48,13 @@ struct LoginFeature: Reducer {
             return .none
             
         case .loginButtonTapped:
-            let trimmedEmail = AuthValidation.normalizedEmail(state.email)
+            let trimmedEmail = LoginAuthValidation.normalizedEmail(state.email)
             guard !trimmedEmail.isEmpty, !state.password.isEmpty else {
                 state.errorMessage = "이메일과 비밀번호를 입력해 주세요."
                 state.isLoading = false
                 return .none
             }
-            guard AuthValidation.isValidEmail(trimmedEmail) else {
+            guard LoginAuthValidation.isValidEmail(trimmedEmail) else {
                 state.errorMessage = "올바른 이메일 형식을 입력해 주세요."
                 state.isLoading = false
                 return .none

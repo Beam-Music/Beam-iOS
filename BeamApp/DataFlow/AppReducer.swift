@@ -57,6 +57,11 @@ struct AppReducer: Reducer {
             case .setLoggedIn(let isLoggedIn):
                 state.isLoggedIn = isLoggedIn
                 if !isLoggedIn {
+                    state.userProfile = nil
+                    state.selectedTab = .home
+                    state.tabBarState.playerState = nil
+                    state.loginState.token = nil
+                    state.signupState.token = nil
                     return .run { _ in
                         try await tokenStorage.deleteAllTokens()
                         await AudioManager.shared.stop()
@@ -106,6 +111,8 @@ struct AppReducer: Reducer {
                  .signup(.verifyResponse(.failure)),
                  .signup(.setIsLoggedIn),
                  .signup(.profileImageChanged),
+                 .signup(.setVerificationModalPresented),
+                 .signup(.setShouldShowLoginPrompt),
                  .signup(.reset):
                 return .none
                 
