@@ -64,6 +64,7 @@ struct CreatePlaylistSheet: View {
 struct LibraryView: View {
     let store: StoreOf<LibraryReducer>
     @Binding var isMiniPlayerVisible: Bool
+    @StateObject private var preConversionManager = PreConversionManager.shared
     @State private var scrollOffset: CGFloat = 0
     @State private var selectedPlaylist: PlaylistSummaryDTO? = nil
     @State private var fetchSongsCompletion: (([PlayableTrackDTO]) -> Void)? = nil
@@ -109,6 +110,11 @@ struct LibraryView: View {
     // 메인 콘텐츠 뷰로 분리
     private var mainContentView: some View {
         VStack(spacing: 20) {
+            let convertedTracks = preConversionManager.currentConvertedTracks
+            if !convertedTracks.isEmpty {
+                convertedTracksSection(convertedTracks)
+            }
+
             // 에러 메시지 표시
             if let errorMessage = store.state.errorMessage {
                 Text("Error: \(errorMessage)")
@@ -119,6 +125,7 @@ struct LibraryView: View {
             }
         }
         .onAppear {
+            preConversionManager.refreshConvertedRecords()
             store.send(.fetchUserPlaylists)
         }
         .onChange(of: store.state.playlist) { _, newPlaylist in
@@ -152,6 +159,9 @@ struct LibraryView: View {
             onPlayAll: {
                 store.send(.playAllInPlaylist)
             },
+            onPlayTrack: { track in
+                store.send(.startPlayback([track]))
+            },
             fetchSongs: { [weak store] completion in
                 if fetchSongsCompletion != nil {
                     fetchSongsCompletion = nil
@@ -166,6 +176,41 @@ struct LibraryView: View {
                 }
             }
         )
+    }
+
+    private func convertedTracksSection(_ tracks: [PlayableTrackDTO]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("변환된 곡")
+                .font(.headline)
+                .foregroundColor(.white)
+                .padding(.horizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(tracks) { track in
+                        Button(action: {
+                            store.send(.startPlayback([track]))
+                        }) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(track.title)
+                                    .font(.subheadline.bold())
+                                    .lineLimit(2)
+                                    .foregroundColor(.white)
+                                Text(track.artistName ?? "")
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .foregroundColor(.white.opacity(0.75))
+                            }
+                            .frame(width: 180, alignment: .leading)
+                            .padding()
+                            .background(Color.white.opacity(0.12))
+                            .cornerRadius(12)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
     }
 
     private func playlistListView() -> some View {

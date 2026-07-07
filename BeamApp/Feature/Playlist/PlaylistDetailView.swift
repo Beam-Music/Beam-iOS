@@ -12,11 +12,15 @@ struct PlaylistDetailView: View {
     let playlist: PlaylistSummaryDTO
     let songs: [PlayableTrackDTO]
     let onPlayAll: () -> Void
+    var onPlayTrack: ((PlayableTrackDTO) -> Void)? = nil
     var fetchSongs: ((@escaping ([PlayableTrackDTO]) -> Void) -> Void)? = nil
+    @StateObject private var preConversionManager = PreConversionManager.shared
     @State private var isAddingSong = false
     @State private var errorMessage: String? = nil
     @State private var showDeleteAlert = false
     @State private var isDeleting = false
+    @State private var showVoiceSelectionSheet = false
+    @State private var selectedSongForConversion: PlayableTrackDTO?
     @Environment(\.dismiss) private var dismiss
     @State private var isLoading = true
     @State private var displaySongs: [PlayableTrackDTO] = []
@@ -62,14 +66,78 @@ struct PlaylistDetailView: View {
                     .cornerRadius(12)
             }
             .padding(.bottom, 8)
+
+            let convertedTracks = preConversionManager.convertedTracks(for: displaySongs)
+            if !convertedTracks.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("변환 보관함")
+                        .font(.headline)
+                    ForEach(convertedTracks) { track in
+                        Button(action: { onPlayTrack?(track) }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(track.title)
+                                        .font(.subheadline)
+                                        .foregroundColor(.primary)
+                                        .lineLimit(1)
+                                    Text(track.artistName ?? "")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "play.circle.fill")
+                                    .foregroundColor(.purple)
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.12))
+                            .cornerRadius(10)
+                        }
+                    }
+                }
+                .padding(.bottom, 12)
+            }
+
             List {
                 ForEach(displaySongs) { song in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(song.title)
-                            .font(.headline)
-                        Text(song.artistName ?? "")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(song.title)
+                                .font(.headline)
+                            Text(song.artistName ?? "")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 6) {
+                            if let status = preConversionManager.statusText(for: song) {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(status)
+                                        .font(.caption)
+                                        .foregroundColor(.purple)
+                                    if let badge = preConversionManager.statusBadgeText(for: song) {
+                                        Text(badge)
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+                            HStack(spacing: 8) {
+                                if let convertedTrack = preConversionManager.latestConvertedTrack(for: song) {
+                                    Button("재생") {
+                                        onPlayTrack?(convertedTrack)
+                                    }
+                                    .font(.caption)
+                                }
+                                Button("변환") {
+                                    selectedSongForConversion = song
+                                    Task {
+                                        await preConversionManager.loadAvailableVoices()
+                                        showVoiceSelectionSheet = true
+                                    }
+                                }
+                                .font(.caption)
+                            }
+                        }
                     }
                     .padding(.vertical, 6)
                 }
@@ -162,7 +230,8 @@ struct PlaylistDetailView: View {
         }
         .onAppear {
             isLoading = true
-            
+            preConversionManager.refreshConvertedRecords()
+
             if let fetchSongs = fetchSongs {
                 fetchSongs { loadedSongs in
                     DispatchQueue.main.async {
@@ -193,6 +262,22 @@ struct PlaylistDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 EditButton()
             }
+        }
+        .sheet(isPresented: $showVoiceSelectionSheet) {
+            VoiceSelectionSheet(
+                voices: preConversionManager.availableVoices,
+                onVoiceSelected: { voice in
+                    preConversionManager.setPreferredVoice(voice)
+                    showVoiceSelectionSheet = false
+                    guard let song = selectedSongForConversion else { return }
+                    Task {
+                        await preConversionManager.enqueue(track: song, voice: voice)
+                    }
+                },
+                onCancel: {
+                    showVoiceSelectionSheet = false
+                }
+            )
         }
     }
 
