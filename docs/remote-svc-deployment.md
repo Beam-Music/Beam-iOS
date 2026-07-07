@@ -58,22 +58,20 @@ BEAM_RVC_IS_HALF=true
 BEAM_RVC_F0_METHOD=rmvpe
 ```
 
-실행:
-```bash
-cd beam-svc-server
-python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8081
-```
+## 6. startup log checklist
+1. `uvicorn app.main:app --host 0.0.0.0 --port 8081` 시작
+2. 로그에 `Application startup complete` / `Uvicorn running on http://0.0.0.0:8081` 확인
+3. `GET /ai-convert/health` 가 `ok=true` 인지 확인
+4. `GET /ai-convert/voices` 에서 `total_count >= 1` 확인
+5. `ok=false`면 doctor 확인: `rvc_repo_exists`, `infer_cli_exists`, `rvc_python_exists`, `ffmpeg_exists`, `ffprobe_exists`, `demucs_exists`, `at_least_one_model_exists`
 
-## 6. 서버 상태 확인
+## 7. 서버 상태 확인
 ```bash
 curl http://127.0.0.1:8081/ai-convert/health
 curl http://127.0.0.1:8081/ai-convert/voices
 ```
 
-## 7. Nest 서버 연결
+## 8. Nest 서버 연결
 `beam-server-nest/.env`:
 ```bash
 PORT=8080
@@ -93,7 +91,7 @@ curl http://127.0.0.1:8080/ai-convert/health
 curl http://127.0.0.1:8080/ai-convert/voices
 ```
 
-## 8. iOS 앱 설정
+## 9. iOS 앱 설정
 시뮬레이터 기준:
 ```xml
 <key>BEAM_API_BASE_URL</key>
@@ -104,7 +102,7 @@ curl http://127.0.0.1:8080/ai-convert/voices
 
 실제 앱은 주로 Nest(`BEAM_API_BASE_URL`)만 쓰면 됩니다.
 
-## 9. 운영 팁
+## 10. 운영 팁
 - beam-svc-server는 `tmux`, `screen`, `systemd` 중 하나로 백그라운드 실행
 - GPU 서버 방화벽에서 `8081` 허용
 - 가능하면 `nginx` 뒤에 두고 HTTPS 적용
