@@ -34,6 +34,7 @@ extension AuthService: DependencyKey {
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
+                request.timeoutInterval = 15
                 request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
                 let body: [String: Any] = ["email": username, "password": password]
@@ -56,13 +57,17 @@ extension AuthService: DependencyKey {
                     }
 
                     if httpResponse.statusCode == 401 {
-                        struct ErrorResponse: Decodable { let reason: String }
-                        if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data),
-                           errorResponse.reason.lowercased().contains("verify your email") {
-                            throw LoginError.emailNotVerified
-                        } else {
-                            throw LoginError.invalidCredentials
+                        struct ErrorResponse: Decodable {
+                            let reason: String?
+                            let message: String?
                         }
+                        if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                            let text = (errorResponse.reason ?? errorResponse.message ?? "").lowercased()
+                            if text.contains("verify your email") || text.contains("verify") {
+                                throw LoginError.emailNotVerified
+                            }
+                        }
+                        throw LoginError.invalidCredentials
                     }
 
                     if (500...599).contains(httpResponse.statusCode) {

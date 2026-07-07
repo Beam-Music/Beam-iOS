@@ -29,7 +29,8 @@ struct Endpoints {
         #if targetEnvironment(simulator)
         return "http://127.0.0.1:8080"
         #else
-        return "http://192.168.0.75:8080"
+        // Mac IP 확인: 터미널에서 `ipconfig getifaddr en0`
+        return "http://10.0.2.159:8080"
         #endif
     }()
 
@@ -37,7 +38,7 @@ struct Endpoints {
         #if targetEnvironment(simulator)
         return "http://127.0.0.1:8081"
         #else
-        return "http://192.168.0.75:8081"
+        return "http://10.0.2.159:8081"
         #endif
     }()
 
@@ -59,6 +60,12 @@ struct Endpoints {
         static let register = "\(baseURL)/api/ai-songs/register"
         static let playable = "\(baseURL)/api/ai-songs/playable"
         static let nextTrack = "\(baseURL)/api/ai-songs/next-track"
+    }
+
+    struct ConvertedSong {
+        static let base = "\(baseURL)/api/converted-songs"
+        static let playable = "\(baseURL)/api/converted-songs/playable"
+        static func detail(id: String) -> String { "\(base)/\(id)" }
     }
 
     struct Playlist {
@@ -83,7 +90,7 @@ struct Endpoints {
         static let createPreference = "\(baseURL)/api/ai-preferences"
     }
 
-    static let aiConvert = "\(beamSVCBaseURL)/ai-convert"
+    static let aiConvert = "\(baseURL)/ai-convert"
     
     struct VoiceConversion {
         static let list = "\(baseURL)/ai-convert/voices"
