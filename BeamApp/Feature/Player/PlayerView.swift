@@ -663,7 +663,7 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
     }
 
     func pollJobUntilFinished(jobId: String, pollInterval: UInt64 = 2_000_000_000) async throws -> Data {
-        guard let statusURL = URL(string: "\(Endpoints.aiConvert)/jobs/\(jobId)") else {
+        guard let statusURL = URL(string: "\(Endpoints.baseURL)/ai-convert/jobs/\(jobId)") else {
             throw VoiceConversionError.serverError("Invalid Beam SVC job URL")
         }
 
@@ -672,7 +672,7 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
             let status = try JSONDecoder().decode(AsyncJobStatusResponse.self, from: data)
             switch status.status {
             case "completed":
-                guard let resultURLString = status.resultUrl, let resultURL = URL(string: resultURLString) else {
+                guard let resultURL = URL(string: "\(Endpoints.baseURL)/ai-convert/results/\(jobId)") else {
                     throw VoiceConversionError.serverError("Beam SVC result URL이 없습니다.")
                 }
                 let (resultData, _) = try await URLSession.shared.data(from: resultURL)
@@ -1180,10 +1180,12 @@ struct PlayerView: View {
     @State private var isAIVersion: Bool = false
     @State private var showNoMatchAlert = false
     
+    @StateObject private var preConversionManager = PreConversionManager.shared
     @State private var isVoiceConverting = false
     @State private var showVoiceSelectionSheet = false
     @State private var availableVoices: [VoiceInfo] = []
     @State private var selectedVoice: VoiceInfo?
+    @State private var voiceSelectionMode: VoiceSelectionMode = .preview
     @State private var showVoiceConversionError = false
     @State private var voiceConversionErrorMessage = ""
     @State private var voiceConversionStatusTitle = "음성 변환 중..."
@@ -1198,6 +1200,11 @@ struct PlayerView: View {
     @State private var artistInfoImageURL: URL? = nil
     @State private var isScrubbing = false
     
+    enum VoiceSelectionMode {
+        case preview
+        case preconvert
+    }
+
     struct ViewState: Equatable {
         let isPlaying: Bool
         let isAIMusicEnabled: Bool
@@ -1442,6 +1449,7 @@ struct PlayerView: View {
                             .opacity(viewStore.isAIMusicEnabled ? 1 : 0.4)
                             
                             Button(action: {
+                                voiceSelectionMode = .preview
                                 Task {
                                     await loadAvailableVoices()
                                 }
@@ -1460,6 +1468,41 @@ struct PlayerView: View {
                                         .stroke(Color.white.opacity(0.7), lineWidth: 2)
                                         .background(Color.purple.opacity(0.55).cornerRadius(24))
                                 )
+                            }
+
+                            Button(action: {
+                                voiceSelectionMode = .preconvert
+                                Task {
+                                    await preConversionManager.loadAvailableVoices()
+                                }
+                                showVoiceSelectionSheet = true
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "tray.and.arrow.down")
+                                    Text("선변환")
+                                }
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 22)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                                        .background(Color.blue.opacity(0.4).cornerRadius(24))
+                                )
+                            }
+                        }
+                        if let currentTrack = viewStore.currentTrack,
+                           let conversionStatus = preConversionManager.statusText(for: currentTrack) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("이 곡 선변환 상태: \(conversionStatus)")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                                if let badge = preConversionManager.statusBadgeText(for: currentTrack, includeWarmupHint: true) {
+                                    Text(badge)
+                                        .font(.caption2)
+                                        .foregroundColor(.white.opacity(0.65))
+                                }
                             }
                         }
                        // TODO: remix & ai 토글 디자인 
@@ -1520,6 +1563,12 @@ struct PlayerView: View {
                 }
                 libraryStore.send(.fetchUserPlaylists)
             }
+            .onChange(of: viewStore.currentTrack?.id) { _, newTrackID in
+                guard newTrackID != nil, let currentTrack = viewStore.currentTrack else { return }
+                Task {
+                    await preConversionManager.warmup(track: currentTrack)
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
             }
@@ -1545,11 +1594,32 @@ struct PlayerView: View {
             }
             .sheet(isPresented: $showVoiceSelectionSheet) {
                 VoiceSelectionSheet(
-                    voices: availableVoices,
+                    voices: preConversionManager.availableVoices.isEmpty ? availableVoices : preConversionManager.availableVoices,
                     onVoiceSelected: { voice in
                         selectedVoice = voice
+                        preConversionManager.setPreferredVoice(voice)
                         showVoiceSelectionSheet = false
-                        performVoiceConversion(with: voice)
+                        switch voiceSelectionMode {
+                        case .preview:
+                            let trackTitle = viewStore.currentTrack?.title ?? "Unknown"
+                            TTFATelemetry.shared.recordVoiceTap(trackTitle: trackTitle, voiceId: voice.id)
+                            performVoiceConversion(with: voice)
+                        case .preconvert:
+                            guard let track = viewStore.currentTrack else {
+                                showVoiceConversionError = true
+                                voiceConversionErrorMessage = "현재 재생 중인 곡이 없습니다."
+                                return
+                            }
+                            Task {
+                                await preConversionManager.enqueue(track: track, voice: voice)
+                                if let error = preConversionManager.lastErrorMessage {
+                                    await MainActor.run {
+                                        showVoiceConversionError = true
+                                        voiceConversionErrorMessage = error
+                                    }
+                                }
+                            }
+                        }
                     },
                     onCancel: {
                         showVoiceSelectionSheet = false
@@ -1767,11 +1837,80 @@ struct PlayerView: View {
         let resolvedTitle = reducerTrack?.title ?? audioMeta.title
         let resolvedArtist = reducerTrack?.artistName ?? audioMeta.artist
 
-        guard resolvedTitle != nil || resolvedArtist != nil else {
+        guard let title = resolvedTitle else {
             showVoiceConversionError = true
             voiceConversionErrorMessage = "현재 재생 중인 트랙이 없습니다."
             return
         }
+
+        // Cache & Pre-conversion readiness check
+        if let reducerTrack {
+            // Check completed conversion
+            if let convertedTrack = preConversionManager.latestConvertedTrack(for: reducerTrack, voiceId: voice.id) {
+                let fileURL = convertedTrack.fileUrl.flatMap { URL(string: $0) } ?? convertedTrack.playbackUrl.flatMap { URL(string: $0) }
+                if let fileURL {
+                    print("🎯 Telemetry Cache Hit! Playing already converted track: \(convertedTrack.title)")
+                    TTFATelemetry.shared.recordCacheChecked(trackTitle: title, voiceId: voice.id, isHit: true)
+                    TTFATelemetry.shared.recordPreconversionChecked(trackTitle: title, voiceId: voice.id, isReady: true)
+                    
+                    startConvertedPlayback(
+                        fileURL: fileURL,
+                        title: title,
+                        artistName: resolvedArtist,
+                        voiceName: voice.name,
+                        artworkURL: reducerTrack.artworkURL
+                    )
+                    TTFATelemetry.shared.recordPlaybackStarted(trackTitle: title, voiceId: voice.id)
+                    return
+                }
+            }
+            
+            // Check in-progress/queued job from warmup
+            if let job = preConversionManager.latestJob(for: reducerTrack), job.voiceId == voice.id {
+                if job.status == .queued || job.status == .converting {
+                    print("⏳ Telemetry Warmup Job In-Progress! Waiting/polling existing job.")
+                    TTFATelemetry.shared.recordCacheChecked(trackTitle: title, voiceId: voice.id, isHit: false)
+                    TTFATelemetry.shared.recordPreconversionChecked(trackTitle: title, voiceId: voice.id, isReady: true)
+                    
+                    isVoiceConverting = true
+                    isFullTrackConversionInProgress = false
+                    voiceConversionStatusTitle = "변환 완료 대기 중..."
+                    voiceConversionStatusSubtitle = "백그라운드에서 준비 중인 변환을 기다리고 있어요"
+                    
+                    Task {
+                        await preConversionManager.enqueue(track: reducerTrack, voice: voice)
+                        
+                        if let convertedTrack = preConversionManager.latestConvertedTrack(for: reducerTrack, voiceId: voice.id) {
+                            let fileURL = convertedTrack.fileUrl.flatMap { URL(string: $0) } ?? convertedTrack.playbackUrl.flatMap { URL(string: $0) }
+                            if let fileURL {
+                                await MainActor.run {
+                                    startConvertedPlayback(
+                                        fileURL: fileURL,
+                                        title: title,
+                                        artistName: resolvedArtist,
+                                        voiceName: voice.name,
+                                        artworkURL: reducerTrack.artworkURL
+                                    )
+                                    TTFATelemetry.shared.recordPlaybackStarted(trackTitle: title, voiceId: voice.id)
+                                    isVoiceConverting = false
+                                }
+                            }
+                        } else {
+                            await MainActor.run {
+                                isVoiceConverting = false
+                                showVoiceConversionError = true
+                                voiceConversionErrorMessage = preConversionManager.lastErrorMessage ?? "음성 변환에 실패했습니다."
+                            }
+                        }
+                    }
+                    return
+                }
+            }
+        }
+
+        // Cache / Pre-conversion miss
+        TTFATelemetry.shared.recordCacheChecked(trackTitle: title, voiceId: voice.id, isHit: false)
+        TTFATelemetry.shared.recordPreconversionChecked(trackTitle: title, voiceId: voice.id, isReady: false)
 
         isVoiceConverting = true
         isFullTrackConversionInProgress = false
@@ -1780,29 +1919,29 @@ struct PlayerView: View {
 
         Task {
             do {
-                let audioData: Data = try await resolveAudioData(reducerTrack: reducerTrack, title: resolvedTitle)
+                let audioData: Data = try await resolveAudioData(reducerTrack: reducerTrack, title: title)
                 let currentPlaybackTime = max(0, audioManager.currentTime)
 
-                let trimmedAudioData: Data
+                let trimStart: Double? = shouldTrim ? currentPlaybackTime : nil
+                let trimLength: Double? = shouldTrim ? trimDuration : nil
                 if shouldTrim {
-                    print("✂️ Using preview trim for voice conversion (start: \(currentPlaybackTime)s, duration: \(trimDuration)s)")
-                    trimmedAudioData = try await trimAudioToDuration(audioData, duration: trimDuration, startTime: currentPlaybackTime)
+                    print("✂️ Using server-side preview trim for voice conversion (start: \(currentPlaybackTime)s, duration: \(trimDuration)s)")
                 } else {
-                    trimmedAudioData = audioData
                     print("🎵 Using full audio data for voice conversion (\(audioData.count) bytes)")
                 }
 
                 let convertedAudioData = try await performDirectBeamSVCVoiceConversion(
-                    audioData: trimmedAudioData,
+                    audioData: audioData,
                     voiceId: voice.id,
                     voiceType: voice.voiceType,
-                    trimStart: nil,
-                    trimDuration: nil
+                    trimStart: trimStart,
+                    trimDuration: trimLength,
+                    trackTitle: title
                 )
 
                 let previewFileURL = try await saveConvertedAudio(
                     audioData: convertedAudioData,
-                    title: resolvedTitle ?? "Unknown",
+                    title: title,
                     artistName: resolvedArtist,
                     voiceName: voice.name,
                     artworkURL: reducerTrack?.artworkURL
@@ -1811,11 +1950,12 @@ struct PlayerView: View {
                 await MainActor.run {
                     startConvertedPlayback(
                         fileURL: previewFileURL,
-                        title: resolvedTitle ?? "Unknown",
+                        title: title,
                         artistName: resolvedArtist,
                         voiceName: voice.name,
                         artworkURL: reducerTrack?.artworkURL
                     )
+                    TTFATelemetry.shared.recordPlaybackStarted(trackTitle: title, voiceId: voice.id)
                     isVoiceConverting = false
                     isFullTrackConversionInProgress = shouldTrim
                     if shouldTrim {
@@ -1844,7 +1984,7 @@ struct PlayerView: View {
                             let fullTrackData = try await provider.pollJobUntilFinished(jobId: job.jobId)
                             let fullFileURL = try await saveConvertedAudio(
                                 audioData: fullTrackData,
-                                title: resolvedTitle ?? "Unknown",
+                                title: title,
                                 artistName: resolvedArtist,
                                 voiceName: "\(voice.name) Full",
                                 artworkURL: reducerTrack?.artworkURL
@@ -1855,7 +1995,7 @@ struct PlayerView: View {
                                 if (audioManager.currentTrackMetadata.title ?? "").contains("(Voice: \(voice.name))") {
                                     startConvertedPlayback(
                                         fileURL: fullFileURL,
-                                        title: resolvedTitle ?? "Unknown",
+                                        title: title,
                                         artistName: resolvedArtist,
                                         voiceName: voice.name,
                                         artworkURL: reducerTrack?.artworkURL
@@ -1895,18 +2035,23 @@ struct PlayerView: View {
         voiceId: String,
         voiceType: String?,
         trimStart: Double?,
-        trimDuration: Double?
+        trimDuration: Double?,
+        trackTitle: String
     ) async throws -> Data {
         let isSingerVoice = voiceId.contains("_singer") || voiceType == "singer"
         let resolvedVoiceType = isSingerVoice ? "singer" : (voiceType ?? "default")
         print("🧭 performVoiceConversion provider=beam_svc voiceId=\(voiceId) voiceType=\(resolvedVoiceType)")
-        return try await voiceConversionService.convert(
+        
+        TTFATelemetry.shared.recordConversionRequestStart(trackTitle: trackTitle, voiceId: voiceId)
+        let result = try await voiceConversionService.convert(
             audioData: audioData,
             voiceId: voiceId,
             voiceType: resolvedVoiceType,
             trimStart: trimStart,
             trimDuration: trimDuration
         )
+        TTFATelemetry.shared.recordConversionRequestEnd(trackTitle: trackTitle, voiceId: voiceId)
+        return result
     }
 
     private func saveConvertedAudio(
@@ -2069,7 +2214,11 @@ struct PlayerView: View {
             if currentURL.isFileURL {
                 return try Data(contentsOf: currentURL)
             }
+            if let cached = await AudioDataCache.shared.data(for: currentURL) {
+                return cached
+            }
             let (data, _) = try await URLSession.shared.data(from: currentURL)
+            await AudioDataCache.shared.store(data, for: currentURL)
             return data
         }
 
@@ -2085,7 +2234,11 @@ struct PlayerView: View {
                 if url.isFileURL {
                     return try Data(contentsOf: url)
                 }
+                if let cached = await AudioDataCache.shared.data(for: url) {
+                    return cached
+                }
                 let (data, _) = try await URLSession.shared.data(from: url)
+                await AudioDataCache.shared.store(data, for: url)
                 return data
             }
         }
@@ -2096,7 +2249,12 @@ struct PlayerView: View {
             if audioURL.isFileURL {
                 return try Data(contentsOf: audioURL)
             }
-            return try await JamendoService.shared.downloadAudioData(from: audioURL.absoluteString)
+            if let cached = await AudioDataCache.shared.data(for: audioURL) {
+                return cached
+            }
+            let data = try await JamendoService.shared.downloadAudioData(from: audioURL.absoluteString)
+            await AudioDataCache.shared.store(data, for: audioURL)
+            return data
         }
 
         // 4. Last resort: bundled demo sample
