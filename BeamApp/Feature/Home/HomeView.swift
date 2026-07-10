@@ -151,10 +151,7 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
-                startPoint: .top, endPoint: .bottom
-            )
+            AppTheme.mainGradient
             .ignoresSafeArea()
 
             // Animated star field background

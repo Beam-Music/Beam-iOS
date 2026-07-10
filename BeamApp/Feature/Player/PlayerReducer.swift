@@ -544,17 +544,6 @@ struct PlayerReducer {
     }
 }
 
-//protocol AudioManagerProtocol {
-//    func play() async
-//    func pause() async
-//    func stop() async
-//    func playAppleMusicTrack(with title: String) async throws
-//    func isPlaying() -> Bool
-//    func seek(to seconds: Double) async
-//    func reset() async
-//    func playAIMusic(from urlString: String) async throws
-//    var isAIPlaying: Bool { get }
-//}
 protocol AudioManagerProtocol {
     func play() async
     func pause() async
@@ -586,87 +575,3 @@ extension DependencyValues {
         set { self[HomeFeatureKey.self] = newValue }
     }
 }
-
-//struct APIClient {
-//    var getNextTrack: @Sendable (UUID, Bool) async throws -> PlayableTrackDTO
-//}
-//
-//extension APIClient: DependencyKey {
-//    static let liveValue: APIClient = APIClient(
-//        getNextTrack: { currentTrackID, isAIMusicEnabled in
-//            print("🎵 Requesting next track - Current ID: \(currentTrackID), AI Music Enabled: \(isAIMusicEnabled)")
-//
-//            var components = URLComponents(string: Endpoints.AISong.nextTrack)!
-//            components.queryItems = [
-//                URLQueryItem(name: "current_track_id", value: currentTrackID.uuidString),
-//                URLQueryItem(name: "is_ai_music_enabled", value: String(isAIMusicEnabled))
-//            ]
-//
-//            guard let url = components.url else {
-//                print("⚠️ Failed to construct next track URL")
-//                throw URLError(.badURL)
-//            }
-//
-//            print("🌐 Next track URL: \(url.absoluteString)")
-//
-//            var request = URLRequest(url: url)
-//            request.httpMethod = "GET"
-//
-//            if let token = await TokenStorage.shared.fetchToken() {
-//                request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-//                print("🔑 Authorization: Bearer \(token.prefix(10))...")
-//            } else {
-//                print("⚠️ No token available for next track request")
-//            }
-//
-//            let (data, response) = try await URLSession.shared.data(for: request)
-//
-//            guard let httpResponse = response as? HTTPURLResponse else {
-//                print("⚠️ Invalid response type")
-//                throw URLError(.cannotParseResponse)
-//            }
-//
-//            print("📥 Next track response status: \(httpResponse.statusCode)")
-//
-//            // Log response headers
-//            print("📋 Response headers:")
-//            httpResponse.allHeaderFields.forEach { key, value in
-//                print("   \(key): \(value)")
-//            }
-//
-//            guard (200..<300).contains(httpResponse.statusCode) else {
-//                let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
-//                print("❌ Next track API Error - Status: \(httpResponse.statusCode)")
-//                print("❌ Response body: \(responseBody)")
-//                throw NSError(domain: "Server Error", code: httpResponse.statusCode, userInfo: [
-//                    NSLocalizedDescriptionKey: "Failed to get next track. Status: \(httpResponse.statusCode)",
-//                    "responseBody": responseBody,
-//                    "endpoint": url.absoluteString
-//                ])
-//            }
-//
-//            let decoder = JSONDecoder()
-//            decoder.keyDecodingStrategy = .convertFromSnakeCase
-//            let track = try decoder.decode(PlayableTrackDTO.self, from: data)
-//
-//            print("✅ Received next track:")
-//            print("   Title: \(track.title)")
-//            print("   Artist: \(track.artistName ?? "N/A")")
-//            print("   Is AI Generated: \(track.isAIGenerated)")
-//            print("   Has Playback URL: \(track.playbackUrl != nil)")
-//
-//            return track
-//        }
-//    )
-//}
-//
-//extension DependencyValues {
-//    var apiClient: APIClient {
-//        get { self[APIClientKey.self] }
-//        set { self[APIClientKey.self] = newValue }
-//    }
-//}
-//
-//private struct APIClientKey: DependencyKey {
-//    static let liveValue: APIClient = APIClient.liveValue
-//}

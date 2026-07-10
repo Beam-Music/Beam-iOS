@@ -21,11 +21,7 @@ struct OnboardView: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [Color.pink.opacity(0.7), Color.purple.opacity(0.7), Color.orange.opacity(0.7)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            AppTheme.onboardingGradient
             .edgesIgnoringSafeArea(.all)
             
             TabView(selection: $page) {

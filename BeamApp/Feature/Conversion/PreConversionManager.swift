@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import SwiftUI
 
 enum PreConversionJobStatus: String, Codable, Equatable {
@@ -55,18 +56,139 @@ final class PreConversionManager: ObservableObject {
     @Published private(set) var availableVoices: [VoiceInfo] = []
     @Published private(set) var preferredVoiceId: String?
     @Published var lastErrorMessage: String?
+    /// 현재 warmup이 실제로 허용된 상태인지 (Wi-Fi + not low-power)
+    @Published private(set) var warmupEnabled: Bool = true
 
     private let jobsKey = "pre_conversion.jobs"
     private let preferredVoiceKey = "pre_conversion.preferred_voice_id"
 
+    // NWPathMonitor는 nonisolated로 관리 (MainActor 외부)
+    private nonisolated let monitor = NWPathMonitor()
+    private nonisolated let monitorQueue = DispatchQueue(label: "beam.preconv.network", qos: .utility)
+    /// 최신 네트워크 경로 (monitor callback에서 업데이트)
+    private var latestPath: NWPath?
+
+    // MARK: - Proactive warmup (Phase 1-3)
+
+    /// 트랙별 활성 warmup Task — trackKey → Task
+    private var activeWarmupTasks: [String: Task<Void, Never>] = [:]
+    /// 다음 트랙 warmup용 voiceId 오버라이드 (User에게 선택된 voice, nil이면 preferredVoice)
+    @Published var warmupVoiceIdOverride: String?
+
     private init() {
         loadPersistedState()
         loadPreferredVoiceId()
+        startNetworkMonitor()
         Task {
             await loadAvailableVoices()
             await syncConvertedSongsFromServer()
             await resumePendingJobsIfNeeded()
         }
+    }
+
+    // MARK: - Proactive Warmup
+
+    /// 현재 재생 중인 트랙 warmup. 이미 진행 중이면 skip.
+    func warmup(track: PlayableTrackDTO) async {
+        let key = trackKey(for: track)
+        guard TokenStorage.shared.fetchToken() != nil else {
+            print("⏭️ [PreConv] warmup skipped: not logged in")
+            return
+        }
+        guard let voice = warmupVoiceIdOverride.flatMap({ overrideId in
+            availableVoices.first(where: { $0.id == overrideId })
+        }) ?? preferredVoice() else {
+            print("⏭️ [PreConv] warmup skipped: no preferred voice")
+            return
+        }
+        let path = latestPath
+        if let path, !isWarmupConditionsMet(path: path) {
+            print("⏭️ [PreConv] warmup skipped: network unsuitable")
+            return
+        }
+        if let existing = latestConvertedTrack(for: track, voiceId: voice.id) {
+            print("✅ [PreConv] warmup skipped: already converted (track=\(track.title) voice=\(voice.name))")
+            return
+        }
+        if activeWarmupTasks[key] != nil {
+            print("⏭️ [PreConv] warmup skipped: already warming up (track=\(track.title))")
+            return
+        }
+        print("🔥 [PreConv] warmup started track=\(track.title) voice=\(voice.name)")
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.enqueue(track: track, voice: voice)
+            await MainActor.run {
+                self.activeWarmupTasks.removeValue(forKey: key)
+            }
+        }
+        activeWarmupTasks[key] = task
+    }
+
+    /// 다음 트랙을 미리 warmup. playlist의 다음 index.
+    func warmupNextTrack(track: PlayableTrackDTO) async {
+        let key = trackKey(for: track)
+        guard activeWarmupTasks[key] == nil else {
+            print("⏭️ [PreConv] warmupNextTrack: already warming up")
+            return
+        }
+        // 이미 완료된 변환이면 skip
+        if let voice = warmupVoiceIdOverride.flatMap({ overrideId in
+            availableVoices.first(where: { $0.id == overrideId })
+        }) ?? preferredVoice(),
+           latestConvertedTrack(for: track, voiceId: voice.id) != nil {
+            print("✅ [PreConv] warmupNextTrack: already converted")
+            return
+        }
+        print("🔮 [PreConv] warmupNextTrack track=\(track.title)")
+        await warmup(track: track)
+    }
+
+    /// 현재 트랙의 warmup 취소 (트랙 변경 시)
+    func cancelWarmup(for track: PlayableTrackDTO) {
+        let key = trackKey(for: track)
+        guard let task = activeWarmupTasks.removeValue(forKey: key) else { return }
+        task.cancel()
+        print("🛑 [PreConv] warmup cancelled track=\(track.title)")
+        // jobs에서 queued 상태인 레코드 제거
+        jobs.removeAll { $0.trackKey == key && $0.status == .queued }
+        persistJobs()
+    }
+
+    /// 모든 활성 warmup 취소
+    func cancelAllWarmups() {
+        for (_, task) in activeWarmupTasks {
+            task.cancel()
+        }
+        activeWarmupTasks.removeAll()
+        jobs.removeAll { $0.status == .queued }
+        persistJobs()
+        print("🛑 [PreConv] all warmups cancelled")
+    }
+
+    private func startNetworkMonitor() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.latestPath = path
+                let allowed = self.isWarmupConditionsMet(path: path)
+                self.warmupEnabled = allowed
+                if allowed {
+                    print("📶 [PreConv] Warmup enabled (WiFi + normal power)")
+                } else {
+                    print("📶 [PreConv] Warmup paused (cellular or low-power mode)")
+                }
+            }
+        }
+        monitor.start(queue: monitorQueue)
+    }
+
+    private nonisolated func isWarmupConditionsMet(path: NWPath) -> Bool {
+        // Wi-Fi 또는 유선 연결만 허용 (셀룰러 제외)
+        let isWifi = path.usesInterfaceType(.wifi) || path.usesInterfaceType(.wiredEthernet)
+        // 저전력 모드 체크 (ProcessInfo는 main thread에서만 안전하지만, 이 값은 read-only snapshot)
+        let isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        return isWifi && !isLowPower
     }
 
     func loadPersistedState() {
@@ -82,6 +204,7 @@ final class PreConversionManager: ObservableObject {
 
     func setPreferredVoice(_ voice: VoiceInfo) {
         preferredVoiceId = voice.id
+        warmupVoiceIdOverride = voice.id
         UserDefaults.standard.set(voice.id, forKey: preferredVoiceKey)
     }
 
@@ -99,7 +222,6 @@ final class PreConversionManager: ObservableObject {
     }
 
     func loadAvailableVoices() async {
-        if !availableVoices.isEmpty { return }
         do {
             guard let url = URL(string: Endpoints.VoiceConversion.list) else {
                 throw VoiceConversionError.serverError("Invalid voice list URL")
@@ -110,19 +232,24 @@ final class PreConversionManager: ObservableObject {
                 throw VoiceConversionError.serverError("음성 목록을 불러오지 못했습니다.")
             }
             struct VoiceListPayload: Decodable { let voices: [VoiceInfo] }
-            availableVoices = try JSONDecoder().decode(VoiceListPayload.self, from: data).voices
+            let decoded = try JSONDecoder().decode(VoiceListPayload.self, from: data).voices
+            if !decoded.isEmpty {
+                availableVoices = decoded
+            }
         } catch {
-            availableVoices = [
-                VoiceInfo(
-                    id: "dionn_v1_singing",
-                    name: "Dionn V1 Singing",
-                    category: "Custom Licensed",
-                    description: "Beam SVC fallback voice",
-                    previewUrl: nil,
-                    language: ["en"],
-                    voiceType: "singer"
-                )
-            ]
+            if availableVoices.isEmpty {
+                availableVoices = [
+                    VoiceInfo(
+                        id: "dionn_v1_singing",
+                        name: "Dionn V1 Singing",
+                        category: "Custom Licensed",
+                        description: "Beam SVC fallback voice",
+                        previewUrl: nil,
+                        language: ["en"],
+                        voiceType: "singer"
+                    )
+                ]
+            }
         }
     }
 
@@ -149,18 +276,30 @@ final class PreConversionManager: ObservableObject {
         return nil
     }
 
-    func warmup(track: PlayableTrackDTO) async {
-        guard TokenStorage.shared.fetchToken() != nil else { return }
-        guard let voice = preferredVoice() else { return }
-        await enqueue(track: track, voice: voice)
-    }
-
     func latestJob(for track: PlayableTrackDTO) -> PreConversionJobRecord? {
         let key = trackKey(for: track)
         return jobs
             .filter { $0.trackKey == key }
             .sorted { $0.updatedAt > $1.updatedAt }
             .first
+    }
+
+    func jobForVoice(_ voice: VoiceInfo, track: PlayableTrackDTO) -> PreConversionJobRecord? {
+        let key = trackKey(for: track)
+        return jobs
+            .filter { $0.trackKey == key && $0.voiceId == voice.id }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .first
+    }
+
+    func conversionStatusForVoice(_ voice: VoiceInfo, track: PlayableTrackDTO) -> PreConversionJobStatus? {
+        if let record = jobForVoice(voice, track: track) {
+            return record.status
+        }
+        if latestConvertedTrack(for: track, voiceId: voice.id) != nil {
+            return .completed
+        }
+        return nil
     }
 
     func latestConvertedTrack(for track: PlayableTrackDTO, voiceId: String? = nil) -> PlayableTrackDTO? {

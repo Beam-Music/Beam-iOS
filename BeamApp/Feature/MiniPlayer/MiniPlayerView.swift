@@ -26,7 +26,9 @@ struct MiniPlayerView: View {
 
         if let title = displayTitle, !title.isEmpty, title != "No Track" {
             let artist = viewStore.currentTrack?.artistName ?? audioManager.currentTrackMetadata.artist ?? "Unknown Artist"
-            VStack {
+            let progress = audioManager.duration > 0 ? audioManager.currentTime / audioManager.duration : 0
+
+            VStack(spacing: 0) {
                 HStack {
                     albumArtView
                     trackInfoView(title: title, artist: artist)
@@ -35,19 +37,33 @@ struct MiniPlayerView: View {
                 }
                 .padding()
                 .background(Color.white.opacity(0.06))
-                .onTapGesture {
-                    isPlayerViewVisible = true
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Color.white.opacity(0.12)
+                        LinearGradient(
+                            colors: [AppTheme.primaryAccent, AppTheme.secondaryAccent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: geo.size.width * max(0, min(1, progress)))
+                    }
                 }
+                .frame(height: 2)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 70)
+            .frame(height: 72)
             .background(Color.gray.opacity(0.18))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
-                Rectangle()
-                    .fill(Color.white.opacity(0.08))
-                    .frame(height: 1),
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5),
                 alignment: .top
             )
+            .shadow(color: AppTheme.primaryAccent.opacity(0.15), radius: 6, x: 0, y: -2)
+            .onTapGesture {
+                isPlayerViewVisible = true
+            }
         } else {
             EmptyView()
         }
@@ -62,6 +78,7 @@ struct MiniPlayerView: View {
                     .frame(width: 50, height: 50)
                     .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                     .cornerRadius(5)
+                    .shadow(color: AppTheme.primaryAccent.opacity(0.35), radius: 5, x: 0, y: 1)
             } else {
                 Rectangle()
                     .fill(Color.white.opacity(0.28))
@@ -97,6 +114,9 @@ struct MiniPlayerView: View {
                 .foregroundColor(.primary)
         }
         .padding(.trailing, 16)
+        .highPriorityGesture(
+            TapGesture()
+        )
     }
     
     private func playPause() async {

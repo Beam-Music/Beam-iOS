@@ -6,13 +6,13 @@ extension Color {
     static var secondaryText: Color { AppTheme.secondaryText }
     
     // 배경 색상
-    static var appBackground: Color { AppTheme.background }
-    static var secondaryBackground: Color { AppTheme.secondaryBackground }
+    static var appBackground: Color { AppTheme.backgroundGradientTop }
+    static var secondaryBackground: Color { AppTheme.surface }
     
     // 버튼 색상
-    static var buttonBackground: Color { AppTheme.buttonBackground }
-    static var buttonText: Color { AppTheme.buttonText }
+    static var buttonBackground: Color { AppTheme.surface }
+    static var buttonText: Color { AppTheme.primaryText }
     
     // 강조 색상
-    static var appAccent: Color { AppTheme.accent }
+    static var appAccent: Color { AppTheme.primaryAccent }
 }

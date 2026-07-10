@@ -38,10 +38,7 @@ struct SettingsView: View {
             print("profileImageUrl(final): \(profileImageUrl?.absoluteString ?? "nil")")
 
             return ZStack {
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
-                    startPoint: .top, endPoint: .bottom
-                )
+                AppTheme.mainGradient
                 .ignoresSafeArea()
                 VStack {
                     if let url = profileImageUrl {

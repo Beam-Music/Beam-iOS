@@ -12,14 +12,11 @@ struct LoginView: View {
     let store: StoreOf<LoginFeature>
     @Environment(\.presentationMode) var presentationMode
     @Environment(\.colorScheme) var colorScheme
+    @State private var appeared = false
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [Color.pink.opacity(0.7), Color.purple.opacity(0.7), Color.orange.opacity(0.7)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            AppTheme.onboardingGradient
             .ignoresSafeArea()
             WithViewStore(self.store, observe: { $0 }) { viewStore in
                 VStack(spacing: 20) {
@@ -72,6 +69,8 @@ struct LoginView: View {
                             .cornerRadius(10)
                             .padding(.horizontal, 30)
                     }
+                    .scaleEffect(appeared ? 1 : 0.8)
+                    .opacity(appeared ? 1 : 0)
                     .disabled(viewStore.isLoading)
                     if viewStore.isLoading {
                         ProgressView()
@@ -88,8 +87,12 @@ struct LoginView: View {
                 .navigationBarItems(leading: BackButton(action: {
                     self.presentationMode.wrappedValue.dismiss()
                 }))
+                .offset(y: appeared ? 0 : 20)
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.5), value: appeared)
                 .onAppear {
                     viewStore.send(.reset)
+                    withAnimation { appeared = true }
                 }
                 .onChange(of: viewStore.token) { token in
                     if token != nil {

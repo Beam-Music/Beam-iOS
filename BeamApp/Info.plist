@@ -6,11 +6,15 @@
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Beam은 개발 서버(Mac)와 통신해 로그인 및 음성 변환 API를 사용합니다.</string>
 	<key>BEAM_API_BASE_URL</key>
-	<string>http://10.0.2.159:8080</string>
+	<string>http://MacBook-Pro-7.local:8080</string>
+	<key>BEAM_SVC_BASE_URL</key>
+	<string>http://MacBook-Pro-7.local:8081</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

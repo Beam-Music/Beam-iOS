@@ -29,8 +29,7 @@ struct Endpoints {
         #if targetEnvironment(simulator)
         return "http://127.0.0.1:8080"
         #else
-        // Mac IP 확인: 터미널에서 `ipconfig getifaddr en0`
-        return "http://10.0.2.159:8080"
+        return "http://MacBook-Pro-7.local:8080"
         #endif
     }()
 
@@ -38,7 +37,7 @@ struct Endpoints {
         #if targetEnvironment(simulator)
         return "http://127.0.0.1:8081"
         #else
-        return "http://10.0.2.159:8081"
+        return "http://MacBook-Pro-7.local:8081"
         #endif
     }()
 

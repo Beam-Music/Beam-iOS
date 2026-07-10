@@ -45,6 +45,8 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         return self.isPlayingAIMusic
     }
     
+    var pendingSeekPosition: Double?
+    
     @Published var currentTrackMetadata: (title: String?, artist: String?, albumArt: UIImage?) = (nil, nil, nil)
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
@@ -186,6 +188,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         duration = 0
         isPlayingMusic = false
         isPlayingAIMusic = false
+        pendingSeekPosition = nil
         currentTrackMetadata = (nil, nil, nil)
     }
     
@@ -201,7 +204,9 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func playAIMusic(from urlString: String, title: String, artist: String, artworkURL: URL? = nil) async throws {
+        let savedPendingSeek = pendingSeekPosition
         try await stop()
+        pendingSeekPosition = savedPendingSeek
         
         let url: URL
         if urlString.hasPrefix("file://") {
@@ -362,6 +367,11 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             isPlayingAIMusic = true
             
             await updateTrackMetadata(title: title, artist: artist, artworkURL: artworkURL)
+            
+            if let seekPos = pendingSeekPosition {
+                pendingSeekPosition = nil
+                await seek(to: seekPos)
+            }
             
             try await Task.sleep(nanoseconds: 1_000_000_000)
             

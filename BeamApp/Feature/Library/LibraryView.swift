@@ -78,10 +78,7 @@ struct LibraryView: View {
         NavigationStack {
             ZStack {
                 // 배경 그라데이션
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.purple.opacity(0.7), Color.pink.opacity(0.5)]),
-                    startPoint: .top, endPoint: .bottom
-                )
+                AppTheme.mainGradient
                 .ignoresSafeArea()
                 
                 // 별 필드 뷰

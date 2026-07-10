@@ -1,37 +1,38 @@
 import SwiftUI
 
 enum AppTheme {
-    // 텍스트 색상
-    static var primaryText: Color {
-        Color("PrimaryText")
-    }
+    static let primaryAccent = Color.purple
+    static let secondaryAccent = Color.pink
     
-    static var secondaryText: Color {
-        Color("SecondaryText")
-    }
+    static let backgroundGradientTop = Color.purple.opacity(0.7)
+    static let backgroundGradientBottom = Color.pink.opacity(0.5)
     
-    // 배경 색상
-    static var background: Color {
-        Color("Background")
-    }
+    static let onboardingGradientTop = Color.pink.opacity(0.7)
+    static let onboardingGradientMiddle = Color.purple.opacity(0.7)
+    static let onboardingGradientBottom = Color.orange.opacity(0.7)
     
-    static var secondaryBackground: Color {
-        Color("SecondaryBackground")
-    }
+    static let primaryText = Color.white
+    static let secondaryText = Color.white.opacity(0.7)
+    static let tertiaryText = Color.white.opacity(0.5)
     
-    // 버튼 색상
-    static var buttonBackground: Color {
-        Color("ButtonBackground")
-    }
+    static let surface = Color.white.opacity(0.08)
+    static let surfaceElevated = Color.white.opacity(0.12)
+    static let surfaceOverlay = Color.black.opacity(0.78)
     
-    static var buttonText: Color {
-        Color("ButtonText")
-    }
+    static let voiceButtonFill = Color.purple.opacity(0.55)
+    static let preconvertButtonFill = Color.blue.opacity(0.4)
+    static let conversionBannerStart = Color.purple.opacity(0.85)
+    static let conversionBannerEnd = Color.indigo.opacity(0.85)
     
-    // 강조 색상
-    static var accent: Color {
-        Color("AccentColor")
-    }
+    static let mainGradient = LinearGradient(
+        colors: [backgroundGradientTop, backgroundGradientBottom],
+        startPoint: .top,
+        endPoint: .bottom
+    )
     
-    // 기타 필요한 색상들...
+    static let onboardingGradient = LinearGradient(
+        colors: [onboardingGradientTop, onboardingGradientMiddle, onboardingGradientBottom],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
 }
