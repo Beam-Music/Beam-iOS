@@ -13,6 +13,10 @@ struct APIKeys {
 
 struct Endpoints {
     private static func configuredURL(for key: String, fallback: String) -> String {
+        configuredValue(for: key, fallback: fallback)
+    }
+
+    private static func configuredValue(for key: String, fallback: String) -> String {
         if let envValue = ProcessInfo.processInfo.environment[key], !envValue.isEmpty {
             return envValue
         }
@@ -98,7 +102,7 @@ struct Endpoints {
 
     struct Jamendo {
         static let baseURL = "https://api.jamendo.com/v3.0"
-        static let clientId = "YOUR_CLIENT_ID"
+        static let clientId = Endpoints.configuredValue(for: "JAMENDO_CLIENT_ID", fallback: "YOUR_CLIENT_ID")
     }
 }
 

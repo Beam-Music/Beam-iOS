@@ -116,7 +116,15 @@ struct RootView: View {
                     }
 
                     if isAppleMusicPlayerVisible, appleMusicPlaybackState.currentSong != nil {
-                        AppleMusicFullPlayerView(isPresented: $isAppleMusicPlayerVisible)
+                        AppleMusicFullPlayerView(
+                            isPresented: $isAppleMusicPlayerVisible,
+                            onPlayConvertibleSource: { track in
+                                let playerState = PlayerReducer.State(playlist: [track], currentIndex: 0)
+                                viewStore.send(.tabBar(.setPlayerState(playerState)))
+                                isAppleMusicPlayerVisible = false
+                                isPlayerViewVisible = true
+                            }
+                        )
                             .transition(.asymmetric(
                                 insertion: .move(edge: .bottom).combined(with: .opacity),
                                 removal: .move(edge: .bottom).combined(with: .opacity)
