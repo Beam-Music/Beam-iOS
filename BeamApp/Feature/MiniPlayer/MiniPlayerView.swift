@@ -349,8 +349,8 @@ struct AppleMusicFullPlayerView: View {
                         }
                     } label: {
                         Label(
-                            isResolvingConvertibleSource ? "Finding convertible source..." : "Find convertible source",
-                            systemImage: isResolvingConvertibleSource ? "hourglass" : "waveform.badge.magnifyingglass"
+                            isResolvingConvertibleSource ? "Preparing voice conversion..." : "Convert voice",
+                            systemImage: isResolvingConvertibleSource ? "hourglass" : "waveform"
                         )
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
@@ -360,31 +360,18 @@ struct AppleMusicFullPlayerView: View {
                     .buttonStyle(.plain)
                     .disabled(isResolvingConvertibleSource)
                     .padding(.horizontal, AppTheme.Spacing.xl)
-                    .accessibilityHint("Searches SoundCloud, Audius, and Jamendo for a playable track that can be converted")
+                    .accessibilityHint("Prepares a playable audio source for voice conversion")
 
                     Button {
                         isImportingAudioFile = true
                     } label: {
-                        Label("Import audio file", systemImage: "folder.badge.plus")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.86))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(Color.white.opacity(0.10), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                    .padding(.top, -AppTheme.Spacing.sm)
-                    .accessibilityHint("Imports an audio file from Files for playback and voice conversion")
-
-                    Button {
-                        showVoiceConversionUnavailable = true
-                    } label: {
-                        Label("Why not direct MusicKit conversion?", systemImage: "info.circle")
+                        Label("Use my audio file", systemImage: "folder.badge.plus")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.70))
                     }
                     .buttonStyle(.plain)
                     .padding(.top, -AppTheme.Spacing.xs)
+                    .accessibilityHint("Imports an audio file from Files for playback and voice conversion")
 
                     Spacer()
                 }
@@ -469,7 +456,7 @@ struct AppleMusicFullPlayerView: View {
             } catch {
                 await MainActor.run {
                     isResolvingConvertibleSource = false
-                    resolverMessage = error.localizedDescription
+                    isImportingAudioFile = true
                 }
             }
         }
@@ -495,7 +482,7 @@ struct AppleMusicFullPlayerView: View {
             AppleMusicPlaybackState.shared.stop()
             onPlayConvertibleSource(importedTrack)
         } catch {
-            resolverMessage = error.localizedDescription
+            resolverMessage = "Could not import this audio file. Please choose another mp3, m4a, wav, or audio file you own."
         }
     }
 }
