@@ -399,7 +399,6 @@ final class LalalAIVoiceConversionProvider: VoiceConversionProvider {
         let singerVoiceMapping: [String: String] = [
             // Western Pop/Rap Artists 
             "drake_singer": "ALEX_KAYE",           // Drake -> ALEX_KAYE (남성)
-            "bad_bunny_singer": "ALEX_KAYE",       // Bad Bunny -> ALEX_KAYE (남성)
             "eminem_singer": "ALEX_KAYE",          // Eminem -> ALEX_KAYE (남성)
             "kanye_west_singer": "ALEX_KAYE",      // Kanye West -> ALEX_KAYE (남성)
             "21_savage_singer": "ALEX_KAYE",       // 21 Savage -> ALEX_KAYE (남성)
@@ -555,6 +554,7 @@ struct ConvertedVoiceTrackRecord: Codable, Identifiable {
     let id: UUID
     let title: String
     let artistName: String?
+    let voiceId: String?
     let voiceName: String
     let filePath: String
     let artworkURL: String?
@@ -576,6 +576,7 @@ enum ConvertedVoiceTrackStore {
     static func save(
         title: String,
         artistName: String?,
+        voiceId: String? = nil,
         voiceName: String,
         filePath: String,
         artworkURL: URL?
@@ -584,6 +585,7 @@ enum ConvertedVoiceTrackStore {
             id: UUID(),
             title: title,
             artistName: artistName,
+            voiceId: voiceId,
             voiceName: voiceName,
             filePath: filePath,
             artworkURL: artworkURL?.absoluteString,
@@ -596,6 +598,41 @@ enum ConvertedVoiceTrackStore {
         let data = try JSONEncoder().encode(records)
         try data.write(to: manifestURL, options: .atomic)
         return record
+    }
+
+    static func delete(id: UUID) {
+        let records = load()
+        if let record = records.first(where: { $0.id == id }) {
+            try? FileManager.default.removeItem(atPath: record.filePath)
+        }
+        var updated = records.filter { $0.id != id }
+        if let data = try? JSONEncoder().encode(updated) {
+            try? data.write(to: manifestURL, options: .atomic)
+        }
+    }
+
+    static func deleteAll() {
+        let records = load()
+        for record in records {
+            try? FileManager.default.removeItem(atPath: record.filePath)
+        }
+        try? FileManager.default.removeItem(at: manifestURL)
+    }
+}
+
+extension ConvertedVoiceTrackRecord {
+    func toPlayableTrack() -> PlayableTrackDTO {
+        PlayableTrackDTO(
+            id: UUID(),
+            title: title,
+            artistName: artistName,
+            playbackUrl: nil,
+            playbackStoreID: nil,
+            isAIGenerated: true,
+            duration: nil,
+            fileUrl: filePath,
+            artworkURL: artworkURL.flatMap(URL.init(string:))
+        )
     }
 }
 
@@ -626,15 +663,20 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         var lastError: Error?
         for attempt in 1...maxRetries {
             do {
-                return try await performRequest(
+                // Always use the async job endpoint for Beam SVC conversions. Full-song RVC
+                // conversion can exceed URLSession's request idle timeout if we wait for
+                // the audio response directly, especially for heavier voices like Lil Wayne.
+                let jobData = try await performRequest(
                     audioData: audioData,
                     voiceId: voiceId,
                     voiceType: voiceType,
                     outputFormat: "mp3",
                     trimStart: trimStart,
                     trimDuration: trimDuration,
-                    returnJob: false
+                    returnJob: true
                 )
+                let job = try JSONDecoder().decode(AsyncJobResponse.self, from: jobData)
+                return try await pollJobUntilFinished(jobId: job.jobId)
             } catch {
                 lastError = error
                 if attempt < maxRetries {
@@ -662,7 +704,7 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
     }
 
     func pollJobUntilFinished(jobId: String, pollInterval: UInt64 = 2_000_000_000, onProgress: ((Int, String?) -> Void)? = nil) async throws -> Data {
-        guard let statusURL = URL(string: "\(Endpoints.baseURL)/ai-convert/jobs/\(jobId)") else {
+        guard let statusURL = URL(string: "\(Endpoints.beamSVCBaseURL)/ai-convert/jobs/\(jobId)") else {
             throw VoiceConversionError.serverError("Invalid Beam SVC job URL")
         }
 
@@ -671,8 +713,8 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
             let status = try JSONDecoder().decode(AsyncJobStatusResponse.self, from: data)
             switch status.status {
             case "completed":
-                guard let resultURL = URL(string: "\(Endpoints.baseURL)/ai-convert/results/\(jobId)") else {
-                    throw VoiceConversionError.serverError("Beam SVC result URL이 없습니다.")
+                guard let resultURL = URL(string: "\(Endpoints.beamSVCBaseURL)/ai-convert/results/\(jobId)") else {
+                    throw VoiceConversionError.serverError("Beam SVC result URL is missing.")
                 }
                 let (resultData, _) = try await URLSession.shared.data(from: resultURL)
                 return resultData
@@ -773,7 +815,7 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw VoiceConversionError.serverError("Beam SVC 응답을 확인할 수 없습니다.")
+            throw VoiceConversionError.serverError("Could not verify the Beam SVC response.")
         }
 
         if !(200...299).contains(httpResponse.statusCode) {
@@ -847,7 +889,7 @@ enum VoiceConversionError: LocalizedError {
         case .timeout:
             return "Voice conversion timed out"
         case .lalalAIError(let error):
-            return "LALAL.AI 오류: \(error.localizedDescription)"
+            return "LALAL.AI error: \(error.localizedDescription)"
         }
     }
 }
@@ -1003,4 +1045,70 @@ struct VoiceInfo: Codable, Identifiable {
         case language
         case voiceType
     }
+}
+
+extension VoiceInfo {
+    var englishCategory: String {
+        switch category {
+        case "남성 기본": return "Default Male"
+        case "여성 기본": return "Default Female"
+        case "유명인": return "Celebrity"
+        case "캐릭터/유명인": return "Character / Celebrity"
+        default: return category
+        }
+    }
+
+    var englishDescription: String? {
+        switch id {
+        case "dionn_v1_singing": return "Male singing voice"
+        case "freya_idol": return "Female idol-style vocal voice"
+        case "taylor_swift_singer": return "Singer-style pop vocal"
+        case "the_weeknd": return "The Weeknd-style male pop vocal"
+        case "ariana_grande": return "Ariana Grande-style female pop vocal"
+        case "lil_wayne": return "Lil Wayne-style male rap vocal"
+        case "drake": return "Drake-style male rap vocal"
+        default: return description
+        }
+    }
+
+    var avatarInitials: String {
+        let parts = name.split(separator: " ").prefix(2)
+        let initials = parts.compactMap { $0.first }.map(String.init).joined()
+        return initials.isEmpty ? "♪" : initials.uppercased()
+    }
+
+    var artistImageURL: URL? {
+        let urlString: String?
+        switch id {
+        case "drake":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Drake_at_The_Carter_Effect_2017_%2836818935200%29_%28cropped%29.jpg/330px-Drake_at_The_Carter_Effect_2017_%2836818935200%29_%28cropped%29.jpg"
+        case "lil_wayne":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Lil_Wayne_Feb._2020.jpg/330px-Lil_Wayne_Feb._2020.jpg"
+        case "the_weeknd":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/The_Weeknd_Portrait_by_Brian_Ziff.jpg/330px-The_Weeknd_Portrait_by_Brian_Ziff.jpg"
+        case "ariana_grande":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Ariana_Grande_promoting_Wicked_%282024%29.jpg/330px-Ariana_Grande_promoting_Wicked_%282024%29.jpg"
+        case "taylor_swift_singer":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png/330px-Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_%283%29.png"
+        case "kehlani":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/Kehlani-New-Zealand-Warner-Music-Interview.png/330px-Kehlani-New-Zealand-Warner-Music-Interview.png"
+        case "bad_bunny":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg/330px-Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg"
+        case "macan":
+            urlString = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Macan-2020.jpg/330px-Macan-2020.jpg"
+        default:
+            urlString = nil
+        }
+        return urlString.flatMap(URL.init(string:))
+    }
+
+    static let beamSVCFallbackVoices: [VoiceInfo] = [
+        VoiceInfo(id: "dionn_v1_singing", name: "Dionn V1 Singing", category: "Default Male", description: "Male singing voice", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "freya_idol", name: "Freya Idol", category: "Default Female", description: "Female idol-style vocal voice", previewUrl: nil, language: ["id"], voiceType: "default"),
+        VoiceInfo(id: "taylor_swift_singer", name: "Taylor Swift", category: "Celebrity", description: "Singer-style pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "the_weeknd", name: "The Weeknd", category: "Celebrity", description: "The Weeknd-style male pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "ariana_grande", name: "Ariana Grande", category: "Celebrity", description: "Ariana Grande-style female pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "lil_wayne", name: "Lil Wayne", category: "Celebrity", description: "Lil Wayne-style male rap vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "drake", name: "Drake", category: "Celebrity", description: "Drake-style male rap vocal", previewUrl: nil, language: ["en"], voiceType: "singer")
+    ]
 }

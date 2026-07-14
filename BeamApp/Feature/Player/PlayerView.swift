@@ -98,7 +98,7 @@ struct PlayerControlsView: View {
     }
 }
 
-// MARK: - Custom Remix/AI Toggle (Figma 스타일)
+// MARK: - Custom Remix/AI Toggle (Figma style)
 struct RemixAIToggle: View {
     @Binding var isAIVersion: Bool
     var body: some View {
@@ -192,24 +192,32 @@ struct PlayerView: View {
     @State private var voiceSelectionMode: VoiceSelectionMode = .preview
     @State private var showVoiceConversionError = false
     @State private var voiceConversionErrorMessage = ""
-    @State private var voiceConversionStatusTitle = "음성 변환 중..."
-    @State private var voiceConversionStatusSubtitle = "미리듣기 구간을 준비하고 있어요"
+    @State private var voiceConversionStatusTitle = "Converting voice..."
+    @State private var voiceConversionStatusSubtitle = "Preparing the preview segment"
+    @State private var voiceConversionTask: Task<Void, Never>?
     @State private var isFullTrackConversionInProgress = false
     @State private var fullTrackJobProgress: Int = 0
     @State private var fullTrackJobStage: String?
-    @State private var showLyricsSheet = false
-    @State private var lyricsText = ""
-    @State private var lyricsTitle = "가사보기"
-    @State private var showArtistInfoSheet = false
-    @State private var artistInfoTitle = "아티스트 정보"
-    @State private var artistInfoText = ""
-    @State private var artistInfoImageURL: URL? = nil
     @State private var isScrubbing = false
     @State private var trackID: UUID? = nil
+    @State private var localConvertedVoiceTracks: [ConvertedVoiceTrackRecord] = []
     
     enum VoiceSelectionMode {
         case preview
         case preconvert
+    }
+
+    private struct ReadyVoiceItem: Identifiable, Equatable {
+        let id: String
+        let voiceId: String?
+        let voiceName: String
+        let status: PreConversionJobStatus
+        let track: PlayableTrackDTO?
+        let updatedAt: Date
+
+        var isReady: Bool {
+            status == .completed && track != nil
+        }
     }
 
     struct ViewState: Equatable {
@@ -310,7 +318,7 @@ struct PlayerView: View {
                             .padding(.bottom, 8)
                         VStack(spacing: 2) {
                             HStack(alignment: .center) {
-                                Text("로딩 중...")
+                                Text("Loading...")
                                     .font(.system(size: 22, weight: .bold))
                                     .foregroundColor(.white)
                                     .lineLimit(1)
@@ -369,99 +377,8 @@ struct PlayerView: View {
                     }
                     .padding(.bottom, 8)
                     
-                    VStack(alignment: .leading, spacing: 12) {
-                        Button(action: {
-                            Task {
-                                await presentLyrics(for: viewStore.currentTrack)
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "music.note.list")
-                                Text("가사/설명 보기")
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Color.white)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 24)
-                            .clipShape(Capsule())
-                        }
-                        Button(action: {
-                            Task {
-                                await presentArtistInfo(for: viewStore.currentTrack)
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "person")
-                                let artist = audioManager.currentTrackMetadata.artist ?? ""
-                                Text("\(artist)에 대해 더 알아보기")
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Color.white)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 24)
-                            .clipShape(Capsule())
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 18)
-                    
                     VStack(spacing: 12) {
                         HStack(spacing: 18) {
-                            Button(action: {
-                                if let currentTitle = audioManager.currentTrackMetadata.title?.lowercased(),
-                                   let currentArtist = audioManager.currentTrackMetadata.artist?.lowercased(),
-                                   let demoTrack = demoTracks.first(where: {
-                                       $0.title.lowercased() == currentTitle && $0.artist.lowercased() == currentArtist
-                                   }) {
-                                    isRemixing = true
-                                    remixDemoTrack(demoTrack) { result in
-                                        DispatchQueue.main.async {
-                                            isRemixing = false
-                                            switch result {
-                                            case .success(let url):
-                                                // 변환된 AI 트랙을 PlayerReducer로 흘려 MiniPlayer/컨트롤 상태 일관화
-                                                let currentArtworkURL = viewStore.currentTrack?.artworkURL
-                                                let track = PlayableTrackDTO(
-                                                    id: UUID(),
-                                                    title: demoTrack.title,
-                                                    artistName: demoTrack.artist,
-                                                    playbackUrl: nil,
-                                                    playbackStoreID: nil,
-                                                    isAIGenerated: true,
-                                                    duration: nil,
-                                                    fileUrl: url.absoluteString,
-                                                    artworkURL: currentArtworkURL
-                                                )
-                                                viewStore.send(.startPlayback([track]))
-                                            case .failure(let error):
-                                                print("AI 변환 실패: \(error)")
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // 내장곡이 아니면 안내
-                                    showNoMatchAlert = true
-                                }
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "music.note")
-                                    Text("Remix")
-                                }
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 24)
-                                        .stroke(Color.white.opacity(viewStore.isAIMusicEnabled ? 0.7 : 0.25), lineWidth: 2)
-                                        .background(
-                                            viewStore.isAIMusicEnabled ? Color.purple.opacity(0.7).cornerRadius(24) : Color.clear.cornerRadius(24)
-                                        )
-                                )
-                            }
-                            .disabled(!viewStore.isAIMusicEnabled)
-                            .opacity(viewStore.isAIMusicEnabled ? 1 : 0.4)
-                            
                             Button(action: {
                                 voiceSelectionMode = .preview
                                 Task {
@@ -485,65 +402,12 @@ struct PlayerView: View {
                                         .background(AppTheme.voiceButtonFill.cornerRadius(24))
                                 )
                             }
-
-                            Button(action: {
-                                voiceSelectionMode = .preconvert
-                                Task {
-                                    await preConversionManager.loadAvailableVoices()
-                                    await MainActor.run {
-                                        showVoiceSelectionSheet = true
-                                    }
-                                }
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "tray.and.arrow.down")
-                                    Text("선변환")
-                                }
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 22)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 24)
-                                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
-                                        .background(AppTheme.preconvertButtonFill.cornerRadius(24))
-                                )
-                            }
                         }
-                        if let currentTrack = viewStore.currentTrack,
-                           let badge = preConversionManager.statusBadgeText(for: currentTrack, includeWarmupHint: true) {
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(statusColor(for: currentTrack))
-                                    .frame(width: 8, height: 8)
-                                
-                                Text(badge)
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.8))
-                                
-                                if let record = preConversionManager.latestJob(for: currentTrack),
-                                   record.status == .failed {
-                                    Button(action: {
-                                        if let voice = preConversionManager.preferredVoice() {
-                                            Task {
-                                                await preConversionManager.enqueue(track: currentTrack, voice: voice)
-                                            }
-                                        }
-                                    }) {
-                                        Text("재시도")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                            .background(Color.red.opacity(0.7))
-                                            .cornerRadius(6)
-                                    }
-                                }
+                        if let currentTrack = viewStore.currentTrack {
+                            let items = readyVoiceItems(for: currentTrack)
+                            if !items.isEmpty {
+                                readyVoicesSection(items: items, viewStore: viewStore)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(8)
                         }
                     }
                     .padding(.bottom, 28)
@@ -561,7 +425,7 @@ struct PlayerView: View {
                 .animation(.easeInOut(duration: 0.3), value: viewStore.currentTrack?.id)
                 
                 if isRemixing {
-                    ProgressView("AI 변환/리믹스 중...")
+                    ProgressView("AI converting/remixing...")
                         .padding()
                         .background(Color.black.opacity(0.7))
                         .cornerRadius(12)
@@ -570,6 +434,17 @@ struct PlayerView: View {
                 
                 if isVoiceConverting {
                     VStack(spacing: 12) {
+                        HStack {
+                            Spacer()
+                            Button(action: cancelVoiceConversion) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 28, height: 28)
+                                    .background(Color.white.opacity(0.14))
+                                    .clipShape(Circle())
+                            }
+                        }
                         ProgressView()
                             .scaleEffect(1.2)
                         Text(voiceConversionStatusTitle)
@@ -579,7 +454,7 @@ struct PlayerView: View {
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.7))
                         if isFullTrackConversionInProgress {
-                            Text("미리듣기는 먼저 재생되고, 전체 곡은 완료되면 자동으로 바뀌어요")
+                            Text("The preview plays first, then switches automatically when the full track is ready")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white.opacity(0.6))
                                 .multilineTextAlignment(.center)
@@ -597,6 +472,7 @@ struct PlayerView: View {
                     viewStore.send(.playPause)
                 }
                 libraryStore.send(.fetchUserPlaylists)
+                localConvertedVoiceTracks = ConvertedVoiceTrackStore.load()
             }
             .onChange(of: viewStore.currentTrack?.id) { _, newTrackID in
                 guard newTrackID != nil, let currentTrack = viewStore.currentTrack else { return }
@@ -606,7 +482,7 @@ struct PlayerView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: AudioManager.audioDidFinishNotification)) { _ in
                 viewStore.send(.audioDidFinish)
-                // Preview 종료 시 full track이 아직 준비 중이면 원곡으로 fallback
+                // When preview ends, fall back to the original track if the full track is still being prepared
                 if isFullTrackConversionInProgress {
                     if let originalTrack = viewStore.currentTrack {
                         let fallbackTitle = originalTrack.title
@@ -631,16 +507,16 @@ struct PlayerView: View {
                 if let track = viewStore.currentTrack {
                 }
             }
-            .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {
-                Button("확인", role: .cancel) { showAddSuccess = false }
+            .alert("Added to playlist!", isPresented: $showAddSuccess) {
+                Button("OK", role: .cancel) { showAddSuccess = false }
             }
             
-            .alert("퍼블릭 도메인 곡을 찾을 수 없습니다.", isPresented: $showNoMatchAlert) {
-                Button("확인", role: .cancel) { showNoMatchAlert = false }
+            .alert("Could not find a public-domain song.", isPresented: $showNoMatchAlert) {
+                Button("OK", role: .cancel) { showNoMatchAlert = false }
             }
             
-            .alert("음성 변환 실패", isPresented: $showVoiceConversionError) {
-                Button("확인", role: .cancel) { showVoiceConversionError = false }
+            .alert("Voice Conversion Failed", isPresented: $showVoiceConversionError) {
+                Button("OK", role: .cancel) { showVoiceConversionError = false }
             } message: {
                 Text(voiceConversionErrorMessage)
             }
@@ -659,7 +535,7 @@ struct PlayerView: View {
                         case .preconvert:
                             guard let track = viewStore.currentTrack else {
                                 showVoiceConversionError = true
-                                voiceConversionErrorMessage = "현재 재생 중인 곡이 없습니다."
+                                voiceConversionErrorMessage = "No song is currently playing."
                                 return
                             }
                             Task {
@@ -692,57 +568,29 @@ struct PlayerView: View {
                     }
                 )
             }
-            .alert("음성 변환 오류", isPresented: $showVoiceConversionError) {
-                Button("확인") { }
+            .alert("Voice Conversion Error", isPresented: $showVoiceConversionError) {
+                Button("OK") { }
             } message: {
                 Text(voiceConversionErrorMessage)
             }
-            .sheet(isPresented: $showLyricsSheet) {
-                NavigationView {
-                    ScrollView {
-                        Text(lyricsText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                    }
-                    .navigationTitle(lyricsTitle)
-                    .navigationBarTitleDisplayMode(.inline)
-                }
-                .presentationDetents([.medium, .large])
-            }
-            .sheet(isPresented: $showArtistInfoSheet) {
-                NavigationView {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            if let artistInfoImageURL {
-                                AsyncImage(url: artistInfoImageURL) { image in
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                } placeholder: {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color.white.opacity(0.12))
-                                        .overlay { ProgressView() }
-                                }
-                                .frame(height: 220)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                            }
-
-                            Text(artistInfoText)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding()
-                    }
-                    .navigationTitle(artistInfoTitle)
-                    .navigationBarTitleDisplayMode(.inline)
-                }
-                .presentationDetents([.medium, .large])
-            }
             .overlay(
                 ZStack(alignment: .top) {
-                    // 전체 화면 오버레이: preview 변환 대기 중
+                    // Full-screen overlay: waiting for preview conversion
                     if isVoiceConverting {
                         VStack(spacing: 20) {
+                            HStack {
+                                Spacer()
+                                Button(action: cancelVoiceConversion) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.white.opacity(0.14))
+                                        .clipShape(Circle())
+                                }
+                                .padding(.top, 24)
+                                .padding(.trailing, 24)
+                            }
                             Spacer()
                             ZStack {
                                 Circle()
@@ -770,7 +618,7 @@ struct PlayerView: View {
                         .transition(.opacity.animation(.easeInOut(duration: 0.25)))
                     }
 
-                    // 상단 배너: 백그라운드에서 전체 곡 변환 중일 때 (preview는 재생 중)
+                    // Top banner: when the full song is converting in the background (preview is playing)
                     if !isVoiceConverting && isFullTrackConversionInProgress {
                         HStack(spacing: 10) {
                             ProgressView()
@@ -778,7 +626,7 @@ struct PlayerView: View {
                                 .scaleEffect(0.8)
                             VStack(alignment: .leading, spacing: 1) {
                                 HStack(spacing: 6) {
-                                    Text("전체 곡 변환 중...")
+                                    Text("Converting full song...")
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundColor(.white)
                                     if fullTrackJobProgress > 0 {
@@ -792,7 +640,7 @@ struct PlayerView: View {
                                         .font(.system(size: 11))
                                         .foregroundColor(.white.opacity(0.75))
                                 } else {
-                                    Text("백그라운드에서 고품질 버전을 준비하고 있어요")
+                                    Text("Preparing a high-quality version in the background")
                                         .font(.system(size: 11))
                                         .foregroundColor(.white.opacity(0.75))
                                 }
@@ -837,6 +685,157 @@ struct PlayerView: View {
             return .green
         }
         return .gray
+    }
+
+    private func readyVoiceItems(for track: PlayableTrackDTO) -> [ReadyVoiceItem] {
+        var items: [ReadyVoiceItem] = []
+        let voices = preConversionManager.availableVoices.isEmpty ? availableVoices : preConversionManager.availableVoices
+
+        for voice in voices {
+            if let convertedTrack = preConversionManager.latestConvertedTrack(for: track, voiceId: voice.id) {
+                items.append(
+                    ReadyVoiceItem(
+                        id: "server-\(voice.id)",
+                        voiceId: voice.id,
+                        voiceName: voice.name,
+                        status: .completed,
+                        track: convertedTrack,
+                        updatedAt: Date()
+                    )
+                )
+                continue
+            }
+
+            if let job = preConversionManager.jobForVoice(voice, track: track),
+               job.status == .queued || job.status == .converting {
+                items.append(
+                    ReadyVoiceItem(
+                        id: "job-\(job.id.uuidString)",
+                        voiceId: voice.id,
+                        voiceName: voice.name,
+                        status: job.status,
+                        track: nil,
+                        updatedAt: job.updatedAt
+                    )
+                )
+            }
+        }
+
+        let localItems = localConvertedVoiceTracks.compactMap { record -> ReadyVoiceItem? in
+            guard localRecord(record, matches: track),
+                  FileManager.default.fileExists(atPath: record.filePath),
+                  !items.contains(where: { item in
+                      if let voiceId = record.voiceId, item.voiceId == voiceId {
+                          return true
+                      }
+                      return item.voiceName.caseInsensitiveCompare(record.voiceName) == .orderedSame
+                  }) else {
+                return nil
+            }
+
+            let playableTrack = PlayableTrackDTO(
+                id: record.id,
+                title: "\(record.title) (Voice: \(record.voiceName))",
+                artistName: record.artistName,
+                playbackUrl: nil,
+                playbackStoreID: track.playbackStoreID,
+                isAIGenerated: true,
+                duration: nil,
+                fileUrl: record.filePath,
+                artworkURL: record.artworkURL.flatMap(URL.init(string:))
+            )
+
+            return ReadyVoiceItem(
+                id: "local-\(record.id.uuidString)",
+                voiceId: record.voiceId,
+                voiceName: record.voiceName,
+                status: .completed,
+                track: playableTrack,
+                updatedAt: record.createdAt
+            )
+        }
+
+        items.append(contentsOf: localItems)
+        return items.sorted {
+            if $0.isReady != $1.isReady { return $0.isReady && !$1.isReady }
+            return $0.updatedAt > $1.updatedAt
+        }
+    }
+
+    private func localRecord(_ record: ConvertedVoiceTrackRecord, matches track: PlayableTrackDTO) -> Bool {
+        let titleMatches = normalized(record.title) == normalized(track.title)
+        let recordArtist = normalized(record.artistName ?? "")
+        let trackArtist = normalized(track.artistName ?? "")
+        return titleMatches && (recordArtist.isEmpty || trackArtist.isEmpty || recordArtist == trackArtist)
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    @ViewBuilder
+    private func readyVoicesSection(
+        items: [ReadyVoiceItem],
+        viewStore: ViewStore<ViewState, PlayerReducer.Action>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Ready voices")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white.opacity(0.72))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(items) { item in
+                        Button(action: {
+                            playReadyVoice(item, viewStore: viewStore)
+                        }) {
+                            HStack(spacing: 7) {
+                                if item.isReady {
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                } else {
+                                    ProgressView()
+                                        .scaleEffect(0.68)
+                                }
+
+                                Text(item.voiceName)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
+
+                                if !item.isReady {
+                                    Text(item.status.label)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.55))
+                                }
+                            }
+                            .foregroundColor(.white.opacity(item.isReady ? 0.92 : 0.62))
+                            .padding(.horizontal, 10)
+                            .frame(height: 32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.white.opacity(item.isReady ? 0.16 : 0.08))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!item.isReady)
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func playReadyVoice(
+        _ item: ReadyVoiceItem,
+        viewStore: ViewStore<ViewState, PlayerReducer.Action>
+    ) {
+        guard let track = item.track else { return }
+        let seekPosition = audioManager.currentTime
+        viewStore.send(.startPlayback([track]))
+        if seekPosition > 0.5 {
+            audioManager.pendingSeekPosition = seekPosition
+        }
     }
 
     struct SeekBar: View {
@@ -937,12 +936,12 @@ struct PlayerView: View {
         if let fileURL = Bundle.main.url(forResource: track.fileName, withExtension: nil) {
             uploadFileToAIConvert(fileURL: fileURL, completion: completion)
         } else {
-            completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "내장 mp3 파일을 찾을 수 없습니다."])))
+            completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not find the bundled MP3 file."])))
         }
     }
     
     func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-        // 자체 Beam SVC 서버 호출
+        // Call the Beam SVC server
         Task {
             do {
                 let audioData = try Data(contentsOf: fileURL)
@@ -977,17 +976,24 @@ struct PlayerView: View {
                 let voices: [VoiceInfo]
             }
             let payload = try JSONDecoder().decode(VoiceListPayload.self, from: data)
-            availableVoices = payload.voices
-            print("✅ Loaded \(availableVoices.count) Beam SVC voices")
+            availableVoices = payload.voices.filter { $0.voiceType == "singer" }
+            print("✅ Loaded \(availableVoices.count) Beam SVC singer voices")
         } catch {
-            availableVoices = [
-                VoiceInfo(id: "dionn_v1_singing", name: "Dionn V1 Singing", category: "Custom Licensed", description: "Beam SVC fallback voice", previewUrl: nil, language: ["en"], voiceType: "singer")
-            ]
+            availableVoices = VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" }
             showVoiceConversionError = true
-            voiceConversionErrorMessage = "Beam SVC 음성 목록을 불러오지 못했습니다: \(error.localizedDescription)"
+            voiceConversionErrorMessage = "Failed to load the Beam SVC voice list: \(error.localizedDescription)"
         }
     }
     
+    private func cancelVoiceConversion() {
+        voiceConversionTask?.cancel()
+        voiceConversionTask = nil
+        isVoiceConverting = false
+        fullTrackJobProgress = 0
+        fullTrackJobStage = nil
+        voiceConversionStatusSubtitle = "Conversion cancelled"
+    }
+
     private func performVoiceConversion(with voice: VoiceInfo) {
         let reducerTrack = ViewStore(store, observe: { $0.currentTrack }).state
         let audioMeta = audioManager.currentTrackMetadata
@@ -996,7 +1002,7 @@ struct PlayerView: View {
 
         guard let title = resolvedTitle else {
             showVoiceConversionError = true
-            voiceConversionErrorMessage = "현재 재생 중인 트랙이 없습니다."
+            voiceConversionErrorMessage = "No track is currently playing."
             return
         }
 
@@ -1018,12 +1024,13 @@ struct PlayerView: View {
             }
         }
 
-        // 재생 중지
+        // Stop playback
+        voiceConversionTask?.cancel()
         isVoiceConverting = true
-        voiceConversionStatusTitle = "음성 변환 중..."
-        voiceConversionStatusSubtitle = "전체 곡을 변환하고 있어요. 곡 길이에 따라 시간이 걸릴 수 있습니다"
+        voiceConversionStatusTitle = "Converting voice..."
+        voiceConversionStatusSubtitle = "Converting the full song. This may take some time depending on song length"
 
-        Task {
+        voiceConversionTask = Task {
             await audioManager.stop()
             do {
                 let audioData: Data = try await resolveAudioData(reducerTrack: reducerTrack, title: title)
@@ -1031,10 +1038,10 @@ struct PlayerView: View {
                 let resolvedVoiceType = isSingerVoice ? "singer" : (voice.voiceType ?? "default")
 
                 TTFATelemetry.shared.recordConversionRequestStart(trackTitle: title, voiceId: voice.id)
-                voiceConversionStatusSubtitle = "서버에 전체 곡 변환을 요청하고 있어요"
+                voiceConversionStatusSubtitle = "Requesting full-song conversion from the server"
 
                 guard let provider = voiceConversionService as? BeamSVCVoiceConversionProvider else {
-                    throw VoiceConversionError.serverError("Beam SVC provider를 사용할 수 없습니다.")
+                    throw VoiceConversionError.serverError("Beam SVC provider is unavailable.")
                 }
 
                 let job = try await provider.submitAsyncJob(
@@ -1044,7 +1051,7 @@ struct PlayerView: View {
                 )
 
                 await MainActor.run {
-                    voiceConversionStatusSubtitle = "전체 곡을 변환 중이에요. 잠시만 기다려 주세요"
+                    voiceConversionStatusSubtitle = "Converting the full song. Please wait"
                 }
 
                 let convertedData = try await provider.pollJobUntilFinished(jobId: job.jobId) { progress, stage in
@@ -1063,11 +1070,13 @@ struct PlayerView: View {
                     audioData: convertedData,
                     title: title,
                     artistName: resolvedArtist,
+                    voiceId: voice.id,
                     voiceName: voice.name,
                     artworkURL: reducerTrack?.artworkURL
                 )
 
                 await MainActor.run {
+                    localConvertedVoiceTracks = ConvertedVoiceTrackStore.load()
                     startConvertedPlayback(
                         fileURL: fileURL,
                         title: title,
@@ -1077,6 +1086,7 @@ struct PlayerView: View {
                     )
                     TTFATelemetry.shared.recordPlaybackStarted(trackTitle: title, voiceId: voice.id)
                     isVoiceConverting = false
+                    voiceConversionTask = nil
                     fullTrackJobProgress = 0
                     fullTrackJobStage = nil
                 }
@@ -1086,13 +1096,18 @@ struct PlayerView: View {
                     isVoiceConverting = false
                     fullTrackJobProgress = 0
                     fullTrackJobStage = nil
+                    voiceConversionTask = nil
+                    if error is CancellationError {
+                        voiceConversionErrorMessage = ""
+                        return
+                    }
                     showVoiceConversionError = true
                     if let nsError = error as NSError?,
                        nsError.domain == NSCocoaErrorDomain,
                        nsError.code == NSFileReadNoSuchFileError {
-                        voiceConversionErrorMessage = "음성 변환에 실패했습니다: 재생할 오디오 파일을 찾지 못했습니다. 다시 재생 후 시도해 주세요."
+                        voiceConversionErrorMessage = "Voice conversion failed: Could not find an audio file to play. Play it again and retry."
                     } else {
-                        voiceConversionErrorMessage = "음성 변환에 실패했습니다: \(error.localizedDescription)"
+                        voiceConversionErrorMessage = "Voice conversion failed: \(error.localizedDescription)"
                     }
                     print("❌ Voice conversion error: \(error)")
                 }
@@ -1128,6 +1143,7 @@ struct PlayerView: View {
         audioData: Data,
         title: String,
         artistName: String?,
+        voiceId: String,
         voiceName: String,
         artworkURL: URL?
     ) async throws -> URL {
@@ -1144,6 +1160,7 @@ struct PlayerView: View {
         _ = try? ConvertedVoiceTrackStore.save(
             title: title,
             artistName: artistName,
+            voiceId: voiceId,
             voiceName: voiceName,
             filePath: fileURL.path,
             artworkURL: artworkURL
@@ -1176,108 +1193,11 @@ struct PlayerView: View {
                 artworkURL: artworkURL
             )
             store.send(.startPlayback([track]))
-            // full track 교체 시 preview 재생 위치로 seek (playAIMusic 준비 완료 후 자동 적용)
+            // When replacing with the full track, seek to the preview playback position (applied automatically after playAIMusic is ready)
             if let seekTo = seekPosition, seekTo > 0.5 {
                 audioManager.pendingSeekPosition = seekTo
                 print("🎯 [Playback] Full track swap → pending seek to \(String(format: "%.1f", seekTo))s")
             }
-        }
-    }
-
-    @MainActor
-    private func presentLyrics(for track: PlayableTrackDTO?) async {
-        guard let track else {
-            lyricsTitle = "가사보기"
-            lyricsText = "현재 재생 중인 곡이 없습니다."
-            showLyricsSheet = true
-            return
-        }
-
-        lyricsTitle = track.title
-
-        do {
-            var descriptionText: String? = nil
-
-            if let trackID = track.playbackStoreID {
-                let detail = try await AudiusService.shared.getTrack(id: trackID)
-                descriptionText = detail.description
-            }
-
-            if (descriptionText == nil || descriptionText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true) {
-                let query = [track.title, track.artistName].compactMap { $0 }.joined(separator: " ")
-                let results = try await AudiusService.shared.searchTracks(query: query, limit: 10)
-                let matched = results.first {
-                    $0.title.localizedCaseInsensitiveContains(track.title) &&
-                    (track.artistName == nil || $0.user.name.localizedCaseInsensitiveContains(track.artistName ?? ""))
-                } ?? results.first
-                descriptionText = matched?.description
-            }
-
-            if let text = descriptionText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                lyricsText = text
-            } else {
-                lyricsText = "이 트랙은 Audius에서 가사/설명 데이터가 제공되지 않습니다.\n\n현재 Beam에서는 Audius 트랙의 설명(description)을 가사 대체 정보로 보여주고 있어요."
-            }
-        } catch {
-            lyricsText = "가사/설명 정보를 불러오지 못했습니다.\n\n\(error.localizedDescription)"
-        }
-
-        showLyricsSheet = true
-    }
-
-    @MainActor
-    private func presentArtistInfo(for track: PlayableTrackDTO?) async {
-        let artistName = track?.artistName ?? audioManager.currentTrackMetadata.artist
-        let trimmedArtistName = artistName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        guard !trimmedArtistName.isEmpty else {
-            artistInfoTitle = "아티스트 정보"
-            artistInfoText = "현재 재생 중인 아티스트 정보가 없습니다."
-            artistInfoImageURL = nil
-            showArtistInfoSheet = true
-            return
-        }
-
-        artistInfoTitle = trimmedArtistName
-        artistInfoText = "아티스트 정보를 불러오는 중..."
-        artistInfoImageURL = nil
-        showArtistInfoSheet = true
-
-        do {
-            let users = try await AudiusService.shared.searchUsers(query: trimmedArtistName, limit: 5)
-            if let user = users.first(where: {
-                $0.name.localizedCaseInsensitiveContains(trimmedArtistName) || trimmedArtistName.localizedCaseInsensitiveContains($0.name)
-            }) ?? users.first {
-                artistInfoImageURL = user.profilePicture?.url1000 ?? user.profilePicture?.url480 ?? user.profilePicture?.url150
-
-                let tracks = try await AudiusService.shared.searchTracks(query: trimmedArtistName, limit: 10)
-                let matchedTracks = tracks.filter {
-                    $0.user.name.localizedCaseInsensitiveContains(user.name) || user.name.localizedCaseInsensitiveContains($0.user.name)
-                }
-
-                let topTracks = Array(matchedTracks.prefix(5)).map(\.title)
-                let genres = Array(Set(matchedTracks.compactMap {
-                    $0.genre?.trimmingCharacters(in: .whitespacesAndNewlines)
-                }.filter { !$0.isEmpty })).sorted()
-
-                var sections: [String] = ["플랫폼\nAudius"]
-                if let handle = user.handle, !handle.isEmpty {
-                    sections.append("핸들\n@\(handle)")
-                }
-                if !genres.isEmpty {
-                    sections.append("장르\n\(genres.joined(separator: ", "))")
-                }
-                if !topTracks.isEmpty {
-                    sections.append("대표 트랙\n" + topTracks.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
-                }
-
-                artistInfoText = sections.joined(separator: "\n\n")
-                return
-            }
-
-            artistInfoText = "\(trimmedArtistName)에 대한 Audius 아티스트 정보를 찾지 못했습니다."
-        } catch {
-            artistInfoText = "아티스트 정보를 불러오지 못했습니다.\n\n\(error.localizedDescription)"
         }
     }
 
@@ -1380,15 +1300,15 @@ struct VoiceSelectionSheet: View {
         } else {
             return voices.filter { voice in
                 voice.name.localizedCaseInsensitiveContains(searchText) ||
-                voice.description?.localizedCaseInsensitiveContains(searchText) == true ||
-                voice.category.localizedCaseInsensitiveContains(searchText)
+                voice.englishDescription?.localizedCaseInsensitiveContains(searchText) == true ||
+                voice.englishCategory.localizedCaseInsensitiveContains(searchText)
             }
         }
     }
     
     var groupedVoices: [String: [VoiceInfo]] {
         Dictionary(grouping: filteredVoices) { voice in
-            voice.category
+            voice.englishCategory
         }
     }
     
@@ -1397,11 +1317,11 @@ struct VoiceSelectionSheet: View {
         guard let status = manager.conversionStatusForVoice(voice, track: track) else { return nil }
         switch status {
         case .completed:
-            return ("✓ 완료", .green)
+            return ("✓ Done", .green)
         case .converting, .queued:
-            return ("변환중", .orange)
+            return ("Converting", .orange)
         case .failed:
-            return ("✗ 실패", .red)
+            return ("✗ Failed", .red)
         }
     }
     
@@ -1412,7 +1332,7 @@ struct VoiceSelectionSheet: View {
             
             VStack(spacing: 24) {
                 HStack {
-                    Text("음성 선택")
+                    Text("Select Voice")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                     
@@ -1430,7 +1350,7 @@ struct VoiceSelectionSheet: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.white.opacity(0.7))
-                    TextField("음성 검색", text: $searchText)
+                    TextField("Search voices", text: $searchText)
                         .foregroundColor(.white)
                         .padding(.vertical, 10)
                 }
@@ -1446,9 +1366,9 @@ struct VoiceSelectionSheet: View {
                             Image(systemName: "waveform.badge.exclamationmark")
                                 .font(.system(size: 30))
                                 .foregroundColor(.white.opacity(0.7))
-                            Text("사용 가능한 음성이 없습니다")
+                            Text("No voices available")
                                 .foregroundColor(.white)
-                            Text("Kits AI 모델 목록을 불러오지 못했거나 검색 결과가 비어 있습니다")
+                            Text("Could not load the Kits AI model list or the search returned no results")
                                 .font(.footnote)
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.white.opacity(0.7))
@@ -1496,6 +1416,40 @@ struct VoiceSelectionSheet: View {
     }
 }
 
+struct VoiceAvatarView: View {
+    let voice: VoiceInfo
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.purple.opacity(0.28))
+
+            if let url = voice.artistImageURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Text(voice.avatarInitials)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(width: 42, height: 42)
+                .clipShape(Circle())
+            } else {
+                Text(voice.avatarInitials)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .frame(width: 42, height: 42)
+        .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
+    }
+}
+
 struct VoiceRowView: View {
     let voice: VoiceInfo
     var badge: (text: String, color: Color)?
@@ -1503,18 +1457,10 @@ struct VoiceRowView: View {
     
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(Color.purple.opacity(0.3))
-                        .frame(width: 50, height: 50)
-                    
-                    Image(systemName: "person.wave.2.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                }
+            HStack(spacing: 12) {
+                VoiceAvatarView(voice: voice)
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(voice.name)
                             .font(.system(size: 18, weight: .semibold))
@@ -1536,7 +1482,7 @@ struct VoiceRowView: View {
                         }
                     }
                     
-                    if let description = voice.description {
+                    if let description = voice.englishDescription {
                         Text(description)
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.7))
@@ -1544,7 +1490,7 @@ struct VoiceRowView: View {
                     }
                     
                     HStack {
-                        Text(voice.category)
+                        Text(voice.englishCategory)
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.5))
                         
@@ -1562,12 +1508,12 @@ struct VoiceRowView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white.opacity(0.5))
             }
-            .padding(.vertical, 16)
-            .padding(.horizontal, 20)
+            .padding(.vertical, 9)
+            .padding(.horizontal, 14)
             .background(Color.white.opacity(0.05))
             .cornerRadius(12)
             .padding(.horizontal, 24)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         }
         .buttonStyle(PlainButtonStyle())
     }

@@ -55,10 +55,68 @@ class MusicSearchService {
     }
 }
 
+private struct AppleMusicChartResponse: Decodable {
+    let feed: Feed
+
+    struct Feed: Decodable {
+        let results: [Song]
+    }
+
+    struct Song: Decodable {
+        let artistName: String
+        let id: String
+        let name: String
+        let artworkUrl100: String?
+        let contentAdvisoryRating: String?
+        let genres: [Genre]?
+
+        struct Genre: Decodable {
+            let name: String
+        }
+
+        var musicSearchResult: MusicSearchResult {
+            let artwork = artworkUrl100?
+                .replacingOccurrences(of: "100x100bb", with: "600x600bb")
+
+            return MusicSearchResult(
+                id: "apple-\(id)",
+                title: name,
+                artist: artistName,
+                artworkURL: artwork.flatMap(URL.init(string:)),
+                isExplicit: contentAdvisoryRating?.lowercased().contains("explicit") == true
+                    || contentAdvisoryRating?.lowercased().contains("explict") == true,
+                playbackURL: nil,
+                genre: genres?.first?.name
+            )
+        }
+    }
+}
+
+private enum AppleMusicChartService {
+    static func fetchTrendingSongs(limit: Int = 25) async throws -> [MusicSearchResult] {
+        guard let url = URL(string: "https://rss.applemarketingtools.com/api/v2/us/music/most-played/\(limit)/songs.json") else {
+            return []
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+
+        return try JSONDecoder()
+            .decode(AppleMusicChartResponse.self, from: data)
+            .feed
+            .results
+            .map(\.musicSearchResult)
+    }
+}
+
 // MARK: - Music Search Result View
 struct MusicSearchResultView: View {
     let result: MusicSearchResult
     let onPlay: () -> Void
+    let onConvert: (() -> Void)?
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -98,11 +156,19 @@ struct MusicSearchResultView: View {
                 
                 Text(result.artist)
                     .font(.subheadline)
-                    .foregroundColor(colorScheme == .dark ? .gray : .gray)
+                    .foregroundColor(.gray)
                     .lineLimit(1)
             }
             
             Spacer()
+            
+            if let onConvert {
+                Button(action: onConvert) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 22))
+                        .foregroundColor(.orange)
+                }
+            }
             
             Button(action: onPlay) {
                 Image(systemName: "play.circle.fill")
@@ -128,13 +194,16 @@ struct HomeView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
+    @State private var appleMusicTrendingSongs: [MusicSearchResult] = []
     @State private var hitSongs: [MusicSearchResult] = []
     @State private var remixArtistPairs: [RemixArtistPair] = []
     @State private var songToAddToPlaylist: MusicSearchResult? = nil
     @State private var isPlaylistSelectSheetPresented: Bool = false
+    @State private var isLoadingAppleMusicTrending: Bool = true
     @State private var isLoadingHitSongs: Bool = true
     @State private var isLoadingRemixPairs: Bool = true
     @State private var isRemixingDemo = false
+    @State private var showAllAppleMusicSongsSheet = false
     @State private var showAllHitSongsSheet = false
     @State private var showAllRemixPairsSheet = false
     @State private var showSearchScreen = false
@@ -164,7 +233,7 @@ struct HomeView: View {
                     showSearchScreen = true
                 }) {
                     HStack {
-                        Text(viewStore.searchText.isEmpty ? "노래/가수 검색하기" : viewStore.searchText)
+                        Text(viewStore.searchText.isEmpty ? "Search songs or artists" : viewStore.searchText)
                             .foregroundColor(viewStore.searchText.isEmpty ? .white.opacity(0.35) : .white)
                             .font(.system(size: 17, weight: .medium))
                         Spacer()
@@ -180,15 +249,77 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 32)
-                
+
+                if isConvertingFromSearch {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .tint(.white)
+                        Text(conversionStatusText)
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .background(Color.orange.opacity(0.3))
+                    .cornerRadius(20)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 12)
+                }
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("인기 음악")
+                            Text("Trending Music")
                                 .font(.title2).bold()
                                 .foregroundColor(.white)
                             Spacer()
-                            Button("전체보기") {
+                            Button("View All") {
+                                showAllAppleMusicSongsSheet = true
+                            }
+                            .foregroundColor(.white.opacity(0.7))
+                            .font(.subheadline)
+                        }
+                        .padding(.horizontal)
+
+                        Text("Top songs from Apple Music")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.82))
+                            .padding(.horizontal)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 28) {
+                                if isLoadingAppleMusicTrending {
+                                    ForEach(0..<5, id: \.self) { _ in
+                                        HitSongCardPlaceholder()
+                                    }
+                                } else {
+                                    ForEach(appleMusicTrendingSongs.indices, id: \.self) { idx in
+                                        let song = appleMusicTrendingSongs[idx]
+                                        HitSongCardView(
+                                            song: song,
+                                            sourceLabel: "Apple Music",
+                                            onPlay: {
+                                                playAppleMusicTrendingSong(song)
+                                            },
+                                            onAdd: {
+                                                songToAddToPlaylist = song
+                                                isPlaylistSelectSheetPresented = true
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        .padding(.top, 10)
+                        .frame(height: 180)
+
+                        HStack {
+                            Text("Popular Music")
+                                .font(.title2).bold()
+                                .foregroundColor(.white)
+                            Spacer()
+                            Button("View All") {
                                 showAllHitSongsSheet = true
                             }
                             .foregroundColor(.white.opacity(0.7))
@@ -197,11 +328,11 @@ struct HomeView: View {
                         .padding(.horizontal)
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Audius 트렌딩 기준으로 집계된 재생 가능한 인기 곡이에요")
+                            Text("Playable popular songs based on Audius trending data")
                                 .font(.footnote)
                                 .foregroundColor(.white.opacity(0.9))
 
-                            Text("음성 변환 테스트는 먼저 아래 인기 곡을 재생한 뒤 진행해 주세요")
+                            Text("For voice conversion tests, play one of the popular songs below first")
                                 .font(.footnote)
                                 .foregroundColor(.white.opacity(0.75))
                         }
@@ -211,7 +342,7 @@ struct HomeView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 28) {
                                 if isLoadingHitSongs {
-                                    // 로딩 중일 때 플레이스홀더
+                                    // Placeholder while loading
                                     ForEach(0..<5, id: \.self) { _ in
                                         HitSongCardPlaceholder()
                                     }
@@ -237,40 +368,6 @@ struct HomeView: View {
                         }
                         .padding(.top, 10)
                         .frame(height: 180) // 고정된 높이 설정
-                        // 리믹스할 가수조합 추천 섹션
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("리믹스할 가수조합 추천")
-                                    .font(.title2).bold()
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Button("전체보기") {
-                                    showAllRemixPairsSheet = true
-                                }
-                                .foregroundColor(.white.opacity(0.7))
-                                .font(.subheadline)
-                            }
-                            .padding(.horizontal)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 32) {
-                                    if isLoadingRemixPairs {
-                                        // 로딩 중일 때 플레이스홀더
-                                        ForEach(0..<3, id: \.self) { _ in
-                                            RemixArtistPairPlaceholder()
-                                        }
-                                    } else {
-                                        ForEach(remixArtistPairs) { pair in
-                                            RemixArtistPairView(pair: pair, onRemix: {
-                                                performRemix(for: pair)
-                                            })
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                            .padding(.top, 10)
-                            .frame(height: 150) // 고정된 높이 설정
-                        }
                     }
                     .padding(.top, 20)
                     
@@ -305,8 +402,9 @@ struct HomeView: View {
         .onAppear {
             recentSearches = loadRecentSearches()
             Task {
-                await fetchTrendingSongs()
-                await fetchRemixArtistPairs()
+                async let appleMusic: Void = fetchAppleMusicTrendingSongs()
+                async let audiusMusic: Void = fetchTrendingSongs()
+                _ = await (appleMusic, audiusMusic)
             }
         }
         .fullScreenCover(isPresented: $showSearchScreen) {
@@ -353,6 +451,12 @@ struct HomeView: View {
                     showSearchScreen = false
                     viewStore.send(.playMusic(result))
                     isMiniPlayerVisible = true
+                },
+                onConvert: { result, voice in
+                    showSearchScreen = false
+                    Task {
+                        await convertSearchResult(result, voice: voice)
+                    }
                 }
             )
         }
@@ -361,12 +465,12 @@ struct HomeView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(hitSongs) { song in
-                            MusicSearchResultView(result: song) {
+                            MusicSearchResultView(result: song, onPlay: {
                                 showAllHitSongsSheet = false
                                 isSearchFieldFocused = false
                                 viewStore.send(.playMusic(song))
                                 isMiniPlayerVisible = true
-                            }
+                            }, onConvert: nil)
                             .padding(.horizontal)
                         }
                     }
@@ -380,30 +484,19 @@ struct HomeView: View {
                     )
                     .ignoresSafeArea()
                 )
-                .navigationTitle("Audius 인기 음악")
+                .navigationTitle("Audius Popular Music")
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .sheet(isPresented: $showAllRemixPairsSheet) {
+        .sheet(isPresented: $showAllAppleMusicSongsSheet) {
             NavigationView {
                 ScrollView {
-                    LazyVStack(spacing: 20) {
-                        ForEach(remixArtistPairs) { pair in
-                            VStack(alignment: .leading, spacing: 12) {
-                                RemixArtistPairView(pair: pair, onRemix: {
-                                    showAllRemixPairsSheet = false
-                                    performRemix(for: pair)
-                                })
-                                .frame(maxWidth: .infinity)
-
-                                Text("\(pair.artist1) × \(pair.artist2)")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                            }
-                            .padding()
-                            .background(Color.white.opacity(0.08))
-                            .cornerRadius(20)
+                    LazyVStack(spacing: 12) {
+                        ForEach(appleMusicTrendingSongs) { song in
+                            MusicSearchResultView(result: song, onPlay: {
+                                showAllAppleMusicSongsSheet = false
+                                playAppleMusicTrendingSong(song)
+                            }, onConvert: nil)
                             .padding(.horizontal)
                         }
                     }
@@ -417,13 +510,152 @@ struct HomeView: View {
                     )
                     .ignoresSafeArea()
                 )
-                .navigationTitle("리믹스 가능한 가수 조합")
+                .navigationTitle("Apple Music Trending")
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
     }
-    
-    // Audius 인기 곡 불러오기
+
+    @State private var isConvertingFromSearch = false
+    @State private var conversionStatusText = ""
+
+    private func convertSearchResult(_ result: MusicSearchResult, voice: VoiceInfo) async {
+        guard let playbackURLString = result.playbackURL, let playbackURL = URL(string: playbackURLString) else {
+            return
+        }
+
+        await MainActor.run {
+            isConvertingFromSearch = true
+            conversionStatusText = "Downloading audio..."
+        }
+
+        do {
+            let (audioData, _) = try await URLSession.shared.data(from: playbackURL)
+
+            await MainActor.run {
+                conversionStatusText = "Converting with \(voice.name)..."
+            }
+
+            let isSingerVoice = voice.id.contains("_singer") || voice.voiceType == "singer"
+            let resolvedVoiceType = isSingerVoice ? "singer" : (voice.voiceType ?? "default")
+
+            guard let provider = voiceConversionService as? BeamSVCVoiceConversionProvider else {
+                throw NSError(domain: "VoiceConversion", code: -1, userInfo: [NSLocalizedDescriptionKey: "Voice conversion service unavailable"])
+            }
+
+            let job = try await provider.submitAsyncJob(
+                audioData: audioData,
+                voiceId: voice.id,
+                voiceType: resolvedVoiceType
+            )
+
+            await MainActor.run {
+                conversionStatusText = "Converting full song... (Job: \(job.jobId.prefix(8)))"
+            }
+
+            let convertedData = try await provider.pollJobUntilFinished(jobId: job.jobId) { progress, stage in
+                Task { @MainActor in
+                    if let stage {
+                        conversionStatusText = stage
+                    } else {
+                        conversionStatusText = "Conversion in progress... \(progress)%"
+                    }
+                }
+            }
+
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let safeTitle = result.title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            let safeVoice = voice.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            let fileName = "voice_converted_\(safeTitle)_\(safeVoice)_\(Int(Date().timeIntervalSince1970)).mp3"
+            let fileURL = documentsPath.appendingPathComponent(fileName)
+            try convertedData.write(to: fileURL)
+
+            _ = try? ConvertedVoiceTrackStore.save(
+                title: result.title,
+                artistName: result.artist,
+                voiceId: voice.id,
+                voiceName: voice.name,
+                filePath: fileURL.path,
+                artworkURL: result.artworkURL
+            )
+
+            await MainActor.run {
+                isConvertingFromSearch = false
+                conversionStatusText = ""
+            }
+
+        } catch {
+            await MainActor.run {
+                isConvertingFromSearch = false
+                conversionStatusText = ""
+            }
+            print("❌ Search voice conversion failed: \(error)")
+        }
+    }
+
+    private func playAppleMusicTrendingSong(_ song: MusicSearchResult) {
+        isSearchFieldFocused = false
+        Task {
+            guard let playableSong = await resolvePlayableAudiusSong(for: song) else {
+                print("Could not find a playable Audius match for Apple Music song: \(song.title)")
+                return
+            }
+            await MainActor.run {
+                viewStore.send(.playMusic(playableSong))
+                isMiniPlayerVisible = true
+            }
+        }
+    }
+
+    private func resolvePlayableAudiusSong(for song: MusicSearchResult) async -> MusicSearchResult? {
+        do {
+            let query = "\(song.title) \(song.artist)"
+            let tracks = try await AudiusService.shared.searchTracks(query: query, limit: 10)
+            let candidates = tracks
+                .map { $0.toMusicSearchResult() }
+                .filter { $0.playbackURL != nil }
+
+            if let exact = candidates.first(where: {
+                normalized($0.title) == normalized(song.title)
+                && normalized($0.artist).contains(normalized(song.artist))
+            }) {
+                return exact
+            }
+
+            if let titleMatch = candidates.first(where: {
+                normalized($0.title) == normalized(song.title)
+            }) {
+                return titleMatch
+            }
+
+            return candidates.first
+        } catch {
+            print("Failed to resolve Apple Music song on Audius: \(error)")
+            return nil
+        }
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    // Audius 인기  songs 불러오기
+    private func fetchAppleMusicTrendingSongs() async {
+        do {
+            let songs = try await AppleMusicChartService.fetchTrendingSongs(limit: 25)
+
+            await MainActor.run {
+                self.appleMusicTrendingSongs = Array(songs.prefix(20))
+                self.isLoadingAppleMusicTrending = false
+            }
+        } catch {
+            print("Failed to fetch Apple Music trending songs: \(error)")
+            await MainActor.run {
+                self.isLoadingAppleMusicTrending = false
+            }
+        }
+    }
+
     private func fetchTrendingSongs() async {
         do {
             let trendingTracks = try await AudiusService.shared.getTrendingTracks(limit: 100)
@@ -505,7 +737,7 @@ struct HomeView: View {
                     onRemix?()
                 }) {
                     HStack(spacing: 4) {
-                        Text("청음하기")
+                        Text("Preview")
                         Image(systemName: "play.circle.fill")
                     }
                     .foregroundColor(.white)
@@ -532,7 +764,7 @@ struct HomeView: View {
         }
     }
 
-    // Audius에서 실제 재생 가능한 pop 계열 아티스트 조합 생성
+    // Build pop artist pairs that can actually be played from Audius.
     private func fetchRemixArtistPairs() async {
         do {
             let tracks = try await AudiusService.shared.searchTracks(query: "pop", limit: 30)
@@ -633,8 +865,8 @@ struct HomeView: View {
 // MARK: - Setup for Previews
 extension PlaylistSummaryDTO {
     static let mockPlaylists: [PlaylistSummaryDTO] = [
-        PlaylistSummaryDTO(id: UUID(), name: "좋아하는 노래"),
-        PlaylistSummaryDTO(id: UUID(), name: "드라이브 음악", user: PlaylistSummaryDTO.User(id: UUID(), username: "사용자")),
+        PlaylistSummaryDTO(id: UUID(), name: "Favorite Songs"),
+        PlaylistSummaryDTO(id: UUID(), name: "Drive Music", user: PlaylistSummaryDTO.User(id: UUID(), username: "User")),
         PlaylistSummaryDTO(id: UUID(), name: "Work Out")
     ]
 }
@@ -735,16 +967,21 @@ struct SearchScreenView: View {
     let onDeleteRecent: (String) -> Void
     let onClearRecent: () -> Void
     let onPlay: (MusicSearchResult) -> Void
+    let onConvert: (MusicSearchResult, VoiceInfo) -> Void
     @FocusState private var isFocused: Bool
+    @State private var showVoiceSheet = false
+    @State private var selectedResult: MusicSearchResult?
+    @StateObject private var preConversionManager = PreConversionManager.shared
+    @State private var availableVoices: [VoiceInfo] = []
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                    Button("취소") { onClose() }
+                    Button("Cancel") { onClose() }
                         .foregroundColor(.white)
 
-                    TextField("노래/가수 검색하기", text: $searchText)
+                    TextField("Search songs or artists", text: $searchText)
                         .focused($isFocused)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
@@ -772,9 +1009,19 @@ struct SearchScreenView: View {
                     ScrollView {
                         VStack(spacing: 12) {
                             ForEach(results) { result in
-                                MusicSearchResultView(result: result) {
+                                MusicSearchResultView(result: result, onPlay: {
                                     onPlay(result)
-                                }
+                                }, onConvert: {
+                                    selectedResult = result
+                                    Task {
+                                        let voices = preConversionManager.availableVoices
+                                        if voices.isEmpty {
+                                            await preConversionManager.loadAvailableVoices()
+                                        }
+                                        availableVoices = preConversionManager.availableVoices
+                                        showVoiceSheet = true
+                                    }
+                                })
                                 .padding(.horizontal)
                             }
                         }
@@ -785,12 +1032,12 @@ struct SearchScreenView: View {
                         VStack(alignment: .leading, spacing: 22) {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
-                                    Text("최근 검색")
+                                    Text("Recent Searches")
                                         .font(.headline)
                                         .foregroundColor(.white)
                                     Spacer()
                                     if !recentSearches.isEmpty {
-                                        Button("전체 삭제") {
+                                        Button("Clear All") {
                                             onClearRecent()
                                         }
                                         .font(.subheadline)
@@ -800,7 +1047,7 @@ struct SearchScreenView: View {
                                 .padding(.horizontal)
 
                                 if recentSearches.isEmpty {
-                                    Text("최근 검색어가 없습니다")
+                                    Text("No recent searches")
                                         .foregroundColor(.white.opacity(0.7))
                                         .padding(.horizontal)
                                 } else {
@@ -831,7 +1078,7 @@ struct SearchScreenView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("추천 검색어")
+                                Text("Suggested Searches")
                                     .font(.headline)
                                     .foregroundColor(.white)
                                     .padding(.horizontal)
@@ -873,6 +1120,18 @@ struct SearchScreenView: View {
             .onAppear {
                 isFocused = true
             }
+            .sheet(isPresented: $showVoiceSheet) {
+                VoiceSelectionSheet(
+                    voices: availableVoices,
+                    onVoiceSelected: { voice in
+                        showVoiceSheet = false
+                        if let result = selectedResult {
+                            onConvert(result, voice)
+                        }
+                    },
+                    onCancel: { showVoiceSheet = false }
+                )
+            }
         }
     }
 }
@@ -891,6 +1150,7 @@ struct HomeNavigationBarView: View {
 
 struct HitSongCardView: View {
     let song: MusicSearchResult
+    var sourceLabel: String = "Audius Trending"
     let onPlay: () -> Void
     let onAdd: () -> Void
     @State private var fetchedArtworkURL: URL? = nil
@@ -932,7 +1192,7 @@ struct HitSongCardView: View {
                 .foregroundColor(.white.opacity(0.8))
                 .lineLimit(1)
 
-            Text("Audius 트렌딩")
+            Text(sourceLabel)
                 .font(.caption2)
                 .foregroundColor(.white.opacity(0.65))
                 .lineLimit(1)
@@ -956,7 +1216,7 @@ struct HitSongCardView: View {
     }
 }
 
-// MARK: - 플레이스홀더 뷰들
+// MARK: - Placeholder Views
 struct HitSongCardPlaceholder: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

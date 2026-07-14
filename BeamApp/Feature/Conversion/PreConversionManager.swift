@@ -10,10 +10,10 @@ enum PreConversionJobStatus: String, Codable, Equatable {
 
     var label: String {
         switch self {
-        case .queued: return "대기중"
-        case .converting: return "변환중"
-        case .completed: return "완료"
-        case .failed: return "실패"
+        case .queued: return "Queued"
+        case .converting: return "Converting"
+        case .completed: return "Done"
+        case .failed: return "Failed"
         }
     }
 }
@@ -132,7 +132,7 @@ final class PreConversionManager: ObservableObject {
             print("⏭️ [PreConv] warmupNextTrack: already warming up")
             return
         }
-        // 이미 완료된 변환이면 skip
+        // 이미 Done된 변환이면 skip
         if let voice = warmupVoiceIdOverride.flatMap({ overrideId in
             availableVoices.first(where: { $0.id == overrideId })
         }) ?? preferredVoice(),
@@ -144,7 +144,7 @@ final class PreConversionManager: ObservableObject {
         await warmup(track: track)
     }
 
-    /// 현재 트랙의 warmup 취소 (트랙 변경 시)
+    /// 현재 트랙의 warmup Cancel (트랙 변경 시)
     func cancelWarmup(for track: PlayableTrackDTO) {
         let key = trackKey(for: track)
         guard let task = activeWarmupTasks.removeValue(forKey: key) else { return }
@@ -155,7 +155,7 @@ final class PreConversionManager: ObservableObject {
         persistJobs()
     }
 
-    /// 모든 활성 warmup 취소
+    /// 모든 활성 warmup Cancel
     func cancelAllWarmups() {
         for (_, task) in activeWarmupTasks {
             task.cancel()
@@ -229,26 +229,19 @@ final class PreConversionManager: ObservableObject {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
-                throw VoiceConversionError.serverError("음성 목록을 불러오지 못했습니다.")
+                throw VoiceConversionError.serverError("Failed to load the voice list.")
             }
             struct VoiceListPayload: Decodable { let voices: [VoiceInfo] }
-            let decoded = try JSONDecoder().decode(VoiceListPayload.self, from: data).voices
+            let decoded = try JSONDecoder()
+                .decode(VoiceListPayload.self, from: data)
+                .voices
+                .filter { $0.voiceType == "singer" }
             if !decoded.isEmpty {
                 availableVoices = decoded
             }
         } catch {
             if availableVoices.isEmpty {
-                availableVoices = [
-                    VoiceInfo(
-                        id: "dionn_v1_singing",
-                        name: "Dionn V1 Singing",
-                        category: "Custom Licensed",
-                        description: "Beam SVC fallback voice",
-                        previewUrl: nil,
-                        language: ["en"],
-                        voiceType: "singer"
-                    )
-                ]
+                availableVoices = VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" }
             }
         }
     }
@@ -269,9 +262,6 @@ final class PreConversionManager: ObservableObject {
         }
         if latestConvertedTrack(for: track) != nil {
             return PreConversionJobStatus.completed.label
-        }
-        if includeWarmupHint, let voice = preferredVoice() {
-            return "자동 준비 중 · \(voice.name)"
         }
         return nil
     }
@@ -335,7 +325,7 @@ final class PreConversionManager: ObservableObject {
     func enqueue(track: PlayableTrackDTO, voice: VoiceInfo) async {
         do {
             guard let token = TokenStorage.shared.fetchToken() else {
-                throw VoiceConversionError.serverError("로그인이 필요합니다.")
+                throw VoiceConversionError.serverError("Login is required.")
             }
 
             setPreferredVoice(voice)
@@ -372,7 +362,7 @@ final class PreConversionManager: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
-                throw VoiceConversionError.serverError(String(data: data, encoding: .utf8) ?? "변환 요청 실패")
+                throw VoiceConversionError.serverError(String(data: data, encoding: .utf8) ?? "Conversion request failed")
             }
 
             let payload = try decode(ConvertedSongCreateResponseDTO.self, from: data)
@@ -442,7 +432,7 @@ final class PreConversionManager: ObservableObject {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse,
                       (200...299).contains(httpResponse.statusCode) else {
-                    throw VoiceConversionError.serverError("변환 상태 조회 실패")
+                    throw VoiceConversionError.serverError("Failed to check conversion status")
                 }
 
                 let status = try decode(ConvertedSongStatusDTO.self, from: data)
@@ -481,7 +471,7 @@ final class PreConversionManager: ObservableObject {
            let url = tracks.first?.audiodownload {
             return url
         }
-        throw VoiceConversionError.serverError("서버가 접근 가능한 원본 오디오 URL을 찾지 못했습니다.")
+        throw VoiceConversionError.serverError("Could not find a source audio URL accessible by the server.")
     }
 
     private func syncJobsFromConvertedSongs(_ songs: [ConvertedSongDTO]) {

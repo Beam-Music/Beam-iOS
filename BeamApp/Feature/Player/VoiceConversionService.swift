@@ -23,7 +23,7 @@ enum VoiceConversionError: LocalizedError {
         case .timeout:
             return "Voice conversion timed out"
         case .lalalAIError(let error):
-            return "LALAL.AI 오류: \(error.localizedDescription)"
+            return "LALAL.AI error: \(error.localizedDescription)"
         }
     }
 }
@@ -41,7 +41,7 @@ class VoiceConversionService {
             print("   Voice ID: \(voiceId)")
             print("   File size: \(audioData.count) bytes")
             
-            // 0단계: 크레딧 확인
+            // 0단계: 크레딧 OK
             print("💳 Step 0: Checking LALAL.AI credits...")
             let credits = try await client.checkCredits()
             
@@ -50,7 +50,7 @@ class VoiceConversionService {
             print("   Used: \(credits.used) minutes")
             print("   Remaining: \(credits.remaining) minutes")
             
-            // 파일 크기 확인 (업로드 전에)
+            // 파일 크기 OK (업로드 전에)
             let estimatedDuration = Double(audioData.count) / 16000.0 // 대략적인 초 단위 계산
             let requiredMinutes = estimatedDuration / 60.0
             
@@ -118,7 +118,7 @@ class VoiceConversionService {
             print("   Task ID: \(taskId)")
             print("   Target voice: \(lalalAIVoice)")
             
-            // 3단계: 작업 완료 대기
+            // 3단계: 작업 Done 대기
             print("⏳ Step 3: Waiting for voice change completion...")
             let fileResult = try await client.waitForTaskCompletion(fileId: fileId, maxWaitTime: 300)
             
@@ -207,7 +207,7 @@ class VoiceConversionService {
             print("   Task ID: \(taskId)")
             print("   Target voice: \(lalalAIVoice)")
             
-            // 3단계: 작업 완료 대기
+            // 3단계: 작업 Done 대기
             print("⏳ Step 3: Waiting for voice change completion...")
             let fileResult = try await client.waitForTaskCompletion(fileId: fileId, maxWaitTime: 300)
             
@@ -254,7 +254,6 @@ class VoiceConversionService {
         let singerVoiceMapping: [String: String] = [
             // Western Pop/Rap Artists 
             "drake_singer": "ALEX_KAYE",           // Drake -> ALEX_KAYE (남성)
-            "bad_bunny_singer": "ALEX_KAYE",       // Bad Bunny -> ALEX_KAYE (남성)
             "eminem_singer": "ALEX_KAYE",          // Eminem -> ALEX_KAYE (남성)
             "kanye_west_singer": "ALEX_KAYE",      // Kanye West -> ALEX_KAYE (남성)
             "21_savage_singer": "ALEX_KAYE",       // 21 Savage -> ALEX_KAYE (남성)
