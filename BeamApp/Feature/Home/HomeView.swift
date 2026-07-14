@@ -7,6 +7,7 @@
 
 import SwiftUI
 import ComposableArchitecture
+import MusicKit
 
 // MARK: - AI Convert Helper Functions
 func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
@@ -104,11 +105,165 @@ private enum AppleMusicChartService {
             return []
         }
 
-        return try JSONDecoder()
+        let songs = try JSONDecoder()
             .decode(AppleMusicChartResponse.self, from: data)
             .feed
             .results
             .map(\.musicSearchResult)
+
+        return await songsWithPreviewURLs(songs)
+    }
+
+    private static func songsWithPreviewURLs(_ songs: [MusicSearchResult]) async -> [MusicSearchResult] {
+        await withTaskGroup(of: (Int, MusicSearchResult).self) { group in
+            for (index, song) in songs.enumerated() {
+                group.addTask {
+                    let previewURL = await fetchITunesPreviewURL(for: song)
+                    return (
+                        index,
+                        MusicSearchResult(
+                            id: song.id,
+                            title: song.title,
+                            artist: song.artist,
+                            artworkURL: song.artworkURL,
+                            isExplicit: song.isExplicit,
+                            playbackURL: previewURL,
+                            genre: song.genre
+                        )
+                    )
+                }
+            }
+
+            var indexedSongs: [(Int, MusicSearchResult)] = []
+            for await indexedSong in group {
+                indexedSongs.append(indexedSong)
+            }
+            return indexedSongs
+                .sorted { $0.0 < $1.0 }
+                .map(\.1)
+        }
+    }
+
+    private static func fetchITunesPreviewURL(for song: MusicSearchResult) async -> String? {
+        let appleID = song.id.replacingOccurrences(of: "apple-", with: "")
+        if let previewURL = await fetchITunesPreviewURL(lookupID: appleID, matching: song) {
+            return previewURL
+        }
+        return await searchITunesPreviewURL(for: song)
+    }
+
+    private static func fetchITunesPreviewURL(lookupID: String, matching song: MusicSearchResult) async -> String? {
+        guard var components = URLComponents(string: "https://itunes.apple.com/lookup") else {
+            return nil
+        }
+        components.queryItems = [
+            URLQueryItem(name: "id", value: lookupID),
+            URLQueryItem(name: "country", value: "us"),
+            URLQueryItem(name: "entity", value: "song")
+        ]
+        return await fetchITunesPreviewURL(from: components, matching: song)
+    }
+
+    private static func searchITunesPreviewURL(for song: MusicSearchResult) async -> String? {
+        guard var components = URLComponents(string: "https://itunes.apple.com/search") else {
+            return nil
+        }
+        components.queryItems = [
+            URLQueryItem(name: "term", value: "\(song.title) \(song.artist)"),
+            URLQueryItem(name: "country", value: "us"),
+            URLQueryItem(name: "media", value: "music"),
+            URLQueryItem(name: "entity", value: "song"),
+            URLQueryItem(name: "limit", value: "5")
+        ]
+        return await fetchITunesPreviewURL(from: components, matching: song)
+    }
+
+    private static func fetchITunesPreviewURL(from components: URLComponents, matching song: MusicSearchResult) async -> String? {
+        guard let url = components.url else {
+            return nil
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return nil
+            }
+
+            let searchResponse = try JSONDecoder().decode(ITunesSearchResponse.self, from: data)
+            let normalizedTitle = normalized(song.title)
+            let normalizedArtist = normalized(song.artist)
+
+            return searchResponse.results.first(where: {
+                normalized($0.trackName) == normalizedTitle
+                && normalized($0.artistName).contains(normalizedArtist)
+            })?.previewUrl
+            ?? searchResponse.results.first(where: {
+                normalized($0.trackName) == normalizedTitle
+            })?.previewUrl
+            ?? searchResponse.results.first?.previewUrl
+        } catch {
+            print("Failed to fetch Apple Music preview URL for \(song.title): \(error)")
+            return nil
+        }
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private struct ITunesSearchResponse: Decodable {
+        let results: [Track]
+
+        struct Track: Decodable {
+            let artistName: String
+            let trackName: String
+            let previewUrl: String?
+        }
+    }
+}
+
+@MainActor
+private enum AppleMusicPlaybackService {
+    static func playFullTrack(_ song: MusicSearchResult) async throws {
+        let authorizationStatus = MusicAuthorization.currentStatus == .authorized
+            ? MusicAuthorization.currentStatus
+            : await MusicAuthorization.request()
+
+        guard authorizationStatus == .authorized else {
+            throw PlayerError.musicAuthorizationFailed
+        }
+
+        let subscription = try await MusicSubscription.current
+        guard subscription.canPlayCatalogContent else {
+            throw PlayerError.noMusicSubscription
+        }
+
+        let catalogID = song.id.replacingOccurrences(of: "apple-", with: "")
+        var request = MusicCatalogResourceRequest<MusicKit.Song>(
+            matching: \.id,
+            equalTo: MusicItemID(catalogID)
+        )
+        request.limit = 1
+
+        guard let catalogSong = try await request.response().items.first else {
+            throw PlayerError.trackNotFound(song.title)
+        }
+
+        await AudioManager.shared.stop()
+        let player = ApplicationMusicPlayer.shared
+        player.queue = ApplicationMusicPlayer.Queue(for: [catalogSong])
+        try await player.play()
+        AppleMusicPlaybackState.shared.start(song: song)
+    }
+
+    static func stop() {
+        ApplicationMusicPlayer.shared.stop()
+        AppleMusicPlaybackState.shared.stop()
     }
 }
 
@@ -120,28 +275,31 @@ struct MusicSearchResultView: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.Spacing.sm) {
             Group {
                 if let artworkURL = result.artworkURL {
                     AsyncImage(url: artworkURL) { image in
                         image.resizable()
+                            .scaledToFill()
                     } placeholder: {
-                        Color.gray.opacity(0.3)
+                        Color.white.opacity(0.10)
                     }
                 } else {
                     Image(systemName: "music.note")
-                        .foregroundColor(.gray)
-                        .background(Color.gray.opacity(0.2))
+                        .font(.title3)
+                        .foregroundColor(.white.opacity(0.65))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.white.opacity(0.10))
                 }
             }
-            .frame(width: 50, height: 50)
-            .cornerRadius(8)
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous))
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 HStack {
                     Text(result.title)
-                        .font(.headline)
-                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(.white)
                         .lineLimit(1)
                     
                     if result.isExplicit {
@@ -156,7 +314,7 @@ struct MusicSearchResultView: View {
                 
                 Text(result.artist)
                     .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.white.opacity(0.68))
                     .lineLimit(1)
             }
             
@@ -171,18 +329,17 @@ struct MusicSearchResultView: View {
             }
             
             Button(action: onPlay) {
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundColor(.purple)
+                Image(systemName: "play.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(AppTheme.primaryAccent, in: Circle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Play \(result.title)")
         }
-        .padding()
-        .background(colorScheme == .dark ? Color.black.opacity(0.2) : Color.white)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(colorScheme == .dark ? Color.purple.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1)
-        )
+        .padding(AppTheme.Spacing.md)
+        .beamCard(cornerRadius: AppTheme.Radius.md, fillOpacity: 0.08)
     }
 }
 
@@ -204,6 +361,7 @@ struct HomeView: View {
     @State private var isLoadingRemixPairs: Bool = true
     @State private var isRemixingDemo = false
     @State private var showAllAppleMusicSongsSheet = false
+    @State private var showAllAppleMusicPreviewSongsSheet = false
     @State private var showAllHitSongsSheet = false
     @State private var showAllRemixPairsSheet = false
     @State private var showSearchScreen = false
@@ -220,11 +378,11 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            AppTheme.mainGradient
-            .ignoresSafeArea()
+            BeamScreenBackground()
 
             // Animated star field background
-            StarFieldView(starCount: 40, scrollOffset: scrollOffset)
+            StarFieldView(starCount: 28, scrollOffset: scrollOffset)
+                .opacity(0.42)
             
             VStack(spacing: 0) {
                 // Search bar
@@ -232,23 +390,23 @@ struct HomeView: View {
                     searchDraft = viewStore.searchText
                     showSearchScreen = true
                 }) {
-                    HStack {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.72))
                         Text(viewStore.searchText.isEmpty ? "Search songs or artists" : viewStore.searchText)
                             .foregroundColor(viewStore.searchText.isEmpty ? .white.opacity(0.35) : .white)
                             .font(.system(size: 17, weight: .medium))
                         Spacer()
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.white.opacity(0.7))
                     }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 18)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.white.opacity(0.7), lineWidth: 1.2)
-                    )
+                    .frame(minHeight: 48)
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .beamCard(cornerRadius: AppTheme.Radius.lg, fillOpacity: 0.08)
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 32)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Search songs or artists")
+                .padding(.horizontal, AppTheme.Spacing.lg)
+                .padding(.top, AppTheme.Spacing.lg)
 
                 if isConvertingFromSearch {
                     HStack(spacing: 10) {
@@ -267,24 +425,13 @@ struct HomeView: View {
                 }
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Trending Music")
-                                .font(.title2).bold()
-                                .foregroundColor(.white)
-                            Spacer()
-                            Button("View All") {
-                                showAllAppleMusicSongsSheet = true
-                            }
-                            .foregroundColor(.white.opacity(0.7))
-                            .font(.subheadline)
-                        }
-                        .padding(.horizontal)
-
-                        Text("Top songs from Apple Music")
-                            .font(.footnote)
-                            .foregroundColor(.white.opacity(0.82))
-                            .padding(.horizontal)
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                        BeamSectionHeader(
+                            title: "Apple Music",
+                            subtitle: "Full-track playback with MusicKit",
+                            actionTitle: "View All",
+                            action: { showAllAppleMusicSongsSheet = true }
+                        )
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 28) {
@@ -297,9 +444,9 @@ struct HomeView: View {
                                         let song = appleMusicTrendingSongs[idx]
                                         HitSongCardView(
                                             song: song,
-                                            sourceLabel: "Apple Music",
+                                            sourceLabel: "MusicKit",
                                             onPlay: {
-                                                playAppleMusicTrendingSong(song)
+                                                playAppleMusicFullSong(song)
                                             },
                                             onAdd: {
                                                 songToAddToPlaylist = song
@@ -309,36 +456,51 @@ struct HomeView: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, AppTheme.Spacing.lg)
                         }
-                        .padding(.top, 10)
                         .frame(height: 180)
 
-                        HStack {
-                            Text("Popular Music")
-                                .font(.title2).bold()
-                                .foregroundColor(.white)
-                            Spacer()
-                            Button("View All") {
-                                showAllHitSongsSheet = true
+                        BeamSectionHeader(
+                            title: "Apple Music Preview",
+                            subtitle: "30-second previewUrl playback",
+                            actionTitle: "View All",
+                            action: { showAllAppleMusicPreviewSongsSheet = true }
+                        )
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 28) {
+                                if isLoadingAppleMusicTrending {
+                                    ForEach(0..<5, id: \.self) { _ in
+                                        HitSongCardPlaceholder()
+                                    }
+                                } else {
+                                    ForEach(appleMusicTrendingSongs.indices, id: \.self) { idx in
+                                        let song = appleMusicTrendingSongs[idx]
+                                        HitSongCardView(
+                                            song: song,
+                                            sourceLabel: "Preview",
+                                            onPlay: {
+                                                playAppleMusicPreviewSong(song)
+                                            },
+                                            onAdd: {
+                                                songToAddToPlaylist = song
+                                                isPlaylistSelectSheetPresented = true
+                                            }
+                                        )
+                                    }
+                                }
                             }
-                            .foregroundColor(.white.opacity(0.7))
-                            .font(.subheadline)
+                            .padding(.horizontal, AppTheme.Spacing.lg)
                         }
-                        .padding(.horizontal)
+                        .frame(height: 180)
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Playable popular songs based on Audius trending data")
-                                .font(.footnote)
-                                .foregroundColor(.white.opacity(0.9))
+                        BeamSectionHeader(
+                            title: "Audius",
+                            subtitle: "Playable popular songs for voice conversion tests",
+                            actionTitle: "View All",
+                            action: { showAllHitSongsSheet = true }
+                        )
 
-                            Text("For voice conversion tests, play one of the popular songs below first")
-                                .font(.footnote)
-                                .foregroundColor(.white.opacity(0.75))
-                        }
-                        .padding(.horizontal)
-
-                        Spacer().frame(height: 10)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 28) {
                                 if isLoadingHitSongs {
@@ -351,10 +513,9 @@ struct HomeView: View {
                                         let song = hitSongs[idx]
                                         HitSongCardView(
                                             song: song,
+                                            sourceLabel: "Audius",
                                             onPlay: {
-                                                isSearchFieldFocused = false
-                                                viewStore.send(.playMusic(song))
-                                                isMiniPlayerVisible = true
+                                                playAudiusSong(song)
                                             },
                                             onAdd: {
                                                 songToAddToPlaylist = song
@@ -364,12 +525,12 @@ struct HomeView: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, AppTheme.Spacing.lg)
                         }
-                        .padding(.top, 10)
                         .frame(height: 180) // 고정된 높이 설정
                     }
-                    .padding(.top, 20)
+                    .padding(.top, AppTheme.Spacing.lg)
+                    .padding(.bottom, 104)
                     
                     GeometryReader { geo in
                         Color.clear
@@ -461,56 +622,59 @@ struct HomeView: View {
             )
         }
         .sheet(isPresented: $showAllHitSongsSheet) {
-            NavigationView {
+            NavigationStack {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(hitSongs) { song in
                             MusicSearchResultView(result: song, onPlay: {
                                 showAllHitSongsSheet = false
-                                isSearchFieldFocused = false
-                                viewStore.send(.playMusic(song))
-                                isMiniPlayerVisible = true
+                                playAudiusSong(song)
                             }, onConvert: nil)
                             .padding(.horizontal)
                         }
                     }
                     .padding(.vertical)
                 }
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [Color.purple.opacity(0.95), Color.pink.opacity(0.8)]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                )
+                .background { BeamScreenBackground() }
                 .navigationTitle("Audius Popular Music")
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
         .sheet(isPresented: $showAllAppleMusicSongsSheet) {
-            NavigationView {
+            NavigationStack {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(appleMusicTrendingSongs) { song in
                             MusicSearchResultView(result: song, onPlay: {
                                 showAllAppleMusicSongsSheet = false
-                                playAppleMusicTrendingSong(song)
+                                playAppleMusicFullSong(song)
                             }, onConvert: nil)
                             .padding(.horizontal)
                         }
                     }
                     .padding(.vertical)
                 }
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [Color.purple.opacity(0.95), Color.pink.opacity(0.8)]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                )
-                .navigationTitle("Apple Music Trending")
+                .background { BeamScreenBackground() }
+                .navigationTitle("Apple Music")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .sheet(isPresented: $showAllAppleMusicPreviewSongsSheet) {
+            NavigationStack {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(appleMusicTrendingSongs) { song in
+                            MusicSearchResultView(result: song, onPlay: {
+                                showAllAppleMusicPreviewSongsSheet = false
+                                playAppleMusicPreviewSong(song)
+                            }, onConvert: nil)
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+                .background { BeamScreenBackground() }
+                .navigationTitle("Apple Music Preview")
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
@@ -593,50 +757,37 @@ struct HomeView: View {
         }
     }
 
-    private func playAppleMusicTrendingSong(_ song: MusicSearchResult) {
+    private func playAppleMusicFullSong(_ song: MusicSearchResult) {
         isSearchFieldFocused = false
         Task {
-            guard let playableSong = await resolvePlayableAudiusSong(for: song) else {
-                print("Could not find a playable Audius match for Apple Music song: \(song.title)")
-                return
-            }
-            await MainActor.run {
-                viewStore.send(.playMusic(playableSong))
-                isMiniPlayerVisible = true
+            do {
+                try await AppleMusicPlaybackService.playFullTrack(song)
+                await MainActor.run {
+                    isMiniPlayerVisible = true
+                }
+            } catch {
+                print("Failed to play Apple Music full track: \(error.localizedDescription)")
             }
         }
     }
 
-    private func resolvePlayableAudiusSong(for song: MusicSearchResult) async -> MusicSearchResult? {
-        do {
-            let query = "\(song.title) \(song.artist)"
-            let tracks = try await AudiusService.shared.searchTracks(query: query, limit: 10)
-            let candidates = tracks
-                .map { $0.toMusicSearchResult() }
-                .filter { $0.playbackURL != nil }
-
-            if let exact = candidates.first(where: {
-                normalized($0.title) == normalized(song.title)
-                && normalized($0.artist).contains(normalized(song.artist))
-            }) {
-                return exact
-            }
-
-            if let titleMatch = candidates.first(where: {
-                normalized($0.title) == normalized(song.title)
-            }) {
-                return titleMatch
-            }
-
-            return candidates.first
-        } catch {
-            print("Failed to resolve Apple Music song on Audius: \(error)")
-            return nil
+    private func playAppleMusicPreviewSong(_ song: MusicSearchResult) {
+        isSearchFieldFocused = false
+        guard song.playbackURL != nil else {
+            print("Apple Music preview URL is missing for: \(song.title)")
+            return
         }
+
+        AppleMusicPlaybackService.stop()
+        viewStore.send(.playMusic(song))
+        isMiniPlayerVisible = true
     }
 
-    private func normalized(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    private func playAudiusSong(_ song: MusicSearchResult) {
+        isSearchFieldFocused = false
+        AppleMusicPlaybackService.stop()
+        viewStore.send(.playMusic(song))
+        isMiniPlayerVisible = true
     }
 
     // Audius 인기  songs 불러오기
@@ -977,9 +1128,16 @@ struct SearchScreenView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Button("Cancel") { onClose() }
-                        .foregroundColor(.white)
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Color.white.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close search")
 
                     TextField("Search songs or artists", text: $searchText)
                         .focused($isFocused)
@@ -987,10 +1145,9 @@ struct SearchScreenView: View {
                         .disableAutocorrection(true)
                         .submitLabel(.search)
                         .foregroundColor(.white)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 14)
-                        .background(Color.white.opacity(0.12))
-                        .cornerRadius(14)
+                        .frame(minHeight: 48)
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .beamCard(cornerRadius: AppTheme.Radius.lg, fillOpacity: 0.08)
                         .onChange(of: searchText) { _, newValue in
                             onChangeText(newValue)
                         }
@@ -998,7 +1155,7 @@ struct SearchScreenView: View {
                             onSubmitSearch(searchText)
                         }
                 }
-                .padding()
+                .padding(AppTheme.Spacing.md)
 
                 if isSearching {
                     Spacer()
@@ -1022,18 +1179,18 @@ struct SearchScreenView: View {
                                         showVoiceSheet = true
                                     }
                                 })
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppTheme.Spacing.lg)
                             }
                         }
-                        .padding(.vertical)
+                        .padding(.vertical, AppTheme.Spacing.md)
                     }
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 22) {
-                            VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                                 HStack {
                                     Text("Recent Searches")
-                                        .font(.headline)
+                                        .font(.headline.weight(.semibold))
                                         .foregroundColor(.white)
                                     Spacer()
                                     if !recentSearches.isEmpty {
@@ -1044,17 +1201,17 @@ struct SearchScreenView: View {
                                         .foregroundColor(.white.opacity(0.8))
                                     }
                                 }
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppTheme.Spacing.lg)
 
                                 if recentSearches.isEmpty {
                                     Text("No recent searches")
                                         .foregroundColor(.white.opacity(0.7))
-                                        .padding(.horizontal)
+                                        .padding(.horizontal, AppTheme.Spacing.lg)
                                 } else {
                                     ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 10) {
+                                        HStack(spacing: AppTheme.Spacing.xs) {
                                             ForEach(recentSearches, id: \.self) { item in
-                                                HStack(spacing: 8) {
+                                                HStack(spacing: AppTheme.Spacing.xs) {
                                                     Button(action: { onSelectRecent(item) }) {
                                                         Text(item)
                                                             .foregroundColor(.white)
@@ -1067,24 +1224,24 @@ struct SearchScreenView: View {
                                                     }
                                                 }
                                                 .padding(.vertical, 10)
-                                                .padding(.horizontal, 14)
+                                                .padding(.horizontal, AppTheme.Spacing.sm)
                                                 .background(Color.white.opacity(0.12))
                                                 .clipShape(Capsule())
                                             }
                                         }
-                                        .padding(.horizontal)
+                                        .padding(.horizontal, AppTheme.Spacing.lg)
                                     }
                                 }
                             }
 
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                                 Text("Suggested Searches")
-                                    .font(.headline)
+                                    .font(.headline.weight(.semibold))
                                     .foregroundColor(.white)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppTheme.Spacing.lg)
 
                                 ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 10) {
+                                    HStack(spacing: AppTheme.Spacing.xs) {
                                         ForEach(suggestedSearches, id: \.self) { item in
                                             Button(action: {
                                                 onSelectRecent(item)
@@ -1092,30 +1249,22 @@ struct SearchScreenView: View {
                                                 Text(item)
                                                     .foregroundColor(.white)
                                                     .padding(.vertical, 10)
-                                                    .padding(.horizontal, 14)
+                                                    .padding(.horizontal, AppTheme.Spacing.sm)
                                                     .background(Color.white.opacity(0.1))
                                                     .clipShape(Capsule())
                                             }
                                         }
                                     }
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppTheme.Spacing.lg)
                                 }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top)
+                        .padding(.top, AppTheme.Spacing.sm)
                     }
                 }
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.purple.opacity(0.95), Color.pink.opacity(0.8)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
-            .background(Color.white.opacity(0.03))
+            .background { BeamScreenBackground() }
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 isFocused = true
@@ -1157,47 +1306,66 @@ struct HitSongCardView: View {
     @State private var isFetching: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
             ZStack(alignment: .bottomTrailing) {
                 if let url = song.artworkURL ?? fetchedArtworkURL {
                     AsyncImage(url: url) { image in
                         image.resizable()
+                            .scaledToFill()
                     } placeholder: {
-                        Color.gray.opacity(0.3)
+                        Color.white.opacity(0.10)
                     }
-                    .frame(width: 110, height: 110)
-                    .cornerRadius(16)
+                    .frame(width: 128, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
                 } else if isFetching {
                     ProgressView()
-                        .frame(width: 110, height: 110)
+                        .tint(.white)
+                        .frame(width: 128, height: 128)
                 } else {
-                    Color.gray.opacity(0.2)
-                        .frame(width: 110, height: 110)
-                        .cornerRadius(16)
+                    ZStack {
+                        Color.white.opacity(0.10)
+                        Image(systemName: "music.note")
+                            .font(.title2)
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
+                    .frame(width: 128, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
                 }
                 Button(action: onPlay) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 32))
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                        .shadow(radius: 2)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .background(Color.black.opacity(0.32), in: Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
                 }
-                .padding(8)
+                .buttonStyle(.plain)
+                .padding(AppTheme.Spacing.xs)
+                .accessibilityLabel("Play \(song.title)")
             }
             Text(song.title)
-                .font(.headline)
+                .font(.callout.weight(.semibold))
                 .foregroundColor(.white)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text(song.artist)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.68))
                 .lineLimit(1)
 
             Text(sourceLabel)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.65))
+                .fontWeight(.semibold)
+                .foregroundColor(.white.opacity(0.70))
                 .lineLimit(1)
+                .padding(.horizontal, AppTheme.Spacing.xs)
+                .padding(.vertical, AppTheme.Spacing.xxs)
+                .background(Color.white.opacity(0.10), in: Capsule())
         }
-        .frame(width: 130)
+        .frame(width: 144, alignment: .leading)
+        .padding(AppTheme.Spacing.xs)
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
         .onAppear {
             if song.artworkURL == nil && !isFetching {
                 isFetching = true
@@ -1219,11 +1387,11 @@ struct HitSongCardView: View {
 // MARK: - Placeholder Views
 struct HitSongCardPlaceholder: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous)
                     .fill(Color.white.opacity(0.1))
-                    .frame(width: 110, height: 110)
+                    .frame(width: 128, height: 128)
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.6)))
                     .scaleEffect(0.8)
@@ -1235,7 +1403,8 @@ struct HitSongCardPlaceholder: View {
                 .fill(Color.white.opacity(0.15))
                 .frame(width: 60, height: 14)
         }
-        .frame(width: 130)
+        .frame(width: 144)
+        .padding(AppTheme.Spacing.xs)
     }
 }
 

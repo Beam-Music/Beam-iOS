@@ -45,15 +45,20 @@ struct AlbumArtView: View {
         if let albumArt = albumArt {
             Image(uiImage: albumArt)
                 .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 320, height: 320)
-                .cornerRadius(24)
-                .shadow(radius: 14)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 312, height: 312)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
+                .shadow(color: Color.black.opacity(0.28), radius: 24, x: 0, y: 16)
         } else {
-            Rectangle()
-                .fill(colorScheme == .dark ? Color.black.opacity(0.2) : Color.gray.opacity(0.1))
-                .frame(width: 320, height: 320)
-                .cornerRadius(24)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous)
+                .fill(Color.white.opacity(0.10))
+                .overlay {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 52, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                .frame(width: 312, height: 312)
+                .shadow(color: Color.black.opacity(0.20), radius: 20, x: 0, y: 12)
         }
     }
 }
@@ -66,34 +71,37 @@ struct PlayerControlsView: View {
     let onNext: () -> Void
     
     var body: some View {
-        HStack(spacing: 56) {
-            ZStack {
-                Button(action: onPrevious) {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Color.white.opacity(0.35))
-                }
-                Circle()
-                    .fill(Color.white.opacity(0.13))
-                    .frame(width: 8, height: 8)
-                    .offset(x: 22, y: 10)
+        HStack(spacing: AppTheme.Spacing.xl) {
+            Button(action: onPrevious) {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white.opacity(0.82))
+                    .frame(width: 52, height: 52)
+                    .background(Color.white.opacity(0.10), in: Circle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Previous track")
+
             Button(action: onPlayPause) {
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 48, weight: .bold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 76, height: 76)
+                    .background(AppTheme.primaryAccent, in: Circle())
+                    .shadow(color: AppTheme.primaryAccent.opacity(0.35), radius: 18, x: 0, y: 10)
             }
-            ZStack {
-                Button(action: onNext) {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Color.white.opacity(0.35))
-                }
-                Circle()
-                    .fill(Color.white.opacity(0.13))
-                    .frame(width: 8, height: 8)
-                    .offset(x: -22, y: 10)
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPlaying ? "Pause" : "Play")
+
+            Button(action: onNext) {
+                Image(systemName: "forward.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white.opacity(0.82))
+                    .frame(width: 52, height: 52)
+                    .background(Color.white.opacity(0.10), in: Circle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Next track")
         }
     }
 }
@@ -248,28 +256,22 @@ struct PlayerView: View {
     var body: some View {
         WithViewStore(self.store, observe: ViewState.init) { viewStore in
             ZStack {
-                Color(hex: "#63477C")
-                    .ignoresSafeArea()
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.red.opacity(0.2), Color.purple.opacity(0.2)]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                BeamScreenBackground()
                 
                 VStack(spacing: 0) {
                     if let track = viewStore.currentTrack {
                         if let artworkURL = track.artworkURL {
                             AsyncImage(url: artworkURL) { image in
                                 image.resizable()
+                                    .scaledToFill()
                             } placeholder: {
-                                Color.gray.opacity(0.2)
+                                Color.white.opacity(0.10)
                             }
-                            .frame(width: 320, height: 320)
+                            .frame(width: 312, height: 312)
                             .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                            .cornerRadius(24)
-                            .shadow(radius: 14)
-                            .padding(.bottom, 8)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
+                            .shadow(color: Color.black.opacity(0.28), radius: 24, x: 0, y: 16)
+                            .padding(.bottom, AppTheme.Spacing.md)
                             .id(viewStore.currentTrack?.id)
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
                         } else {
@@ -286,28 +288,33 @@ struct PlayerView: View {
                         VStack(spacing: 2) {
                             HStack(alignment: .center) {
                                 Text(track.title)
-                                    .font(.system(size: 22, weight: .bold))
+                                    .font(.title2.weight(.bold))
                                     .foregroundColor(.white)
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
                                 Spacer()
                                 Button(action: {/* TODO: Like */}) {
                                     Image(systemName: "heart")
                                         .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.white.opacity(0.10), in: Circle())
                                 }
                                 Button(action: { isPlaylistSelectSheetPresented = true }) {
                                     Image(systemName: "plus")
                                         .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.white.opacity(0.10), in: Circle())
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, AppTheme.Spacing.lg)
                             Text(track.artistName ?? "")
-                                .font(.system(size: 16, weight: .medium))
+                                .font(.callout.weight(.medium))
                                 .foregroundColor(.white.opacity(0.8))
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppTheme.Spacing.lg)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding(.top, 24)
-                        .padding(.bottom, 8)
+                        .padding(.top, AppTheme.Spacing.md)
+                        .padding(.bottom, AppTheme.Spacing.sm)
                         .id(viewStore.currentTrack?.id)
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     } else {
@@ -395,15 +402,38 @@ struct PlayerView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .padding(.vertical, 10)
-                                .padding(.horizontal, 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 24)
-                                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
-                                        .background(AppTheme.voiceButtonFill.cornerRadius(24))
-                                )
+                                .padding(.horizontal, AppTheme.Spacing.lg)
+                                .beamCard(cornerRadius: 24, fillOpacity: 0.08)
                             }
+                            .buttonStyle(.plain)
+
+                            Button(action: {
+                                voiceSelectionMode = .preconvert
+                                Task {
+                                    await preConversionManager.loadAvailableVoices()
+                                    await MainActor.run {
+                                        if availableVoices.isEmpty {
+                                            availableVoices = preConversionManager.availableVoices
+                                        }
+                                        showVoiceSelectionSheet = true
+                                    }
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "bolt.horizontal")
+                                    Text("Prepare")
+                                }
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, AppTheme.Spacing.lg)
+                                .background(AppTheme.preconvertButtonFill, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
                         if let currentTrack = viewStore.currentTrack {
+                            preConversionStatusPanel(for: currentTrack)
+
                             let items = readyVoiceItems(for: currentTrack)
                             if !items.isEmpty {
                                 readyVoicesSection(items: items, viewStore: viewStore)
@@ -420,8 +450,8 @@ struct PlayerView: View {
                     )
                     .padding(.top, 18)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.top, AppTheme.Spacing.md)
+                .padding(.bottom, AppTheme.Spacing.lg)
                 .animation(.easeInOut(duration: 0.3), value: viewStore.currentTrack?.id)
                 
                 if isRemixing {
@@ -685,6 +715,76 @@ struct PlayerView: View {
             return .green
         }
         return .gray
+    }
+
+    @ViewBuilder
+    private func preConversionStatusPanel(for track: PlayableTrackDTO) -> some View {
+        if let record = preConversionManager.latestJob(for: track) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(statusColor(for: track))
+                    .frame(width: 8, height: 8)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Voice: \(record.voiceName) · \(record.status.label)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.82))
+                        .lineLimit(1)
+
+                    if record.status == .failed, let message = record.errorMessage {
+                        Text(message)
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.56))
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                if record.status == .failed {
+                    Button("Retry") {
+                        let voices = preConversionManager.availableVoices.isEmpty ? availableVoices : preConversionManager.availableVoices
+                        guard let voice = voices.first(where: { $0.id == record.voiceId }) else { return }
+                        Task {
+                            await preConversionManager.enqueue(track: track, voice: voice)
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.16))
+                    )
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(0.08))
+            )
+            .padding(.horizontal, 16)
+        } else if let status = preConversionManager.statusBadgeText(for: track) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(statusColor(for: track))
+                    .frame(width: 8, height: 8)
+                Text("Voice: \(status)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.82))
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(0.08))
+            )
+            .padding(.horizontal, 16)
+        }
     }
 
     private func readyVoiceItems(for track: PlayableTrackDTO) -> [ReadyVoiceItem] {

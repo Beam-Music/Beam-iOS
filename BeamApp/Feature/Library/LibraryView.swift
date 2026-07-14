@@ -14,17 +14,31 @@ struct PlaylistRow: View {
     let onSelect: () -> Void
 
     var body: some View {
-        HStack {
-            Text(playlist.name)
-            Spacer()
-            Button(action: onSelect) {}
+        Button(action: onSelect) {
+            HStack(spacing: AppTheme.Spacing.md) {
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(AppTheme.primaryAccent.opacity(0.72), in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous))
+
+                Text(playlist.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            .padding(AppTheme.Spacing.md)
+            .beamCard(cornerRadius: AppTheme.Radius.md, fillOpacity: 0.08)
         }
-        .padding()
-        .background(Color.clear)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.6), lineWidth: 1)
-        )
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open playlist \(playlist.name)")
+        .listRowInsets(EdgeInsets(top: 6, leading: 24, bottom: 6, trailing: 24))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
@@ -32,32 +46,57 @@ struct PlaylistRow: View {
 
 struct CreatePlaylistSheet: View {
     let viewStore: ViewStoreOf<LibraryReducer>
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text("새 플레이리스트 만들기")
-                .font(.headline)
-            TextField("이름 입력", text: viewStore.binding(
-                get: \.newPlaylistName,
-                send: LibraryReducer.Action.updateNewPlaylistName
-            ))
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .padding(.horizontal)
-            if viewStore.isCreatingPlaylist {
-                ProgressView()
-            } else {
-                Button("생성하기") {
-                    viewStore.send(.createPlaylist)
+        NavigationStack {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    Text("Create Playlist")
+                        .font(.title2.weight(.bold))
+                    Text("Name it clearly so it is easy to find later.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .disabled(viewStore.newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                TextField("Playlist name", text: viewStore.binding(
+                    get: \.newPlaylistName,
+                    send: LibraryReducer.Action.updateNewPlaylistName
+                ))
+                .textFieldStyle(.roundedBorder)
+                .submitLabel(.done)
+
+                if let error = viewStore.errorMessage {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .accessibilityLabel("Error: \(error)")
+                }
+
+                Spacer()
             }
-            if let error = viewStore.errorMessage {
-                Text(error)
-                    .foregroundColor(.red)
+            .padding(AppTheme.Spacing.lg)
+            .navigationTitle("New Playlist")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        viewStore.send(.createPlaylist)
+                    } label: {
+                        if viewStore.isCreatingPlaylist {
+                            ProgressView()
+                        } else {
+                            Text("Create")
+                        }
+                    }
+                    .disabled(viewStore.newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty || viewStore.isCreatingPlaylist)
+                }
             }
-            Spacer()
         }
-        .padding()
+        .presentationDetents([.medium])
     }
 }
 
@@ -68,8 +107,9 @@ struct LibraryView: View {
     @State private var scrollOffset: CGFloat = 0
     @State private var selectedPlaylist: PlaylistSummaryDTO? = nil
     @State private var fetchSongsCompletion: (([PlayableTrackDTO]) -> Void)? = nil
+    @State private var showConvertedTracks = false
 
-    // 디버깅: selectedPlaylist 변화 추적
+    // Debugging: selectedPlaylist change tracking
     private func debugSelectedPlaylistChange(_ old: PlaylistSummaryDTO?, _ new: PlaylistSummaryDTO?) {
         print("[DEBUG] selectedPlaylist changed: \(String(describing: old?.name)) -> \(String(describing: new?.name))")
     }
@@ -77,19 +117,26 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // 배경 그라데이션
-                AppTheme.mainGradient
-                .ignoresSafeArea()
+                // Background gradient
+                BeamScreenBackground()
                 
-                // 별 필드 뷰
-                StarFieldView(starCount: 40, scrollOffset: scrollOffset)
+                // Star field view
+                StarFieldView(starCount: 28, scrollOffset: scrollOffset)
+                    .opacity(0.42)
                 
-                // 메인 콘텐츠
+                // Main content
                 mainContentView
             }
         }
         .navigationDestination(item: $selectedPlaylist) { playlist in
             playlistDetailDestination(playlist: playlist)
+        }
+        .navigationDestination(isPresented: $showConvertedTracks) {
+            ConvertedTracksView(
+                onPlayTrack: { track in
+                    store.send(.startPlayback([track]))
+                }
+            )
         }
         .onChange(of: store.state.selectedPlaylistSongs) { oldSongs, newSongs in
            
@@ -104,21 +151,60 @@ struct LibraryView: View {
         }
     }
     
-    // 메인 콘텐츠 뷰로 분리
+    // Separated into the main content view
     private var mainContentView: some View {
-        VStack(spacing: 20) {
-            let convertedTracks = preConversionManager.currentConvertedTracks
-            if !convertedTracks.isEmpty {
-                convertedTracksSection(convertedTracks)
-            }
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                    BeamSectionHeader(
+                        title: "Library",
+                        subtitle: "Your playlists and converted tracks",
+                        actionTitle: nil,
+                        action: nil
+                    )
 
-            // 에러 메시지 표시
-            if let errorMessage = store.state.errorMessage {
-                Text("Error: \(errorMessage)")
-                    .foregroundColor(.red)
-            } else {
-                // 플레이리스트 목록 표시
-                playlistListView()
+                    // Songs I Converted 플레이리스트
+                    Button(action: { showConvertedTracks = true }) {
+                        HStack(spacing: AppTheme.Spacing.md) {
+                            Image(systemName: "waveform")
+                                .font(.title2.weight(.semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 52, height: 52)
+                                .background(AppTheme.primaryAccent, in: RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                                Text("Songs I Converted")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundColor(.white)
+                                let count = ConvertedVoiceTrackStore.load().count
+                                Text("\(count) songs")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .padding(AppTheme.Spacing.md)
+                        .beamCard(cornerRadius: AppTheme.Radius.lg, fillOpacity: 0.08)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+
+                    // Show error message
+                    if let errorMessage = store.state.errorMessage {
+                        Text("Error: \(errorMessage)")
+                            .foregroundColor(.red)
+                    }
+
+                    // Show playlist list
+                    playlistListView()
+                }
+                .padding(.top, AppTheme.Spacing.lg)
+                .padding(.bottom, 104)
             }
         }
         .onAppear {
@@ -134,8 +220,13 @@ struct LibraryView: View {
                     store.send(.showCreatePlaylistSheet(true))
                 }) {
                     Image(systemName: "plus")
-                        .font(.title2)
+                        .font(.body.weight(.bold))
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.12), in: Circle())
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .accessibilityLabel("Create playlist")
             }
         }
         .sheet(
@@ -177,10 +268,18 @@ struct LibraryView: View {
 
     private func convertedTracksSection(_ tracks: [PlayableTrackDTO]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("변환된 곡")
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding(.horizontal)
+            HStack {
+                Text("Converted Songs")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                Button(action: { showConvertedTracks = true }) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
+            .padding(.horizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -224,6 +323,7 @@ struct LibraryView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .frame(minHeight: 220)
         .background(
             GeometryReader { geo in
                 Color.clear
@@ -232,6 +332,79 @@ struct LibraryView: View {
         )
         .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
             scrollOffset = value
+        }
+    }
+}
+
+struct ConvertedTracksView: View {
+    let onPlayTrack: (PlayableTrackDTO) -> Void
+
+    @State private var tracks: [ConvertedVoiceTrackRecord] = []
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            AppTheme.mainGradient.ignoresSafeArea()
+
+            if tracks.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 40))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("No converted songs")
+                        .foregroundColor(.white.opacity(0.7))
+                    Text("Converted songs will appear here")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.5))
+                }
+            } else {
+                List {
+                    ForEach(tracks) { record in
+                        Button(action: {
+                            onPlayTrack(record.toPlayableTrack())
+                            dismiss()
+                        }) {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(record.title)
+                                        .font(.body.bold())
+                                        .foregroundColor(.white)
+                                    Text(record.artistName ?? "Unknown")
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.6))
+                                }
+                                Spacer()
+                                Text(record.voiceName)
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.white.opacity(0.1))
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    ConvertedVoiceTrackStore.delete(id: record.id)
+                                    tracks.removeAll { $0.id == record.id }
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+        }
+        .navigationTitle("Converted Songs")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            tracks = ConvertedVoiceTrackStore.load()
         }
     }
 }

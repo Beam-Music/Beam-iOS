@@ -27,7 +27,7 @@ struct TabBarView: View {
                          store: store,
                          libraryStore: libraryStore)
                 .tabItem {
-                    Label("홈", systemImage: "house.fill")
+                    Label("Home", systemImage: "house.fill")
                 }
                 .tag(AppReducer.Tab.home)
                 
@@ -39,7 +39,7 @@ struct TabBarView: View {
                     isMiniPlayerVisible: $isMiniPlayerVisible)
                 }
                 .tabItem {
-                    Label("플레이리스트", systemImage: "music.note.list")
+                    Label("Playlists", systemImage: "music.note.list")
                 }
                 .tag(AppReducer.Tab.library)
 
@@ -51,12 +51,14 @@ struct TabBarView: View {
                     )
                 )
                 .tabItem {
-                    Label("설정", systemImage: "gearshape.fill")
+                    Label("Settings", systemImage: "gearshape.fill")
                 }
                 .tag(AppReducer.Tab.settings)
             }
-            .accentColor(Color.purple)
-            .background(colorScheme == .dark ? Color.black : Color.white)
+            .tint(AppTheme.primaryAccent)
+            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+            .background(Color.clear)
         }
     }
 }

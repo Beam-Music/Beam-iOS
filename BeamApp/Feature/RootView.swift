@@ -12,6 +12,7 @@ struct RootView: View {
     let store: StoreOf<AppReducer>
     @State private var isMiniPlayerVisible: Bool = true
     @State private var isPlayerViewVisible: Bool = false
+    @State private var isAppleMusicPlayerVisible: Bool = false
     @State private var playerOffset: CGFloat = UIScreen.main.bounds.height
     @GestureState private var dragOffset: CGFloat = 0
     @State private var isLoading = true
@@ -20,6 +21,7 @@ struct RootView: View {
     @State private var hasCompletedOnboarding = false
     @State private var keyboardHeight: CGFloat = 0
     @Namespace private var albumArtNamespace
+    @ObservedObject private var appleMusicPlaybackState = AppleMusicPlaybackState.shared
     
     struct ViewState: Equatable {
         let isLoggedIn: Bool
@@ -64,7 +66,15 @@ struct RootView: View {
                     }
                     
                     // MiniPlayerView: only show when not in full player
-                    if viewStore.isLoggedIn, let playerState = viewStore.tabBarState.playerState, !isPlayerViewVisible {
+                    if viewStore.isLoggedIn,
+                       appleMusicPlaybackState.currentSong != nil,
+                       !isPlayerViewVisible,
+                       !isAppleMusicPlayerVisible {
+                        AppleMusicMiniPlayerView(isAppleMusicPlayerVisible: $isAppleMusicPlayerVisible)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 49)
+                            .zIndex(1)
+                    } else if viewStore.isLoggedIn, let playerState = viewStore.tabBarState.playerState, !isPlayerViewVisible {
                         MiniPlayerView(
                             store: store.scope(
                                 state: { _ in playerState },
@@ -104,12 +114,36 @@ struct RootView: View {
                                 }
                         )
                     }
+
+                    if isAppleMusicPlayerVisible, appleMusicPlaybackState.currentSong != nil {
+                        AppleMusicFullPlayerView(isPresented: $isAppleMusicPlayerVisible)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .bottom).combined(with: .opacity)
+                            ))
+                            .offset(y: max(dragOffset, 0))
+                            .gesture(
+                                DragGesture()
+                                    .updating($dragOffset) { value, state, _ in
+                                        state = value.translation.height
+                                    }
+                                    .onEnded { value in
+                                        if value.translation.height > 100 {
+                                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                                isAppleMusicPlayerVisible = false
+                                            }
+                                        }
+                                    }
+                            )
+                            .zIndex(2)
+                    }
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isPlayerViewVisible)
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isAppleMusicPlayerVisible)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: dragOffset)
             .task {
-                // 앱 시작 시 저장된 토큰 확인 및 자동 로그인
+                // 앱 시작 시 Save된 토큰 OK 및 자동 로그인
                 await checkSavedTokenAndAutoLogin(viewStore: viewStore)
                 isLoading = false
             }
@@ -117,6 +151,7 @@ struct RootView: View {
                 if !isLoggedIn {
                     isMiniPlayerVisible = false
                     isPlayerViewVisible = false
+                    isAppleMusicPlayerVisible = false
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
@@ -136,25 +171,25 @@ struct RootView: View {
     // MARK: - Auto Login Logic
     
     private func checkSavedTokenAndAutoLogin(viewStore: ViewStore<ViewState, AppReducer.Action>) async {
-        print("🚀 앱 시작 - 저장된 토큰 확인 중...")
+        print("🚀 App started - checking saved token...")
         
-        // 1. 토큰 존재 여부 확인
+        // 1. 토큰 존재 여부 OK
         guard let token = tokenStorage.fetchToken() else {
-            print("🔴 저장된 토큰이 없음 - 로그인 화면으로 이동")
+            print("🔴 No saved token - moving to login screen")
             return
         }
         
         #if DEBUG
-        print("✅ 저장된 토큰 발견: \(token.prefix(10))...")
+        print("✅ Saved token found: \(token.prefix(10))...")
         #endif
         
-        // 2. 토큰 유효성 확인
+        // 2. 토큰 유효성 OK
         guard tokenStorage.hasValidToken() else {
-            print("⏰ 토큰이 만료됨 - 로그인 화면으로 이동")
+            print("⏰ Token has expired - moving to login screen")
             return
         }
         
-        print("✅ 토큰이 유효함 - 자동 로그인 진행")
+        print("✅ Token is valid - proceeding with auto-login")
         
         // 3. 자동 로그인 처리
         await performAutoLogin(token: token, viewStore: viewStore)
@@ -165,7 +200,7 @@ struct RootView: View {
             // 1. UserDefaults에 userID 설정 (토큰에서 파싱)
             if let userId = SignupFeature.parseUserIdFromJWT(token) {
                 UserDefaults.standard.set(userId, forKey: "userID")
-                print("✅ userID 설정됨: \(userId)")
+                print("✅ userID set: \(userId)")
             }
             
             // 2. 로그인 상태 설정
@@ -175,14 +210,14 @@ struct RootView: View {
             // 3. 사용자 프로필 로드
             viewStore.send(.fetchUserProfile)
             
-            // 4. 토큰 유효성 주기적 확인 시작
+            // 4. 토큰 유효성 주기적 OK 시작
             viewStore.send(.checkTokenValidity)
             
-            print("🎉 자동 로그인 성공!")
+            print("🎉 Auto-login succeeded!")
             
         } catch {
-            print("❌ 자동 로그인 실패: \(error)")
-            // 자동 로그인 실패 시 토큰 삭제
+            print("❌ Auto-login failed: \(error)")
+            // 자동 로그인 실패 시 토큰 Delete
             try? tokenStorage.deleteAllTokens()
         }
     }

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import ComposableArchitecture
+import MusicKit
 
 struct MiniPlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
@@ -29,14 +30,13 @@ struct MiniPlayerView: View {
             let progress = audioManager.duration > 0 ? audioManager.currentTime / audioManager.duration : 0
 
             VStack(spacing: 0) {
-                HStack {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     albumArtView
                     trackInfoView(title: title, artist: artist)
                     Spacer()
                     playPauseButton
                 }
-                .padding()
-                .background(Color.white.opacity(0.06))
+                .padding(AppTheme.Spacing.sm)
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -52,18 +52,16 @@ struct MiniPlayerView: View {
                 .frame(height: 2)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 72)
-            .background(Color.gray.opacity(0.18))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5),
-                alignment: .top
-            )
-            .shadow(color: AppTheme.primaryAccent.opacity(0.15), radius: 6, x: 0, y: -2)
+            .frame(height: 76)
+            .beamCard(cornerRadius: AppTheme.Radius.lg, fillOpacity: 0.12)
+            .shadow(color: Color.black.opacity(0.22), radius: 18, x: 0, y: 8)
+            .padding(.horizontal, AppTheme.Spacing.md)
             .onTapGesture {
                 isPlayerViewVisible = true
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Now playing \(title) by \(artist)")
+            .accessibilityHint("Double tap to open the player")
         } else {
             EmptyView()
         }
@@ -74,33 +72,36 @@ struct MiniPlayerView: View {
             if let albumArt = audioManager.currentTrackMetadata.albumArt {
                 Image(uiImage: albumArt)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 50, height: 50)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 52, height: 52)
                     .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                    .cornerRadius(5)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous))
                     .shadow(color: AppTheme.primaryAccent.opacity(0.35), radius: 5, x: 0, y: 1)
             } else {
-                Rectangle()
-                    .fill(Color.white.opacity(0.28))
-                    .frame(width: 50, height: 50)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous)
+                    .fill(Color.white.opacity(0.14))
+                    .overlay {
+                        Image(systemName: "music.note")
+                            .foregroundStyle(.white.opacity(0.62))
+                    }
+                    .frame(width: 52, height: 52)
                     .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                    .cornerRadius(5)
             }
         }
     }
 
     private func trackInfoView(title: String, artist: String) -> some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
             Text(title)
-                .font(.headline)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.white)
                 .lineLimit(1)
 
             Text(artist)
-                .font(.subheadline)
-                .foregroundColor(.white)
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.68))
                 .lineLimit(1)
         }
-        .padding(.leading, 10)
     }
     
     private var playPauseButton: some View {
@@ -110,10 +111,13 @@ struct MiniPlayerView: View {
             }
         }) {
             Image(systemName: audioManager.isPlayingMusic ? "pause.fill" : "play.fill")
-                .font(.title2)
-                .foregroundColor(.primary)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .background(AppTheme.primaryAccent, in: Circle())
         }
-        .padding(.trailing, 16)
+        .buttonStyle(.plain)
+        .accessibilityLabel(audioManager.isPlayingMusic ? "Pause" : "Play")
         .highPriorityGesture(
             TapGesture()
         )
@@ -124,6 +128,280 @@ struct MiniPlayerView: View {
             await audioManager.pause()
         } else {
             await audioManager.play()
+        }
+    }
+}
+
+@MainActor
+final class AppleMusicPlaybackState: ObservableObject {
+    static let shared = AppleMusicPlaybackState()
+
+    @Published var currentSong: MusicSearchResult?
+    @Published var isPlaying = false
+
+    private init() {}
+
+    func start(song: MusicSearchResult) {
+        currentSong = song
+        isPlaying = true
+    }
+
+    func stop() {
+        ApplicationMusicPlayer.shared.stop()
+        currentSong = nil
+        isPlaying = false
+    }
+}
+
+struct AppleMusicMiniPlayerView: View {
+    @ObservedObject private var playbackState = AppleMusicPlaybackState.shared
+    @Binding var isAppleMusicPlayerVisible: Bool
+
+    var body: some View {
+        if let song = playbackState.currentSong {
+            VStack(spacing: 0) {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    artworkView(for: song)
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                        Text(song.title)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+
+                        Text(song.artist)
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.68))
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        togglePlayback()
+                    } label: {
+                        Image(systemName: playbackState.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(AppTheme.primaryAccent, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(playbackState.isPlaying ? "Pause Apple Music" : "Play Apple Music")
+                }
+                .padding(AppTheme.Spacing.sm)
+
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [AppTheme.primaryAccent, AppTheme.secondaryAccent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(height: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 76)
+            .beamCard(cornerRadius: AppTheme.Radius.lg, fillOpacity: 0.12)
+            .shadow(color: Color.black.opacity(0.22), radius: 18, x: 0, y: 8)
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
+            .onTapGesture {
+                isAppleMusicPlayerVisible = true
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Apple Music now playing \(song.title) by \(song.artist)")
+            .accessibilityHint("Double tap to open the Apple Music player")
+        }
+    }
+
+    @ViewBuilder
+    private func artworkView(for song: MusicSearchResult) -> some View {
+        if let artworkURL = song.artworkURL {
+            AsyncImage(url: artworkURL) { image in
+                image.resizable()
+                    .scaledToFill()
+            } placeholder: {
+                Color.white.opacity(0.14)
+            }
+            .frame(width: 52, height: 52)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous)
+                .fill(Color.white.opacity(0.14))
+                .overlay {
+                    Image(systemName: "music.note")
+                        .foregroundStyle(.white.opacity(0.62))
+                }
+                .frame(width: 52, height: 52)
+        }
+    }
+
+    private func togglePlayback() {
+        let player = ApplicationMusicPlayer.shared
+        if playbackState.isPlaying {
+            player.pause()
+            playbackState.isPlaying = false
+        } else {
+            Task {
+                do {
+                    try await player.play()
+                    playbackState.isPlaying = true
+                } catch {
+                    print("Failed to resume Apple Music playback: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+}
+
+struct AppleMusicFullPlayerView: View {
+    @ObservedObject private var playbackState = AppleMusicPlaybackState.shared
+    @Binding var isPresented: Bool
+    @State private var showVoiceConversionUnavailable = false
+
+    var body: some View {
+        ZStack {
+            BeamScreenBackground()
+
+            if let song = playbackState.currentSong {
+                VStack(spacing: AppTheme.Spacing.lg) {
+                    HStack {
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                isPresented = false
+                            }
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.white.opacity(0.12), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Close player")
+
+                        Spacer()
+
+                        Text("Apple Music")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+
+                        Spacer()
+
+                        Color.clear
+                            .frame(width: 44, height: 44)
+                    }
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+
+                    Spacer(minLength: AppTheme.Spacing.sm)
+
+                    artworkView(for: song)
+
+                    VStack(spacing: AppTheme.Spacing.xs) {
+                        Text(song.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
+
+                        Text(song.artist)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.70))
+                            .lineLimit(1)
+
+                        Text("Playing with MusicKit")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .padding(.horizontal, AppTheme.Spacing.sm)
+                            .padding(.vertical, AppTheme.Spacing.xxs)
+                            .background(Color.white.opacity(0.10), in: Capsule())
+                            .padding(.top, AppTheme.Spacing.xs)
+                    }
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+
+                    HStack(spacing: AppTheme.Spacing.xl) {
+                        Button {
+                            togglePlayback()
+                        } label: {
+                            Image(systemName: playbackState.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 76, height: 76)
+                                .background(AppTheme.primaryAccent, in: Circle())
+                                .shadow(color: AppTheme.primaryAccent.opacity(0.35), radius: 18, x: 0, y: 10)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(playbackState.isPlaying ? "Pause Apple Music" : "Play Apple Music")
+                    }
+                    .padding(.top, AppTheme.Spacing.md)
+
+                    Button {
+                        showVoiceConversionUnavailable = true
+                    } label: {
+                        Label("Voice conversion unavailable", systemImage: "waveform.badge.exclamationmark")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(Color.white.opacity(0.10), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
+                    .accessibilityHint("Explains why Apple Music full tracks cannot be converted")
+
+                    Spacer()
+                }
+                .padding(.top, AppTheme.Spacing.md)
+                .padding(.bottom, AppTheme.Spacing.xl)
+            }
+        }
+        .alert("Voice conversion is not available", isPresented: $showVoiceConversionUnavailable) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("MusicKit plays Apple Music streams directly and does not expose the raw audio file needed for conversion. Use Apple Music Preview, Audius, or an imported audio file for voice conversion.")
+        }
+    }
+
+    @ViewBuilder
+    private func artworkView(for song: MusicSearchResult) -> some View {
+        if let artworkURL = song.artworkURL {
+            AsyncImage(url: artworkURL) { image in
+                image.resizable()
+                    .scaledToFill()
+            } placeholder: {
+                Color.white.opacity(0.12)
+            }
+            .frame(width: 312, height: 312)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
+            .shadow(color: Color.black.opacity(0.28), radius: 24, x: 0, y: 16)
+        } else {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous)
+                .fill(Color.white.opacity(0.10))
+                .overlay {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 52, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                .frame(width: 312, height: 312)
+        }
+    }
+
+    private func togglePlayback() {
+        let player = ApplicationMusicPlayer.shared
+        if playbackState.isPlaying {
+            player.pause()
+            playbackState.isPlaying = false
+        } else {
+            Task {
+                do {
+                    try await player.play()
+                    playbackState.isPlaying = true
+                } catch {
+                    print("Failed to resume Apple Music playback: \(error.localizedDescription)")
+                }
+            }
         }
     }
 }
