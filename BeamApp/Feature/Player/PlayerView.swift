@@ -1049,8 +1049,8 @@ struct PlayerView: View {
                     audioData: audioData,
                     voiceId: "dionn_v1_singing",
                     voiceType: "singer",
-                    trimStart: 0,
-                    trimDuration: 60
+                    trimStart: nil,
+                    trimDuration: nil
                 )
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
                 try convertedAudioData.write(to: tempURL)
@@ -1128,7 +1128,7 @@ struct PlayerView: View {
         voiceConversionTask?.cancel()
         isVoiceConverting = true
         voiceConversionStatusTitle = "Converting voice..."
-        voiceConversionStatusSubtitle = "Converting the full song. This may take some time depending on song length"
+        voiceConversionStatusSubtitle = "Converting the full track"
 
         voiceConversionTask = Task {
             await audioManager.stop()
@@ -1138,7 +1138,7 @@ struct PlayerView: View {
                 let resolvedVoiceType = isSingerVoice ? "singer" : (voice.voiceType ?? "default")
 
                 TTFATelemetry.shared.recordConversionRequestStart(trackTitle: title, voiceId: voice.id)
-                voiceConversionStatusSubtitle = "Requesting full-song conversion from the server"
+                voiceConversionStatusSubtitle = "Requesting full-track conversion from the server"
 
                 guard let provider = voiceConversionService as? BeamSVCVoiceConversionProvider else {
                     throw VoiceConversionError.serverError("Beam SVC provider is unavailable.")
@@ -1147,11 +1147,13 @@ struct PlayerView: View {
                 let job = try await provider.submitAsyncJob(
                     audioData: audioData,
                     voiceId: voice.id,
-                    voiceType: resolvedVoiceType
+                    voiceType: resolvedVoiceType,
+                    trimStart: nil,
+                    trimDuration: nil
                 )
 
                 await MainActor.run {
-                    voiceConversionStatusSubtitle = "Converting the full song. Please wait"
+                    voiceConversionStatusSubtitle = "Converting the full track. Please wait"
                 }
 
                 let convertedData = try await provider.pollJobUntilFinished(jobId: job.jobId) { progress, stage in

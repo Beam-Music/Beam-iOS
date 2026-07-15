@@ -48,6 +48,10 @@ final class AudiusService {
         return try await fetch(AudiusResponse<[AudiusUser]>.self, from: components).data
     }
 
+    func streamURL(for trackID: String) -> String {
+        "\(baseURL)/tracks/\(trackID)/stream?app_name=\(appName)"
+    }
+
     private func fetch<T: Decodable>(_ type: T.Type, from components: URLComponents) async throws -> T {
         guard let url = components.url else {
             throw AudiusError.invalidURL
@@ -87,7 +91,7 @@ struct AudiusTrack: Decodable, Identifiable {
             artist: user.name,
             artworkURL: artwork?.url480 ?? user.profilePicture?.url480 ?? user.profilePicture?.url150,
             isExplicit: false,
-            playbackURL: stream?.url
+            playbackURL: AudiusService.shared.streamURL(for: id)
         )
     }
 }
@@ -130,11 +134,11 @@ enum AudiusError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "잘못된 Audius URL입니다."
+            return "Invalid Audius URL."
         case .serverError:
-            return "Audius 서버 오류가 발생했습니다."
+            return "An Audius server error occurred."
         case .decodingError(let error):
-            return "Audius 응답 해석 실패: \(error.localizedDescription)"
+            return "Failed to parse Audius response: \(error.localizedDescription)"
         }
     }
 }

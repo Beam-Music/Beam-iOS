@@ -50,12 +50,12 @@ struct LoginFeature: Reducer {
         case .loginButtonTapped:
             let trimmedEmail = LoginAuthValidation.normalizedEmail(state.email)
             guard !trimmedEmail.isEmpty, !state.password.isEmpty else {
-                state.errorMessage = "이메일과 비밀번호를 입력해 주세요."
+                state.errorMessage = "Enter your email and password."
                 state.isLoading = false
                 return .none
             }
             guard LoginAuthValidation.isValidEmail(trimmedEmail) else {
-                state.errorMessage = "올바른 이메일 형식을 입력해 주세요."
+                state.errorMessage = "Enter a valid email address."
                 state.isLoading = false
                 return .none
             }
@@ -73,9 +73,9 @@ struct LoginFeature: Reducer {
             state.token = token
             if let userId = SignupFeature.parseUserIdFromJWT(token) {
                 UserDefaults.standard.set(userId, forKey: "userID")
-                print("✅ userID 저장됨: \(userId)")
+                print("✅ userID saved: \(userId)")
             } else {
-                print("❌ userID 파싱 실패: token=\(token.prefix(20))...")
+                print("❌ Failed to parse userID: token=\(token.prefix(20))...")
             }
             return .none
             
@@ -84,15 +84,15 @@ struct LoginFeature: Reducer {
             if let loginError = error as? LoginError {
                 switch loginError {
                 case .invalidCredentials:
-                    state.errorMessage = "이메일 또는 비밀번호가 올바르지 않습니다."
+                    state.errorMessage = "Email or password is incorrect."
                 case .serverError, .invalidResponse:
-                    state.errorMessage = "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+                    state.errorMessage = "A server error occurred. Please try again later."
                 case .networkError:
-                    state.errorMessage = "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해 주세요."
+                    state.errorMessage = "A network error occurred. Check your internet connection."
                 case .emailNotVerified:
-                    state.errorMessage = "이메일 인증을 먼저 완료해 주세요."
+                    state.errorMessage = "Please verify your email first."
                 default:
-                    state.errorMessage = "알 수 없는 오류가 발생했습니다."
+                    state.errorMessage = "An unknown error occurred."
                 }
             } else {
                 state.errorMessage = error.localizedDescription
@@ -105,4 +105,3 @@ struct LoginFeature: Reducer {
         }
     }
 }
-

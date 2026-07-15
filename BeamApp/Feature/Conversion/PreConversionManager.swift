@@ -362,7 +362,7 @@ final class PreConversionManager: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
-                throw VoiceConversionError.serverError(String(data: data, encoding: .utf8) ?? "Conversion request failed")
+                throw VoiceConversionError.serverError(serverErrorMessage(from: data, fallback: "Conversion request failed"))
             }
 
             let payload = try decode(ConvertedSongCreateResponseDTO.self, from: data)
@@ -404,8 +404,10 @@ final class PreConversionManager: ObservableObject {
                 return
             }
 
-            let songs = try decode([ConvertedSongDTO].self, from: data)
+            let songs = deduplicatedConvertedSongs(
+                try decode([ConvertedSongDTO].self, from: data)
                 .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+            )
             convertedSongs = songs
             syncJobsFromConvertedSongs(songs)
         } catch {
@@ -432,7 +434,7 @@ final class PreConversionManager: ObservableObject {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse,
                       (200...299).contains(httpResponse.statusCode) else {
-                    throw VoiceConversionError.serverError("Failed to check conversion status")
+                    throw VoiceConversionError.serverError(serverErrorMessage(from: data, fallback: "Failed to check conversion status"))
                 }
 
                 let status = try decode(ConvertedSongStatusDTO.self, from: data)
@@ -549,6 +551,20 @@ final class PreConversionManager: ObservableObject {
         return "\(sourceKey)::\(song.voiceId)"
     }
 
+    private func deduplicatedConvertedSongs(_ songs: [ConvertedSongDTO]) -> [ConvertedSongDTO] {
+        var seenKeys = Set<String>()
+        var unique: [ConvertedSongDTO] = []
+
+        for song in songs {
+            let key = convertedSongKey(song)
+            guard !seenKeys.contains(key) else { continue }
+            seenKeys.insert(key)
+            unique.append(song)
+        }
+
+        return unique
+    }
+
     private func preferenceScore(for song: ConvertedSongDTO) -> Int {
         let voiceName = song.voiceName.lowercased()
         return voiceName.hasSuffix(" full") ? 1 : 0
@@ -596,5 +612,31 @@ final class PreConversionManager: ObservableObject {
             return value
         }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func serverErrorMessage(from data: Data, fallback: String) -> String {
+        struct VaporError: Decodable {
+            let error: Bool?
+            let reason: String?
+        }
+
+        if let decoded = try? JSONDecoder().decode(VaporError.self, from: data),
+           let reason = decoded.reason,
+           !reason.isEmpty {
+            if reason.localizedCaseInsensitiveContains("could not connect to the server") ||
+                reason.localizedCaseInsensitiveContains("connection refused") ||
+                reason.localizedCaseInsensitiveContains("Beam SVC") {
+                return "Beam SVC server is not reachable. Update BEAM_SVC_URL to the active RunPod endpoint and try again."
+            }
+            if reason == "Not Found" {
+                return "Converted-song endpoint was not found on the running Vapor server. Restart the current beam-server build."
+            }
+            return reason
+        }
+
+        if let body = String(data: data, encoding: .utf8), !body.isEmpty {
+            return body
+        }
+        return fallback
     }
 }

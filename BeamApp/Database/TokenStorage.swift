@@ -30,38 +30,38 @@ class TokenStorage {
     @MainActor
     func saveToken(_ token: String) throws {
         #if DEBUG
-        print("🔵 토큰 저장 시도: \(token.prefix(10))...")
+        print("🔵 Attempting to save token: \(token.prefix(10))...")
         #endif
         
         do {
-            // 1. Keychain에 저장 (주 저장소)
+            // 1. Save to Keychain (주 Save소)
             try keychainManager.saveToken(token)
-            print("✅ Keychain에 토큰 저장 성공")
+            print("✅ Token saved to Keychain")
             
-            // 2. SwiftData에도 백업 저장 (선택사항)
+            // 2. SwiftData에도 백업 Save (선택사항)
             try saveTokenToSwiftData(token)
-            print("✅ SwiftData에 토큰 백업 저장 성공")
+            print("✅ Token backup saved to SwiftData")
             
         } catch {
-            print("🔴 토큰 저장 실패: \(error.localizedDescription)")
+            print("🔴 Failed to save token: \(error.localizedDescription)")
             throw error
         }
     }
 
     @MainActor
     func fetchToken() -> String? {
-        print("🔍 토큰 검색 중...")
+        print("🔍 Searching for token...")
         
         // 1. Keychain에서 먼저 검색
         if let token = keychainManager.fetchToken() {
-            // 토큰 유효성 확인
+            // 토큰 유효성 OK
             if keychainManager.isTokenValid() {
                 #if DEBUG
-                print("✅ Keychain에서 유효한 토큰 발견: \(token.prefix(10))...")
+                print("✅ Valid token found in Keychain: \(token.prefix(10))...")
                 #endif
                 return token
             } else {
-                print("⏰ 토큰이 만료됨, 삭제 중...")
+                print("⏰ Token has expired, deleting...")
                 try? keychainManager.deleteToken()
                 try? deleteAllTokensFromSwiftData()
                 return nil
@@ -70,31 +70,31 @@ class TokenStorage {
         
         // 2. Keychain에 없으면 SwiftData에서 검색 (마이그레이션용)
         if let token = fetchTokenFromSwiftData() {
-            print("🔄 SwiftData에서 토큰 발견, Keychain으로 마이그레이션...")
+            print("🔄 Token found in SwiftData, migrating to Keychain...")
             try? keychainManager.saveToken(token)
             return token
         }
         
-        print("🔴 저장된 토큰이 없음")
+        print("🔴 No saved token")
         return nil
     }
     
     // Delete All Tokens
     @MainActor
     func deleteAllTokens() throws {
-        print("🔵 모든 토큰 삭제 시도...")
+        print("🔵 Attempting to delete all tokens...")
         
         do {
-            // 1. Keychain에서 삭제
+            // 1. Keychain에서 Delete
             try keychainManager.deleteToken()
-            print("✅ Keychain에서 토큰 삭제 성공")
+            print("✅ Token deleted from Keychain")
             
-            // 2. SwiftData에서도 삭제
+            // 2. SwiftData에서도 Delete
             try deleteAllTokensFromSwiftData()
-            print("✅ SwiftData에서 토큰 삭제 성공")
+            print("✅ Token deleted from SwiftData")
             
         } catch {
-            print("🔴 토큰 삭제 실패: \(error)")
+            print("🔴 Failed to delete token: \(error)")
             throw error
         }
     }
@@ -108,7 +108,7 @@ class TokenStorage {
     
     @MainActor
     private func saveTokenToSwiftData(_ token: String) throws {
-        // 기존 토큰 삭제
+        // Delete existing token
         try deleteAllTokensFromSwiftData()
         
         let newToken = TokenEntity(token: token)
@@ -125,12 +125,12 @@ class TokenStorage {
             
             if let token = result.first?.token {
                 #if DEBUG
-                print("🔄 SwiftData에서 토큰 발견: \(token.prefix(10))...")
+                print("🔄 Token found in SwiftData: \(token.prefix(10))...")
                 #endif
                 return token
             }
         } catch {
-            print("🔴 SwiftData에서 토큰 검색 실패: \(error)")
+            print("🔴 Failed to search token in SwiftData: \(error)")
         }
         
         return nil
@@ -148,7 +148,7 @@ class TokenStorage {
             
             try container.mainContext.save()
         } catch {
-            print("🔴 SwiftData에서 토큰 삭제 실패: \(error)")
+            print("🔴 Failed to delete token from SwiftData: \(error)")
             throw error
         }
     }

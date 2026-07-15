@@ -13,11 +13,11 @@ struct PlaylistSelectSheet: View {
                         .padding(.vertical, 8)
                 }
             }
-            .navigationTitle("플레이리스트 선택")
+            .navigationTitle("Select Playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("취소", action: onCancel)
+                    Button("Cancel", action: onCancel)
                 }
             }
         }

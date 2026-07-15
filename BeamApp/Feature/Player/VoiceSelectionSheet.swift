@@ -16,7 +16,8 @@ struct VoiceSelectionSheet: View {
         } else {
             return availableVoices.filter { voice in
                 voice.name.localizedCaseInsensitiveContains(searchText) ||
-                (voice.description?.localizedCaseInsensitiveContains(searchText) ?? false)
+                (voice.englishDescription?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                voice.englishCategory.localizedCaseInsensitiveContains(searchText)
             }
         }
     }
@@ -35,12 +36,12 @@ struct VoiceSelectionSheet: View {
                 
                 // Header
                 HStack {
-                    Text("음성 선택")
+                    Text("Select Voice")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     Spacer()
-                    Button("취소") {
+                    Button("Cancel") {
                         onCancel()
                     }
                     .foregroundColor(.purple)
@@ -53,7 +54,7 @@ struct VoiceSelectionSheet: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.white.opacity(0.7))
-                    TextField("음성 검색", text: $searchText)
+                    TextField("Search voices", text: $searchText)
                         .foregroundColor(.white)
                         .padding(.vertical, 10)
                 }
@@ -100,33 +101,24 @@ struct VoiceRowView: View {
     
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 16) {
-                // Voice icon
-                ZStack {
-                    Circle()
-                        .fill(Color.purple.opacity(0.3))
-                        .frame(width: 50, height: 50)
-                    
-                    Image(systemName: "person.wave.2.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                }
+            HStack(spacing: 12) {
+                VoiceAvatarView(voice: voice)
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(voice.name)
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
                     }
                     
-                    if let description = voice.description {
+                    if let description = voice.englishDescription {
                         Text(description)
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(2)
                     }
                     
-                    Text(voice.category)
+                    Text(voice.englishCategory)
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.5))
                 }
@@ -137,12 +129,12 @@ struct VoiceRowView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white.opacity(0.5))
             }
-            .padding(.vertical, 16)
-            .padding(.horizontal, 20)
+            .padding(.vertical, 9)
+            .padding(.horizontal, 14)
             .background(Color.white.opacity(0.05))
             .cornerRadius(12)
             .padding(.horizontal, 24)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         }
         .buttonStyle(PlainButtonStyle())
     }

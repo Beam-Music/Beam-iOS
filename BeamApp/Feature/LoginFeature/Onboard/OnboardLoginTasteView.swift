@@ -14,9 +14,9 @@ struct OnboardTasteView: View {
     @State private var animatedArtistIDs: Set<String> = []
     @State private var showUserIDAlert = false
     let artists = [
-        ChipItem(id: "백예린", name: "백예린"),
-        ChipItem(id: "김정치마", name: "김정치마"),
-        ChipItem(id: "혁오", name: "혁오"),
+        ChipItem(id: "Yerin Baek", name: "Yerin Baek"),
+        ChipItem(id: "Kim Jung Chima", name: "Kim Jung Chima"),
+        ChipItem(id: "HYUKOH", name: "HYUKOH"),
         ChipItem(id: "Coldplay", name: "Coldplay"),
         ChipItem(id: "Bruno Mars", name: "Bruno Mars"),
         ChipItem(id: "Lenny", name: "Lenny"),
@@ -25,7 +25,7 @@ struct OnboardTasteView: View {
         ChipItem(id: "SZA", name: "SZA"),
         ChipItem(id: "ADOY", name: "ADOY")
     ]
-    let genres = ["발라드", "댄스", "힙합", "록"]
+    let genres = ["Ballad", "Dance", "Hip Hop", "Rock"]
 
     let chipHorizontalPadding: CGFloat = 16
     let chipVerticalPadding: CGFloat = 8
@@ -38,11 +38,11 @@ struct OnboardTasteView: View {
             VStack(spacing: 0) {
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("특별한 당신의 취향,")
+                        Text("Your unique taste,")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-                        Text("소곤소곤 들려주세요.")
+                        Text("tell us quietly.")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -62,7 +62,7 @@ struct OnboardTasteView: View {
                                         .foregroundColor(idx == 2 ? .white : .purple)
                                         .fontWeight(.bold)
                                 }
-                                Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
+                                Text(idx == 1 ? "Sign Up" : idx == 2 ? "Select Artists & Songs" : "Done")
                                     .font(.caption)
                                     .foregroundColor(idx == 2 ? Color(red: 98/255, green: 0/255, blue: 238/255) : Color.white.opacity(0.7))
                             }
@@ -79,16 +79,16 @@ struct OnboardTasteView: View {
                     .padding(.horizontal, 24)
                 }
 
-                Text("아티스트 & 곡 선택")
+                Text("Select Artists & Songs")
                     .font(.headline)
                     .foregroundColor(Color("5C1769"))
                     .padding(.top, 16)
                     .padding(.horizontal, 24)
 
-                // 가수로 찾기
+                // Find by Artist
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("가수로 찾기")
+                        Text("Find by Artist")
                             .font(.headline)
                             .foregroundColor(.white.opacity(0.8))
                         Spacer()
@@ -146,10 +146,10 @@ struct OnboardTasteView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
 
-                // 장르로 찾기
+                // Find by Genre
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("장르로 찾기")
+                        Text("Find by Genre")
                             .font(.headline)
                             .foregroundColor(.white.opacity(0.8))
                         Spacer()
@@ -207,11 +207,11 @@ struct OnboardTasteView: View {
             }
             Button(action: {
                 guard let token = TokenStorage.shared.fetchToken() else {
-                    print("토큰 없음")
+                    print("No token")
                     return
                 }
                 guard let userID = UserDefaults.standard.string(forKey: "userID") else {
-                    print("userID 없음")
+                    print("No userID")
                     showUserIDAlert = true
                     return
                 }
@@ -221,13 +221,13 @@ struct OnboardTasteView: View {
                         case .success:
                             onNext()
                         case .failure(let error):
-                            print("취향 저장 실패: \(error)")
+                            print("Failed to save taste: \(error)")
                             // TODO: Alert 등으로 사용자에게 안내
                         }
                     }
                 }
             }) {
-                Text("다음 →")
+                Text("Next →")
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -244,7 +244,7 @@ struct OnboardTasteView: View {
         )
         .ignoresSafeArea()
         .alert(isPresented: $showUserIDAlert) {
-            Alert(title: Text("유저 정보 오류"), message: Text("userID가 없습니다. 회원가입/로그인을 다시 시도해 주세요."), dismissButton: .default(Text("확인")))
+            Alert(title: Text("User Info Error"), message: Text("No userID found. Please sign up or log in again."), dismissButton: .default(Text("OK")))
         }
     }
 }
@@ -463,7 +463,7 @@ struct GenreChipView: View {
     }
 }
 
-// 네트워크 함수 추가
+// Add network function
 func updateUserTaste(token: String, userID: String, artists: [String], genres: [String], completion: @escaping (Result<Void, Error>) -> Void) {
     let url = URL(string: "\(Endpoints.baseURL)/api/users/\(userID)/taste")!
     var request = URLRequest(url: url)

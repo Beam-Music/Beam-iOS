@@ -80,7 +80,7 @@ struct LibraryReducer: Reducer {
                 return .send(.startPlayback(tracks))
                 
             case let .startPlayback(tracks):
-                // PlayerReducer로 위임, 직접 AudioManager 호출하지 않음
+                // Delegate to PlayerReducer instead of calling AudioManager directly
                 return .none
                 
             case let .playlistFetchFailed(error):
@@ -97,7 +97,7 @@ struct LibraryReducer: Reducer {
                 return .none
             case .createPlaylist:
                 guard !state.newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty else {
-                    state.errorMessage = "플레이리스트 이름을 입력하세요."
+                    state.errorMessage = "Enter a playlist name."
                     return .none
                 }
                 state.isCreatingPlaylist = true
@@ -171,7 +171,7 @@ struct LibraryReducer: Reducer {
                         let token = try await HomeFeature.fetchToken(context: modelContext)
                         let urlString = Endpoints.Playlist.userPlaylist + "/\(playlistID.uuidString)"
                         guard let url = URL(string: urlString) else {
-                            await send(.playlistDeleteFailed("잘못된 URL입니다."))
+                            await send(.playlistDeleteFailed("Invalid URL."))
                             return
                         }
                         var request = URLRequest(url: url)
@@ -179,7 +179,7 @@ struct LibraryReducer: Reducer {
                         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                         let (_, response) = try await URLSession.shared.data(for: request)
                         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                            await send(.playlistDeleteFailed("플레이리스트 삭제에 실패했습니다."))
+                            await send(.playlistDeleteFailed("Failed to delete playlist."))
                             return
                         }
                         await send(.playlistDeleted(playlistID))

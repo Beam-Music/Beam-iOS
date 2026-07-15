@@ -56,13 +56,13 @@ struct OnboardWelcomeView: View {
         VStack(spacing: 32) {
             CircularText(text: "BeamMusic", radius: 120, kerning: 12)
                 .padding(.top, 250)
-            Text("익숙한 멜로디, \n새로운 감성으로 다시 만나다")
+            Text("Familiar melodies,\nreimagined with new emotion")
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
                 .padding(.top, 0)
-            Text("내가 고른 노래, 내가 좋아하는 목소리로")
+            Text("Your chosen songs, in the voices you love")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -71,7 +71,7 @@ struct OnboardWelcomeView: View {
                 ZStack {
                     HStack {
                         Spacer()
-                        Text("가입하기 →")
+                        Text("Sign Up →")
                             .font(.headline)
                             .foregroundColor(.purple)
                         Spacer()
@@ -93,7 +93,7 @@ struct OnboardWelcomeView: View {
                 ZStack {
                     HStack {
                         Spacer()
-                        Text("로그인하기 →")
+                        Text("Log In →")
                             .font(.headline)
                             .foregroundColor(.purple)
                         Spacer()

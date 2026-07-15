@@ -2,7 +2,7 @@ import Foundation
 import ComposableArchitecture
 import SwiftData // ModelContext 사용 위해 필요
 
-// --- 의존성 정의 확인 (별도 파일 또는 App 진입점에 있어야 함) ---
+// --- 의존성 정의 OK (별도 파일 또는 App 진입점에 있어야 함) ---
 // import Dependencies
 // struct ModelContextKey: DependencyKey { ... }
 // extension DependencyValues { var modelContext: ModelContext { ... } }

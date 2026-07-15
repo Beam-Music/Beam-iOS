@@ -31,7 +31,7 @@ struct LoginView: View {
                                 .padding(16)
                         }
                     }
-                    TextField("이메일", text: viewStore.binding(
+                    TextField("Email", text: viewStore.binding(
                         get: \.email,
                         send: LoginFeature.Action.emailChanged
                     ))
@@ -44,7 +44,7 @@ struct LoginView: View {
                             .stroke(Color.purple, lineWidth: 1)
                     )
                     .padding(.horizontal, 30)
-                    SecureField("패스워드", text: viewStore.binding(
+                    SecureField("Password", text: viewStore.binding(
                         get: \.password,
                         send: LoginFeature.Action.passwordChanged
                     ))
@@ -60,7 +60,7 @@ struct LoginView: View {
                     Button(action: {
                         viewStore.send(.loginButtonTapped)
                     }) {
-                        Text("로그인 하기")
+                        Text("Log In")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()

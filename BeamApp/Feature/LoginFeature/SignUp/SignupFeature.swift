@@ -120,28 +120,28 @@ struct SignupFeature: Reducer {
         var localizedDescription: String {
             switch self {
             case .invalidResponse:
-                return "서버 응답이 올바르지 않습니다."
+                return "The server response is invalid."
             case .invalidEmailFormat:
-                return "올바른 이메일 형식을 입력해 주세요."
+                return "Enter a valid email address."
             case .emailAlreadyRegistered:
-                return "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
+                return "This email is already registered. Please go to the login screen."
             case .emailAlreadyVerified:
-                return "이미 인증된 이메일입니다. 로그인 화면으로 이동해주세요."
+                return "This email is already verified. Please go to the login screen."
             case .verificationCodeMismatch:
-                return "인증 번호가 일치하지 않습니다."
+                return "The verification code does not match."
             case .verificationCodeExpired:
-                return "인증 코드가 만료되었습니다. 다시 요청해 주세요."
+                return "The verification code has expired. Please request a new one."
             case .tokenStorageFailed(let message):
-                return "토큰 저장에 실패했습니다: \(message)"
+                return "Failed to save token: \(message)"
             case .serverError(let message):
                 return message
             case .internalServerError(let message):
                 if message.contains("SendGrid") {
-                    return "현재 이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요."
+                    return "There is currently a temporary issue with the email service.\nPlease try again later."
                 }
-                return "서버 내부 오류가 발생했습니다.\n잠시 후 다시 시도해주세요."
+                return "An internal server error occurred.\nPlease try again later."
             case .emailServiceError:
-                return "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요."
+                return "There is a temporary issue with the email service.\nPlease try again later."
             }
         }
     }
@@ -184,7 +184,7 @@ struct SignupFeature: Reducer {
             case .sendVerificationCodeButtonTapped:
                 let trimmedEmail = SignupAuthValidation.normalizedEmail(state.email)
                 guard !trimmedEmail.isEmpty else {
-                    state.errorMessage = "이메일을 입력해 주세요."
+                    state.errorMessage = "Enter your email."
                     return .none
                 }
                 guard SignupAuthValidation.isValidEmail(trimmedEmail) else {
@@ -210,7 +210,7 @@ struct SignupFeature: Reducer {
                 
             case let .sendVerificationCodeResponse(.success):
                 state.isLoading = false
-                state.errorMessage = "인증 메일이 발송되었습니다. 이메일을 확인해주세요."
+                state.errorMessage = "Verification email sent. Please check your inbox."
                 state.showVerificationSection = true
                 state.isVerificationModalPresented = true
                 state.shouldShowLoginPrompt = false
@@ -226,7 +226,7 @@ struct SignupFeature: Reducer {
                 let trimmedUsername = state.username.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedEmail = SignupAuthValidation.normalizedEmail(state.email)
                 guard !trimmedUsername.isEmpty else {
-                    state.errorMessage = "이름을 입력해 주세요."
+                    state.errorMessage = "Enter your name."
                     return .none
                 }
                 guard !trimmedEmail.isEmpty, SignupAuthValidation.isValidEmail(trimmedEmail) else {
@@ -234,11 +234,11 @@ struct SignupFeature: Reducer {
                     return .none
                 }
                 guard state.password.count >= 6 else {
-                    state.errorMessage = "비밀번호는 6자 이상 입력해 주세요."
+                    state.errorMessage = "Password must be at least 6 characters."
                     return .none
                 }
                 guard state.isVerified else {
-                    state.errorMessage = "이메일 인증을 먼저 완료해 주세요."
+                    state.errorMessage = "Please verify your email first."
                     return .none
                 }
                 state.isLoading = true
@@ -268,7 +268,7 @@ struct SignupFeature: Reducer {
             case let .signupResponse(.success(response)):
                 state.isLoading = false
                 state.isSignupCompleted = true
-                // 회원가입 응답에서 토큰이 있으면 저장
+                // Save token from the sign-up response when present.
                 let token: String? = {
                     switch response {
                     case let .newUser(token): return token
@@ -315,37 +315,37 @@ struct SignupFeature: Reducer {
                 case let .success(token):
                     state.isVerified = true
                     state.token = token
-                    state.errorMessage = "이메일 인증이 완료되었습니다."
+                    state.errorMessage = "Email verification is complete."
                     state.isVerificationModalPresented = false
 
-                    // userID를 토큰에서 파싱하여 UserDefaults에 저장
+                    // Parse userID from the token and save it to UserDefaults.
                     if let userId = Self.parseUserIdFromJWT(token) {
                         UserDefaults.standard.set(userId, forKey: "userID")
-                        print("✅ userID 저장됨: \(userId)")
+                        print("✅ userID saved: \(userId)")
                     } else {
-                        print("❌ userID 파싱 실패: token=\(token.prefix(20))...")
+                        print("❌ Failed to parse userID: token=\(token.prefix(20))...")
                     }
 
                     return .run { [token] send in
                         do {
                             try await tokenStorage.saveToken(token)
-                            print("✅ 회원가입 완료 후 토큰 저장 성공: \(token.prefix(10))...")
+                            print("✅ Token saved after sign-up completion: \(token.prefix(10))...")
                             
-                            // 토큰 저장 확인
+                            // Confirm saved token.
                             if let savedToken = await tokenStorage.fetchToken() {
-                                print("🔍 저장된 토큰 확인: \(savedToken.prefix(10))...")
+                                print("🔍 Saved token found: \(savedToken.prefix(10))...")
                             } else {
-                                print("❌ 토큰 저장 후 검색 실패")
+                                print("❌ Failed to fetch token after saving")
                             }
                             
                         } catch {
-                            print("❌ 토큰 저장 실패: \(error)")
+                            print("❌ Failed to save token: \(error)")
                             await send(.verifyResponse(.failure(.tokenStorageFailed(error.localizedDescription))))
                         }
                     }
                 case .emailVerifiedOnly:
                     state.isVerified = true
-                    state.errorMessage = "이메일 인증 성공! 회원가입을 진행하세요."
+                    state.errorMessage = "Email verified. Continue signing up."
                     state.isVerificationModalPresented = false
                     return .none
                 }
@@ -399,40 +399,40 @@ private func normalizedReason(from data: Data) -> String? {
 private func mapSignupError(statusCode: Int, reason: String?) -> SignupFeature.SignupError {
     let normalized = reason?.lowercased() ?? ""
 
-    if normalized.contains("already verified") || normalized.contains("이미 인증된 이메일") {
+    if normalized.contains("already verified") || normalized.contains("already verified email") {
         return .emailAlreadyVerified
     }
-    if normalized.contains("already") || normalized.contains("이미 가입된 이메일") || normalized.contains("already exists") {
+    if normalized.contains("already") || normalized.contains("already registered email") || normalized.contains("already exists") {
         return .emailAlreadyRegistered
     }
     if normalized.contains("sendgrid") {
         return .emailServiceError
     }
     if statusCode == 500 {
-        return .internalServerError(reason ?? "알 수 없는 서버 오류가 발생했습니다.")
+        return .internalServerError(reason ?? "An unknown server error occurred.")
     }
-    return .serverError(reason ?? "알 수 없는 오류가 발생했습니다.")
+    return .serverError(reason ?? "An unknown error occurred.")
 }
 
 private func mapVerificationError(statusCode: Int, reason: String?) -> SignupFeature.SignupError {
     let normalized = reason?.lowercased() ?? ""
 
-    if normalized.contains("expired") || normalized.contains("만료") {
+    if normalized.contains("expired") || normalized.contains("expiration") {
         return .verificationCodeExpired
     }
-    if normalized.contains("invalid code") || normalized.contains("invalid verification code") || normalized.contains("does not match") || normalized.contains("일치하지") {
+    if normalized.contains("invalid code") || normalized.contains("invalid verification code") || normalized.contains("does not match") || normalized.contains("does not match") {
         return .verificationCodeMismatch
     }
-    if normalized.contains("already verified") || normalized.contains("이미 인증된 이메일") {
+    if normalized.contains("already verified") || normalized.contains("already verified email") {
         return .emailAlreadyVerified
     }
     if normalized.contains("sendgrid") {
         return .emailServiceError
     }
     if statusCode == 500 {
-        return .internalServerError(reason ?? "알 수 없는 서버 오류가 발생했습니다.")
+        return .internalServerError(reason ?? "An unknown server error occurred.")
     }
-    return .serverError(reason ?? "이메일 인증에 실패했습니다.")
+    return .serverError(reason ?? "Email verification failed.")
 }
 
 // MARK: - Success Response for Verification
@@ -481,17 +481,17 @@ private struct SignupRequestKey: DependencyKey {
         // 이미지 파트 (선택)
         if let image = profileImage {
             if let imageData = image.jpegData(compressionQuality: 0.8) {
-                print("✅ jpegData 변환 성공! 이미지 크기: \(imageData.count / 1024) KB")
+                print("✅ jpegData conversion succeeded. Image size: \(imageData.count / 1024) KB")
                 body.append("--\(boundary)\r\n".data(using: .utf8)!)
                 body.append("Content-Disposition: form-data; name=\"profileImage\"; filename=\"profile.jpg\"\r\n".data(using: .utf8)!)
                 body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
                 body.append(imageData)
                 body.append("\r\n".data(using: .utf8)!)
             } else {
-                print("❌ jpegData 변환 실패! (UIImage는 있으나 Data 변환 실패)")
+                print("❌ jpegData conversion failed. UIImage exists, but Data conversion failed.")
             }
         } else {
-            print("❌ profileImage가 nil입니다. (이미지 선택 안 됨)")
+            print("❌ profileImage is nil. No image was selected.")
         }
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
@@ -597,5 +597,3 @@ extension SignupFeature {
         return nil
     }
 }
-
-

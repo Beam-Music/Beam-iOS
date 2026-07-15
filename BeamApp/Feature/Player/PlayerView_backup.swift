@@ -127,7 +127,7 @@ struct AIMusicToggleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("AI 음악 모드")
+                Text("AI Music Mode")
                     .font(.headline)
                     .foregroundColor(colorScheme == .dark ? .white : .black)
                 Spacer()
@@ -139,7 +139,7 @@ struct AIMusicToggleView: View {
             }
             
             if isAIPlaying {
-                Text("AI가 생성한 음악을 재생합니다")
+                Text("Play AI-generated music")
                     .font(.caption)
                     .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .gray)
             }
@@ -154,7 +154,7 @@ struct AIMusicToggleView: View {
     }
 }
 
-// MARK: - Custom Remix/AI Toggle (Figma 스타일)
+// MARK: - Custom Remix/AI Toggle (Figma style)
 struct RemixAIToggle: View {
     @Binding var isAIVersion: Bool
     var body: some View {
@@ -185,7 +185,7 @@ struct RemixAIToggle: View {
                     .animation(.easeInOut(duration: 0.22), value: isAIVersion)
                 ZStack {
                     if !isAIVersion {
-                        Text("오리지널")
+                        Text("Original")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(Color.white)
                             .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
@@ -193,7 +193,7 @@ struct RemixAIToggle: View {
                             .minimumScaleFactor(0.7)
                             .transition(.opacity)
                     } else {
-                        Text("AI 버전")
+                        Text("AI Version")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(Color.white)
                             .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
@@ -235,11 +235,11 @@ struct RemixArtistPickerView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.white.opacity(0.7))
-                    TextField("아티스트 검색", text: $searchText)
+                    TextField("Search artists", text: $searchText)
                         .foregroundColor(.white)
                         .padding(.vertical, 10)
                     Spacer()
-                    Button("완료") {
+                    Button("Done") {
                         isPresented = false
                     }
                     .foregroundColor(.purple)
@@ -457,7 +457,7 @@ struct PlayerView: View {
                             .padding(.bottom, 8)
                         VStack(spacing: 2) {
                             HStack(alignment: .center) {
-                                Text("로딩 중...")
+                                Text("Loading...")
                                     .font(.system(size: 22, weight: .bold))
                                     .foregroundColor(.white)
                                     .lineLimit(1)
@@ -503,7 +503,7 @@ struct PlayerView: View {
                         Button(action: {/* TODO: Show Lyrics */}) {
                             HStack(spacing: 6) {
                                 Image(systemName: "music.note.list")
-                                Text("가사보기")
+                                Text("View Lyrics")
                             }
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(Color.white)
@@ -516,7 +516,7 @@ struct PlayerView: View {
                                 Image(systemName: "person")
                                 let artist = audioManager.currentTrackMetadata.artist ?? ""
                                 Text("")
-                                Text("\(artist)에 대해 더 알아보기")
+                                Text("\(artist)Learn more about ")
                             }
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(Color.white)
@@ -546,16 +546,16 @@ struct PlayerView: View {
                                                     do {
                                                         try await AudioManager.shared.playAIMusic(from: url.absoluteString, title: demoTrack.title, artist: demoTrack.artist)
                                                     } catch {
-                                                        print("AI 변환 곡 재생 실패: \(error)")
+                                                        print("Failed to play AI converted song: \(error)")
                                                     }
                                                 }
                                             case .failure(let error):
-                                                print("AI 변환 실패: \(error)")
+                                                print("AI conversion failed: \(error)")
                                             }
                                         }
                                     }
                                 } else {
-                                    // 내장곡이 아니면 안내
+                                    // Show notice for non-bundled songs
                                     showNoMatchAlert = true
                                 }
                             }) {
@@ -621,7 +621,7 @@ struct PlayerView: View {
                 .padding(.bottom, 24)
                 // === AI 변환 중 ProgressView ===
                 if isRemixing {
-                    ProgressView("AI 변환/리믹스 중...")
+                    ProgressView("AI converting/remixing...")
                         .padding()
                         .background(Color.black.opacity(0.7))
                         .cornerRadius(12)
@@ -630,7 +630,7 @@ struct PlayerView: View {
                 
                 // === Voice Conversion 중 ProgressView ===
                 if isVoiceConverting {
-                    ProgressView("음성 변환 중...")
+                    ProgressView("Converting voice...")
                         .padding()
                         .background(Color.black.opacity(0.7))
                         .cornerRadius(12)
@@ -638,13 +638,13 @@ struct PlayerView: View {
                 }
             }
             // === 매칭 실패 Alert ===
-            .alert("퍼블릭 도메인 곡을 찾을 수 없습니다.", isPresented: $showNoMatchAlert) {
-                Button("확인", role: .cancel) { showNoMatchAlert = false }
+            .alert("Could not find a public-domain song.", isPresented: $showNoMatchAlert) {
+                Button("OK", role: .cancel) { showNoMatchAlert = false }
             }
             
             // === Voice Conversion Error Alert ===
-            .alert("음성 변환 실패", isPresented: $showVoiceConversionError) {
-                Button("확인", role: .cancel) { showVoiceConversionError = false }
+            .alert("Voice Conversion Failed", isPresented: $showVoiceConversionError) {
+                Button("OK", role: .cancel) { showVoiceConversionError = false }
             } message: {
                 Text(voiceConversionErrorMessage)
             }
@@ -675,8 +675,8 @@ struct PlayerView: View {
 //                    )
                 }
             }
-            .alert("플레이리스트에 추가되었습니다!", isPresented: $showAddSuccess) {
-                Button("확인", role: .cancel) { showAddSuccess = false }
+            .alert("Added to playlist!", isPresented: $showAddSuccess) {
+                Button("OK", role: .cancel) { showAddSuccess = false }
             }
             
             // Voice Selection Sheet
@@ -728,7 +728,7 @@ struct PlayerView: View {
             availableVoices = voiceList.voices
         } catch {
             print("Failed to load voices: \(error)")
-            voiceConversionErrorMessage = "음성 목록을 불러오는데 실패했습니다: \(error.localizedDescription)"
+            voiceConversionErrorMessage = "Failed to load the voice list: \(error.localizedDescription)"
             showVoiceConversionError = true
         }
     }
@@ -740,7 +740,7 @@ struct PlayerView: View {
                   $0.title.lowercased() == currentTitle && $0.artist.lowercased() == currentArtist
               }),
               let fileURL = Bundle.main.url(forResource: demoTrack.fileName, withExtension: nil) else {
-            voiceConversionErrorMessage = "현재 재생 중인 곡을 찾을 수 없습니다."
+            voiceConversionErrorMessage = "Could not find the currently playing song."
             showVoiceConversionError = true
             return
         }
@@ -810,7 +810,7 @@ struct PlayerView: View {
                             )
                         } catch {
                             print("Voice converted audio playback failed: \(error)")
-                            voiceConversionErrorMessage = "변환된 음성 재생에 실패했습니다: \(error.localizedDescription)"
+                            voiceConversionErrorMessage = "Failed to play converted voice audio: \(error.localizedDescription)"
                             showVoiceConversionError = true
                         }
                     }
@@ -818,7 +818,7 @@ struct PlayerView: View {
             } catch {
                 await MainActor.run {
                     isVoiceConverting = false
-                    voiceConversionErrorMessage = "음성 변환에 실패했습니다: \(error.localizedDescription)"
+                    voiceConversionErrorMessage = "Voice conversion failed: \(error.localizedDescription)"
                     showVoiceConversionError = true
                 }
             }
@@ -848,10 +848,10 @@ struct PlayerView: View {
                 if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
                     showAddSuccess = true
                 } else if let httpResponse = response as? HTTPURLResponse {
-                    print("플레이리스트 추가 실패: Status \(httpResponse.statusCode)")
+                    print("Failed to add playlist item: Status \(httpResponse.statusCode)")
                 }
             } catch {
-                print("플레이리스트 추가 실패: \(error)")
+                print("Failed to add playlist item: \(error)")
             }
         }
     }
@@ -863,7 +863,7 @@ func remixDemoTrack(_ track: LocalDemoTrack, completion: @escaping (Result<URL, 
     if let fileURL = Bundle.main.url(forResource: track.fileName, withExtension: nil) {
         uploadFileToAIConvert(fileURL: fileURL, completion: completion)
     } else {
-        completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "내장 mp3 파일을 찾을 수 없습니다."])))
+        completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not find the bundled MP3 file."])))
     }
 }
 
@@ -880,7 +880,7 @@ func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Erro
     let mimetype = "audio/mpeg" // mp3 등 실제 파일 타입에 맞게
 
     guard let fileData = try? Data(contentsOf: fileURL) else {
-        completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "파일을 읽을 수 없습니다."])))
+        completion(.failure(NSError(domain: "FileError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not read the file."])))
         return
     }
 
@@ -900,7 +900,7 @@ func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Erro
             completion(.failure(NSError(domain: "NoData", code: 0, userInfo: nil)))
             return
         }
-        // 임시 파일로 저장
+        // 임시 파일로 Save
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
         do {
             try responseData.write(to: tempURL)

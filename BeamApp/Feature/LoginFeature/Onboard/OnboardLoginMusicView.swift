@@ -19,14 +19,14 @@ struct OnboardMusicView: View {
                     .clipped()
                 Spacer(minLength: 12)
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("음악을 당신답게")
+                    Text("Make Music Yours")
                         .font(.title)
                         .bold()
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 24)
-                    Text("원하는 곡, 선호하는 목소리,\n당신만의 조합으로 완성되는 음악 경험을 만나보세요.")
+                    Text("Choose the songs and voices you love\nto create a music experience that feels like yours.")
                         .font(.body)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.leading)
@@ -39,7 +39,7 @@ struct OnboardMusicView: View {
             ZStack {
                 HStack {
                     Spacer()
-                    Text("다음 →")
+                    Text("Next →")
                         .font(.headline)
                         .foregroundColor(.purple)
                     Spacer()

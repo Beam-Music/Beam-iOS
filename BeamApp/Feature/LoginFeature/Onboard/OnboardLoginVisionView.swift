@@ -26,14 +26,14 @@ struct OnboardVisionView: View {
                     .clipped()
                 Spacer(minLength: 12)
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("BEAM의 비전과 가치")
+                    Text("BEAM's Vision and Values")
                         .font(.title)
                         .bold()
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 24)
-                    Text("빔뮤직은 AI와 음악의 만남을 통해, 사용자에게 새로운 음악 경험을 선사합니다. 음악, 목소리, 감정 표현의 새로운 가능성을 경험해보세요.")
+                    Text("Beam Music brings AI and music together to create a new listening experience. Explore new possibilities in music, voice, and emotional expression.")
                         .font(.body)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.leading)
@@ -46,7 +46,7 @@ struct OnboardVisionView: View {
             ZStack {
                 HStack {
                     Spacer()
-                    Text("시작하기 →")
+                    Text("Get Started →")
                         .font(.headline)
                         .foregroundColor(.purple)
                     Spacer()

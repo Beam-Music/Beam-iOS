@@ -101,7 +101,7 @@ struct HomeFeature {
         fileName: String,
         genre: String?,
         duration: Int?
-        // artistName: String? // 필요시 추가
+        // artistName: String? // Add if needed
     ) async throws -> Song {
         guard let url = URL(string: Endpoints.AISong.register) else {
             throw NSError(domain: "InvalidURL", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid registration endpoint URL"])
@@ -179,7 +179,7 @@ struct HomeFeature {
                     isAIGenerated: track.isAIGenerated,
                     duration: track.duration,
                     fileUrl: track.isAIGenerated ? track.fileUrl : nil, // Use fileUrl for AI tracks
-                    artworkURL: nil // 추가
+                    artworkURL: nil // Add
                 )
             }
         } catch let decodingError as DecodingError {

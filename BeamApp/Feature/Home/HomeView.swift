@@ -18,8 +18,8 @@ func uploadFileToAIConvert(fileURL: URL, completion: @escaping (Result<URL, Erro
                 audioData: audioData,
                 voiceId: "dionn_v1_singing",
                 voiceType: "singer",
-                trimStart: 0,
-                trimDuration: 60
+                trimStart: nil,
+                trimDuration: nil
             )
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ai_version.mp3")
             try convertedAudioData.write(to: tempURL)
@@ -96,13 +96,13 @@ private struct AppleMusicChartResponse: Decodable {
 private enum AppleMusicChartService {
     static func fetchTrendingSongs(limit: Int = 25) async throws -> [MusicSearchResult] {
         guard let url = URL(string: "https://rss.applemarketingtools.com/api/v2/us/music/most-played/\(limit)/songs.json") else {
-            return []
+            return await fallbackPreviewSongs(limit: limit)
         }
 
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            return []
+            return await fallbackPreviewSongs(limit: limit)
         }
 
         let songs = try JSONDecoder()
@@ -111,7 +111,12 @@ private enum AppleMusicChartService {
             .results
             .map(\.musicSearchResult)
 
-        return await songsWithPreviewURLs(songs)
+        let previewSongs = await songsWithPreviewURLs(songs)
+            .filter { $0.playbackURL != nil }
+        if previewSongs.isEmpty {
+            return await fallbackPreviewSongs(limit: limit)
+        }
+        return previewSongs
     }
 
     private static func songsWithPreviewURLs(_ songs: [MusicSearchResult]) async -> [MusicSearchResult] {
@@ -178,6 +183,72 @@ private enum AppleMusicChartService {
         return await fetchITunesPreviewURL(from: components, matching: song)
     }
 
+    private static func fallbackPreviewSongs(limit: Int) async -> [MusicSearchResult] {
+        let searchTerms = [
+            "kendrick lamar",
+            "sabrina carpenter",
+            "billie eilish",
+            "post malone",
+            "dua lipa",
+            "the weeknd",
+            "taylor swift"
+        ]
+
+        var songs: [MusicSearchResult] = []
+        var seenIDs: Set<String> = []
+
+        for term in searchTerms where songs.count < limit {
+            guard var components = URLComponents(string: "https://itunes.apple.com/search") else {
+                continue
+            }
+            components.queryItems = [
+                URLQueryItem(name: "term", value: term),
+                URLQueryItem(name: "country", value: "us"),
+                URLQueryItem(name: "media", value: "music"),
+                URLQueryItem(name: "entity", value: "song"),
+                URLQueryItem(name: "limit", value: "8")
+            ]
+
+            guard let url = components.url else {
+                continue
+            }
+
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode) else {
+                    continue
+                }
+
+                let searchResponse = try JSONDecoder().decode(ITunesSearchResponse.self, from: data)
+                for track in searchResponse.results where songs.count < limit {
+                    guard let previewURL = track.previewUrl else {
+                        continue
+                    }
+                    let id = "itunes-\(track.trackId ?? abs("\(track.artistName)-\(track.trackName)".hashValue))"
+                    guard seenIDs.insert(id).inserted else {
+                        continue
+                    }
+                    songs.append(
+                        MusicSearchResult(
+                            id: id,
+                            title: track.trackName,
+                            artist: track.artistName,
+                            artworkURL: track.artworkUrl100.flatMap { URL(string: $0.replacingOccurrences(of: "100x100", with: "600x600")) },
+                            isExplicit: track.trackExplicitness == "explicit",
+                            playbackURL: previewURL,
+                            genre: track.primaryGenreName
+                        )
+                    )
+                }
+            } catch {
+                print("Failed to fetch fallback Apple preview songs for \(term): \(error)")
+            }
+        }
+
+        return songs
+    }
+
     private static func fetchITunesPreviewURL(from components: URLComponents, matching song: MusicSearchResult) async -> String? {
         guard let url = components.url else {
             return nil
@@ -220,9 +291,13 @@ private enum AppleMusicChartService {
         let results: [Track]
 
         struct Track: Decodable {
+            let trackId: Int?
             let artistName: String
             let trackName: String
             let previewUrl: String?
+            let artworkUrl100: String?
+            let primaryGenreName: String?
+            let trackExplicitness: String?
         }
     }
 }
@@ -258,7 +333,7 @@ private enum AppleMusicPlaybackService {
         let player = ApplicationMusicPlayer.shared
         player.queue = ApplicationMusicPlayer.Queue(for: [catalogSong])
         try await player.play()
-        AppleMusicPlaybackState.shared.start(song: song)
+        AppleMusicPlaybackState.shared.start(song: song, duration: catalogSong.duration)
     }
 
     static func stop() {
@@ -351,22 +426,28 @@ struct HomeView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: Int = 0
     @State private var scrollOffset: CGFloat = 0
+    @State private var trackLibrarySongs: [MusicSearchResult] = []
     @State private var appleMusicTrendingSongs: [MusicSearchResult] = []
     @State private var hitSongs: [MusicSearchResult] = []
     @State private var remixArtistPairs: [RemixArtistPair] = []
     @State private var songToAddToPlaylist: MusicSearchResult? = nil
     @State private var isPlaylistSelectSheetPresented: Bool = false
+    @State private var selectedHomeConversionResult: MusicSearchResult? = nil
+    @State private var showHomeVoiceSheet = false
+    @State private var availableHomeVoices: [VoiceInfo] = []
+    @State private var isLoadingTrackLibrarySongs: Bool = true
     @State private var isLoadingAppleMusicTrending: Bool = true
     @State private var isLoadingHitSongs: Bool = true
     @State private var isLoadingRemixPairs: Bool = true
     @State private var isRemixingDemo = false
-    @State private var showAllAppleMusicSongsSheet = false
+    @State private var showAllTrackLibrarySongsSheet = false
     @State private var showAllAppleMusicPreviewSongsSheet = false
     @State private var showAllHitSongsSheet = false
     @State private var showAllRemixPairsSheet = false
     @State private var showSearchScreen = false
     @State private var searchDraft = ""
     @State private var recentSearches: [String] = []
+    @StateObject private var preConversionManager = PreConversionManager.shared
     @FocusState private var isSearchFieldFocused: Bool
     
     private var homeStore: StoreOf<HomeReducer> {
@@ -406,7 +487,7 @@ struct HomeView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Search songs or artists")
                 .padding(.horizontal, AppTheme.Spacing.lg)
-                .padding(.top, AppTheme.Spacing.lg)
+                .padding(.top, AppTheme.Spacing.xl)
 
                 if isConvertingFromSearch {
                     HStack(spacing: 10) {
@@ -427,26 +508,26 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                         BeamSectionHeader(
-                            title: "Apple Music",
-                            subtitle: "Full-track playback with MusicKit",
+                            title: "Track Library",
+                            subtitle: "Playable full tracks for voice conversion",
                             actionTitle: "View All",
-                            action: { showAllAppleMusicSongsSheet = true }
+                            action: { showAllTrackLibrarySongsSheet = true }
                         )
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 28) {
-                                if isLoadingAppleMusicTrending {
+                                if isLoadingTrackLibrarySongs {
                                     ForEach(0..<5, id: \.self) { _ in
                                         HitSongCardPlaceholder()
                                     }
                                 } else {
-                                    ForEach(appleMusicTrendingSongs.indices, id: \.self) { idx in
-                                        let song = appleMusicTrendingSongs[idx]
+                                    ForEach(trackLibrarySongs.indices, id: \.self) { idx in
+                                        let song = trackLibrarySongs[idx]
                                         HitSongCardView(
                                             song: song,
-                                            sourceLabel: "MusicKit",
+                                            sourceLabel: "Track Library",
                                             onPlay: {
-                                                playAppleMusicFullSong(song)
+                                                playTrackLibrarySong(song)
                                             },
                                             onAdd: {
                                                 songToAddToPlaylist = song
@@ -458,7 +539,7 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, AppTheme.Spacing.lg)
                         }
-                        .frame(height: 180)
+                        .frame(height: 264)
 
                         BeamSectionHeader(
                             title: "Apple Music Preview",
@@ -492,7 +573,7 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, AppTheme.Spacing.lg)
                         }
-                        .frame(height: 180)
+                        .frame(height: 264)
 
                         BeamSectionHeader(
                             title: "Audius",
@@ -527,10 +608,10 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, AppTheme.Spacing.lg)
                         }
-                        .frame(height: 180) // 고정된 높이 설정
+                        .frame(height: 264) // 고정된 높이 설정
                     }
-                    .padding(.top, AppTheme.Spacing.lg)
-                    .padding(.bottom, 104)
+                    .padding(.top, AppTheme.Spacing.xl)
+                    .padding(.bottom, 140)
                     
                     GeometryReader { geo in
                         Color.clear
@@ -563,9 +644,10 @@ struct HomeView: View {
         .onAppear {
             recentSearches = loadRecentSearches()
             Task {
+                async let trackLibrary: Void = fetchTrackLibrarySongs()
                 async let appleMusic: Void = fetchAppleMusicTrendingSongs()
                 async let audiusMusic: Void = fetchTrendingSongs()
-                _ = await (appleMusic, audiusMusic)
+                _ = await (trackLibrary, appleMusic, audiusMusic)
             }
         }
         .fullScreenCover(isPresented: $showSearchScreen) {
@@ -629,7 +711,10 @@ struct HomeView: View {
                             MusicSearchResultView(result: song, onPlay: {
                                 showAllHitSongsSheet = false
                                 playAudiusSong(song)
-                            }, onConvert: nil)
+                            }, onConvert: {
+                                showAllHitSongsSheet = false
+                                presentVoiceSelection(for: song, delayBeforePresenting: 250_000_000)
+                            })
                             .padding(.horizontal)
                         }
                     }
@@ -640,22 +725,25 @@ struct HomeView: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .sheet(isPresented: $showAllAppleMusicSongsSheet) {
+        .sheet(isPresented: $showAllTrackLibrarySongsSheet) {
             NavigationStack {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(appleMusicTrendingSongs) { song in
+                        ForEach(trackLibrarySongs) { song in
                             MusicSearchResultView(result: song, onPlay: {
-                                showAllAppleMusicSongsSheet = false
-                                playAppleMusicFullSong(song)
-                            }, onConvert: nil)
+                                showAllTrackLibrarySongsSheet = false
+                                playTrackLibrarySong(song)
+                            }, onConvert: {
+                                showAllTrackLibrarySongsSheet = false
+                                presentVoiceSelection(for: song, delayBeforePresenting: 250_000_000)
+                            })
                             .padding(.horizontal)
                         }
                     }
                     .padding(.vertical)
                 }
                 .background { BeamScreenBackground() }
-                .navigationTitle("Apple Music")
+                .navigationTitle("Track Library")
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
@@ -667,7 +755,10 @@ struct HomeView: View {
                             MusicSearchResultView(result: song, onPlay: {
                                 showAllAppleMusicPreviewSongsSheet = false
                                 playAppleMusicPreviewSong(song)
-                            }, onConvert: nil)
+                            }, onConvert: {
+                                showAllAppleMusicPreviewSongsSheet = false
+                                presentVoiceSelection(for: song, delayBeforePresenting: 250_000_000)
+                            })
                             .padding(.horizontal)
                         }
                     }
@@ -678,10 +769,39 @@ struct HomeView: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
+        .sheet(isPresented: $showHomeVoiceSheet) {
+            VoiceSelectionSheet(
+                voices: availableHomeVoices,
+                onVoiceSelected: { voice in
+                    showHomeVoiceSheet = false
+                    if let result = selectedHomeConversionResult {
+                        Task {
+                            await convertSearchResult(result, voice: voice)
+                        }
+                    }
+                },
+                onCancel: { showHomeVoiceSheet = false }
+            )
+        }
     }
 
     @State private var isConvertingFromSearch = false
     @State private var conversionStatusText = ""
+
+    private func presentVoiceSelection(for result: MusicSearchResult, delayBeforePresenting: UInt64 = 0) {
+        selectedHomeConversionResult = result
+        Task { @MainActor in
+            if delayBeforePresenting > 0 {
+                try? await Task.sleep(nanoseconds: delayBeforePresenting)
+            }
+            let voices = preConversionManager.availableVoices
+            if voices.isEmpty {
+                await preConversionManager.loadAvailableVoices()
+            }
+            availableHomeVoices = preConversionManager.availableVoices
+            showHomeVoiceSheet = true
+        }
+    }
 
     private func convertSearchResult(_ result: MusicSearchResult, voice: VoiceInfo) async {
         guard let playbackURLString = result.playbackURL, let playbackURL = URL(string: playbackURLString) else {
@@ -710,11 +830,13 @@ struct HomeView: View {
             let job = try await provider.submitAsyncJob(
                 audioData: audioData,
                 voiceId: voice.id,
-                voiceType: resolvedVoiceType
+                voiceType: resolvedVoiceType,
+                trimStart: nil,
+                trimDuration: nil
             )
 
             await MainActor.run {
-                conversionStatusText = "Converting full song... (Job: \(job.jobId.prefix(8)))"
+                conversionStatusText = "Converting full track... (Job: \(job.jobId.prefix(8)))"
             }
 
             let convertedData = try await provider.pollJobUntilFinished(jobId: job.jobId) { progress, stage in
@@ -757,20 +879,6 @@ struct HomeView: View {
         }
     }
 
-    private func playAppleMusicFullSong(_ song: MusicSearchResult) {
-        isSearchFieldFocused = false
-        Task {
-            do {
-                try await AppleMusicPlaybackService.playFullTrack(song)
-                await MainActor.run {
-                    isMiniPlayerVisible = true
-                }
-            } catch {
-                print("Failed to play Apple Music full track: \(error.localizedDescription)")
-            }
-        }
-    }
-
     private func playAppleMusicPreviewSong(_ song: MusicSearchResult) {
         isSearchFieldFocused = false
         guard song.playbackURL != nil else {
@@ -783,6 +891,30 @@ struct HomeView: View {
         isMiniPlayerVisible = true
     }
 
+    private func playTrackLibrarySong(_ song: MusicSearchResult) {
+        isSearchFieldFocused = false
+        AppleMusicPlaybackService.stop()
+        guard let playbackURL = song.playbackURL else {
+            print("Track Library playback URL is missing for: \(song.title)")
+            return
+        }
+
+        let track = PlayableTrackDTO(
+            id: UUID(),
+            title: song.title,
+            artistName: song.artist,
+            playbackUrl: playbackURL,
+            playbackStoreID: song.id,
+            isAIGenerated: false,
+            duration: nil,
+            fileUrl: nil,
+            artworkURL: song.artworkURL
+        )
+        let playerState = PlayerReducer.State(playlist: [track], currentIndex: 0)
+        store.send(.tabBar(.setPlayerState(playerState)))
+        isMiniPlayerVisible = true
+    }
+
     private func playAudiusSong(_ song: MusicSearchResult) {
         isSearchFieldFocused = false
         AppleMusicPlaybackService.stop()
@@ -790,7 +922,25 @@ struct HomeView: View {
         isMiniPlayerVisible = true
     }
 
-    // Audius 인기  songs 불러오기
+    private func fetchTrackLibrarySongs() async {
+        do {
+            let tracks = try await AudiusService.shared.getTrendingTracks(limit: 40)
+            let playableTracks = tracks
+                .map { $0.toMusicSearchResult() }
+                .filter { $0.playbackURL != nil }
+
+            await MainActor.run {
+                self.trackLibrarySongs = Array(playableTracks.prefix(20))
+                self.isLoadingTrackLibrarySongs = false
+            }
+        } catch {
+            print("Failed to fetch track library songs: \(error)")
+            await MainActor.run {
+                self.isLoadingTrackLibrarySongs = false
+            }
+        }
+    }
+
     private func fetchAppleMusicTrendingSongs() async {
         do {
             let songs = try await AppleMusicChartService.fetchTrendingSongs(limit: 25)
@@ -1363,7 +1513,7 @@ struct HitSongCardView: View {
                 .padding(.vertical, AppTheme.Spacing.xxs)
                 .background(Color.white.opacity(0.10), in: Capsule())
         }
-        .frame(width: 144, alignment: .leading)
+        .frame(width: 144, height: 232, alignment: .topLeading)
         .padding(AppTheme.Spacing.xs)
         .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
         .onAppear {
@@ -1403,7 +1553,7 @@ struct HitSongCardPlaceholder: View {
                 .fill(Color.white.opacity(0.15))
                 .frame(width: 60, height: 14)
         }
-        .frame(width: 144)
+        .frame(width: 144, height: 232, alignment: .topLeading)
         .padding(AppTheme.Spacing.xs)
     }
 }

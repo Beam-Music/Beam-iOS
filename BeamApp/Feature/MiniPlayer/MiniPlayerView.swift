@@ -8,7 +8,6 @@
 import SwiftUI
 import ComposableArchitecture
 import MusicKit
-import UniformTypeIdentifiers
 
 struct MiniPlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
@@ -119,9 +118,6 @@ struct MiniPlayerView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(audioManager.isPlayingMusic ? "Pause" : "Play")
-        .highPriorityGesture(
-            TapGesture()
-        )
     }
     
     private func playPause() async {
@@ -139,18 +135,24 @@ final class AppleMusicPlaybackState: ObservableObject {
 
     @Published var currentSong: MusicSearchResult?
     @Published var isPlaying = false
+    @Published var currentTime: TimeInterval = 0
+    @Published var duration: TimeInterval = 0
 
     private init() {}
 
-    func start(song: MusicSearchResult) {
+    func start(song: MusicSearchResult, duration: TimeInterval?) {
         currentSong = song
         isPlaying = true
+        currentTime = 0
+        self.duration = duration ?? 0
     }
 
     func stop() {
         ApplicationMusicPlayer.shared.stop()
         currentSong = nil
         isPlaying = false
+        currentTime = 0
+        duration = 0
     }
 }
 
@@ -264,7 +266,9 @@ struct AppleMusicFullPlayerView: View {
     @State private var showVoiceConversionUnavailable = false
     @State private var isResolvingConvertibleSource = false
     @State private var resolverMessage: String?
-    @State private var isImportingAudioFile = false
+    @State private var isScrubbing = false
+    @State private var scrubberValue: TimeInterval = 0
+    private let progressTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -327,7 +331,23 @@ struct AppleMusicFullPlayerView: View {
                     }
                     .padding(.horizontal, AppTheme.Spacing.lg)
 
+                    playbackProgressView
+                        .padding(.horizontal, AppTheme.Spacing.xl)
+                        .padding(.top, AppTheme.Spacing.sm)
+
                     HStack(spacing: AppTheme.Spacing.xl) {
+                        Button {
+                            seek(by: -10)
+                        } label: {
+                            Image(systemName: "gobackward.10")
+                                .font(.system(size: 30, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.86))
+                                .frame(width: 58, height: 58)
+                                .background(Color.white.opacity(0.10), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Go back 10 seconds")
+
                         Button {
                             togglePlayback()
                         } label: {
@@ -340,6 +360,18 @@ struct AppleMusicFullPlayerView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(playbackState.isPlaying ? "Pause Apple Music" : "Play Apple Music")
+
+                        Button {
+                            seek(by: 10)
+                        } label: {
+                            Image(systemName: "goforward.10")
+                                .font(.system(size: 30, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.86))
+                                .frame(width: 58, height: 58)
+                                .background(Color.white.opacity(0.10), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Go forward 10 seconds")
                     }
                     .padding(.top, AppTheme.Spacing.md)
 
@@ -362,17 +394,6 @@ struct AppleMusicFullPlayerView: View {
                     .padding(.horizontal, AppTheme.Spacing.xl)
                     .accessibilityHint("Prepares a playable audio source for voice conversion")
 
-                    Button {
-                        isImportingAudioFile = true
-                    } label: {
-                        Label("Use my audio file", systemImage: "folder.badge.plus")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.70))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, -AppTheme.Spacing.xs)
-                    .accessibilityHint("Imports an audio file from Files for playback and voice conversion")
-
                     Spacer()
                 }
                 .padding(.top, AppTheme.Spacing.md)
@@ -392,12 +413,42 @@ struct AppleMusicFullPlayerView: View {
         } message: {
             Text(resolverMessage ?? "")
         }
-        .fileImporter(
-            isPresented: $isImportingAudioFile,
-            allowedContentTypes: [.audio],
-            allowsMultipleSelection: false
-        ) { result in
-            handleImportedAudioFile(result)
+        .onReceive(progressTimer) { _ in
+            updatePlaybackProgress()
+        }
+    }
+
+    private var playbackProgressView: some View {
+        VStack(spacing: AppTheme.Spacing.xxs) {
+            Slider(
+                value: Binding(
+                    get: { isScrubbing ? scrubberValue : playbackState.currentTime },
+                    set: { newValue in
+                        isScrubbing = true
+                        scrubberValue = newValue
+                    }
+                ),
+                in: 0...max(playbackState.duration, 1),
+                onEditingChanged: { editing in
+                    if editing {
+                        isScrubbing = true
+                        scrubberValue = playbackState.currentTime
+                    } else {
+                        seek(to: scrubberValue)
+                        isScrubbing = false
+                    }
+                }
+            )
+            .tint(AppTheme.primaryAccent)
+            .accessibilityLabel("Playback position")
+
+            HStack {
+                Text(formatTime(isScrubbing ? scrubberValue : playbackState.currentTime))
+                Spacer()
+                Text(formatTime(playbackState.duration))
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.62))
         }
     }
 
@@ -442,6 +493,22 @@ struct AppleMusicFullPlayerView: View {
         }
     }
 
+    private func updatePlaybackProgress() {
+        guard playbackState.currentSong != nil, !isScrubbing else { return }
+        playbackState.currentTime = ApplicationMusicPlayer.shared.playbackTime
+    }
+
+    private func seek(by offset: TimeInterval) {
+        seek(to: playbackState.currentTime + offset)
+    }
+
+    private func seek(to time: TimeInterval) {
+        let boundedTime = min(max(time, 0), max(playbackState.duration, 0))
+        ApplicationMusicPlayer.shared.playbackTime = boundedTime
+        playbackState.currentTime = boundedTime
+        scrubberValue = boundedTime
+    }
+
     private func resolveConvertibleSource(for song: MusicSearchResult) {
         isResolvingConvertibleSource = true
         Task {
@@ -456,34 +523,37 @@ struct AppleMusicFullPlayerView: View {
             } catch {
                 await MainActor.run {
                     isResolvingConvertibleSource = false
-                    isImportingAudioFile = true
+                    if let previewTrack = previewFallbackTrack(for: song) {
+                        isPresented = false
+                        AppleMusicPlaybackState.shared.stop()
+                        onPlayConvertibleSource(previewTrack)
+                    } else {
+                        resolverMessage = "This Apple Music track cannot be converted directly because MusicKit does not expose raw audio. No playable preview or alternate source was available."
+                    }
                 }
             }
         }
     }
 
-    private func handleImportedAudioFile(_ result: Result<[URL], Error>) {
-        do {
-            guard let selectedURL = try result.get().first else { return }
-            let importedURL = try AudioFileImportResolver.copyIntoAppStorage(selectedURL)
-            let sourceSong = playbackState.currentSong
-            let importedTrack = PlayableTrackDTO(
-                id: UUID(),
-                title: sourceSong?.title ?? importedURL.deletingPathExtension().lastPathComponent,
-                artistName: sourceSong?.artist ?? "Imported Audio",
-                playbackUrl: importedURL.absoluteString,
-                playbackStoreID: "import-\(UUID().uuidString)",
-                isAIGenerated: false,
-                duration: nil,
-                fileUrl: importedURL.absoluteString,
-                artworkURL: sourceSong?.artworkURL
-            )
-            isPresented = false
-            AppleMusicPlaybackState.shared.stop()
-            onPlayConvertibleSource(importedTrack)
-        } catch {
-            resolverMessage = "Could not import this audio file. Please choose another mp3, m4a, wav, or audio file you own."
-        }
+    private func previewFallbackTrack(for song: MusicSearchResult) -> PlayableTrackDTO? {
+        guard let playbackURL = song.playbackURL else { return nil }
+        return PlayableTrackDTO(
+            id: UUID(),
+            title: song.title,
+            artistName: song.artist,
+            playbackUrl: playbackURL,
+            playbackStoreID: "apple-preview-\(song.id)",
+            isAIGenerated: false,
+            duration: 30,
+            fileUrl: nil,
+            artworkURL: song.artworkURL
+        )
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds > 0 else { return "0:00" }
+        let totalSeconds = Int(seconds.rounded())
+        return "\(totalSeconds / 60):\(String(format: "%02d", totalSeconds % 60))"
     }
 }
 
@@ -761,30 +831,6 @@ enum ConvertibleAudioResolverError: Error, LocalizedError {
         case .noConvertibleSource(let title):
             return "No convertible full-track source was found for \(title). Try importing an audio file you own."
         }
-    }
-}
-
-enum AudioFileImportResolver {
-    static func copyIntoAppStorage(_ sourceURL: URL) throws -> URL {
-        let hasAccess = sourceURL.startAccessingSecurityScopedResource()
-        defer {
-            if hasAccess {
-                sourceURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let importsURL = documentsURL.appendingPathComponent("ImportedAudio", isDirectory: true)
-        try FileManager.default.createDirectory(at: importsURL, withIntermediateDirectories: true)
-
-        let fileExtension = sourceURL.pathExtension.isEmpty ? "m4a" : sourceURL.pathExtension
-        let safeName = sourceURL.deletingPathExtension().lastPathComponent
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
-        let destinationURL = importsURL.appendingPathComponent("\(safeName)-\(UUID().uuidString).\(fileExtension)")
-        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-        return destinationURL
     }
 }
 

@@ -18,21 +18,21 @@ class KeychainManager {
     
     // MARK: - Token Management
     
-    /// 토큰을 Keychain에 저장
+    /// Save token to Keychain
     func saveToken(_ token: String) throws {
         #if DEBUG
-        print("🔐 Keychain에 토큰 저장 시도: \(token.prefix(10))...")
+        print("🔐 Attempting to save token to Keychain: \(token.prefix(10))...")
         #endif
         
-        // 기존 토큰 삭제
+        // Delete existing token
         try deleteToken()
         
-        // 토큰을 Data로 변환
+        // Convert token to Data
         guard let tokenData = token.data(using: .utf8) else {
             throw KeychainError.invalidData
         }
         
-        // Keychain 쿼리 생성
+        // Create Keychain query
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -42,20 +42,20 @@ class KeychainManager {
             kSecAttrSynchronizable as String: false
         ]
         
-        // Keychain에 저장
+        // Save to Keychain
         let status = SecItemAdd(query as CFDictionary, nil)
         
         if status == errSecSuccess {
-            print("✅ 토큰이 Keychain에 성공적으로 저장됨")
+            print("✅ Token saved to Keychain successfully")
         } else {
-            print("❌ Keychain 저장 실패: \(status)")
+            print("❌ Keychain save failed: \(status)")
             throw KeychainError.saveFailed(status)
         }
     }
     
-    /// Keychain에서 토큰 가져오기
+    /// Fetch token from Keychain
     func fetchToken() -> String? {
-        print("🔍 Keychain에서 토큰 검색 중...")
+        print("🔍 Searching for token in Keychain...")
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -72,22 +72,22 @@ class KeychainManager {
             if let tokenData = result as? Data,
                let token = String(data: tokenData, encoding: .utf8) {
                 #if DEBUG
-                print("✅ Keychain에서 토큰 발견: \(token.prefix(10))...")
+                print("✅ Found token in Keychain: \(token.prefix(10))...")
                 #endif
                 return token
             }
         } else if status == errSecItemNotFound {
-            print("🔍 Keychain에 토큰이 없음")
+            print("🔍 No token in Keychain")
         } else {
-            print("❌ Keychain 검색 실패: \(status)")
+            print("❌ Keychain search failed: \(status)")
         }
         
         return nil
     }
     
-    /// Keychain에서 토큰 삭제
+    /// Delete token from Keychain
     func deleteToken() throws {
-        print("🗑️ Keychain에서 토큰 삭제 시도...")
+        print("🗑️ Attempting to delete token from Keychain...")
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -98,29 +98,29 @@ class KeychainManager {
         let status = SecItemDelete(query as CFDictionary)
         
         if status == errSecSuccess || status == errSecItemNotFound {
-            print("✅ 토큰이 Keychain에서 삭제됨")
+            print("✅ Token deleted from Keychain")
         } else {
-            print("❌ Keychain 삭제 실패: \(status)")
+            print("❌ Keychain delete failed: \(status)")
             throw KeychainError.deleteFailed(status)
         }
     }
     
-    /// 토큰이 존재하는지 확인
+    /// Check whether a token exists
     func hasToken() -> Bool {
         return fetchToken() != nil
     }
     
-    /// 토큰이 유효한지 확인 (JWT 만료 시간 체크)
+    /// Check whether the token is valid (JWT expiration check)
     func isTokenValid() -> Bool {
         guard let token = fetchToken() else {
             return false
         }
         
-        // JWT 토큰의 만료 시간 확인
+        // Check JWT token expiration time
         return !isTokenExpired(token)
     }
     
-    /// JWT 토큰의 만료 시간 확인
+    /// Check JWT token expiration time
     private func isTokenExpired(_ token: String) -> Bool {
         let components = token.components(separatedBy: ".")
         
@@ -128,7 +128,7 @@ class KeychainManager {
               let payloadData = Data(base64Encoded: components[1].padding(toLength: ((components[1].count + 3) / 4) * 4, withPad: "=", startingAt: 0)),
               let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
               let exp = payload["exp"] as? TimeInterval else {
-            print("❌ JWT 토큰 파싱 실패")
+            print("❌ Failed to parse JWT token")
             return true
         }
         
@@ -136,17 +136,17 @@ class KeychainManager {
         let isExpired = currentTime >= exp
         
         if isExpired {
-            print("⏰ 토큰이 만료됨: \(Date(timeIntervalSince1970: exp))")
+            print("⏰ Token has expired: \(Date(timeIntervalSince1970: exp))")
         } else {
             let remainingTime = exp - currentTime
             let remainingHours = remainingTime / 3600
-            print("⏰ 토큰 만료까지 남은 시간: \(String(format: "%.1f", remainingHours))시간")
+            print("⏰ Time remaining until token expires: \(String(format: "%.1f", remainingHours)) hours")
         }
         
         return isExpired
     }
     
-    /// 토큰의 만료 시간까지 남은 시간 (초)
+    /// Time remaining until token expiration (seconds)
     func getTokenExpirationTime() -> TimeInterval? {
         guard let token = fetchToken() else {
             return nil
@@ -176,13 +176,13 @@ enum KeychainError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidData:
-            return "토큰 데이터가 유효하지 않습니다."
+            return "Token data is invalid."
         case .saveFailed(let status):
-            return "Keychain 저장 실패: \(status)"
+            return "Keychain save failed: \(status)"
         case .deleteFailed(let status):
-            return "Keychain 삭제 실패: \(status)"
+            return "Keychain delete failed: \(status)"
         case .unknown:
-            return "알 수 없는 Keychain 오류가 발생했습니다."
+            return "An unknown Keychain error occurred."
         }
     }
 }

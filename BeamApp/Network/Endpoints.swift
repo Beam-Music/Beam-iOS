@@ -39,9 +39,9 @@ struct Endpoints {
 
     private static let defaultLocalBeamSVCBaseURL: String = {
         #if targetEnvironment(simulator)
-        return "http://127.0.0.1:8081"
+        return "http://127.0.0.1:8080"
         #else
-        return "http://MacBook-Pro-7.local:8081"
+        return "http://MacBook-Pro-7.local:8080"
         #endif
     }()
 
@@ -96,8 +96,8 @@ struct Endpoints {
     static let aiConvert = "\(baseURL)/ai-convert"
     
     struct VoiceConversion {
-        static let list = "\(baseURL)/ai-convert/voices"
-        static let convert = "\(baseURL)/ai-convert/voice-conversion"
+        static let list = "\(beamSVCBaseURL)/ai-convert/voices"
+        static let convert = "\(beamSVCBaseURL)/ai-convert/voice-conversion"
     }
 
     struct Jamendo {

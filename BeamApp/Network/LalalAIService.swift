@@ -263,14 +263,14 @@ public class LalalAIClient {
             throw LalalAIError.serverError("HTTP \(httpResponse.statusCode)")
         }
         
-        // 응답 데이터 디버깅
+        // 응답 데이터 Debugging
         print("🔍 LALAL.AI check response:")
         print("   Response size: \(data.count) bytes")
         if let responseString = String(data: data, encoding: .utf8) {
             print("   Response body: \(responseString)")
         }
         
-        // JSON 응답 구조 확인
+        // JSON 응답 구조 OK
         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
             print("📋 JSON structure:")
             print("   Keys: \(Array(json.keys))")

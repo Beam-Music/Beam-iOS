@@ -72,7 +72,7 @@ struct WrapHStack<Item: Hashable, Content: View>: View {
 }
 
 /*
-// 사용 예시:
+// 사용 Example:
 WrapHStack(items: artists, spacing: 8, alignment: .leading) { artist in
     Text(artist)
         .padding(.vertical, 8)

@@ -13,13 +13,13 @@ struct OnboardLoginDoneSignupView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                // 상단 타이틀
+                // Top title
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("가입을 축하드려요!")
+                    Text("Welcome aboard!")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
-                    Text("이제 당신만의 음악 여정이\n시작됩니다. 🎧")
+                    Text("Your personal music journey\nstarts now. 🎧")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -28,7 +28,7 @@ struct OnboardLoginDoneSignupView: View {
                 .padding(.horizontal, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                // 3단계 진행 바
+                // Three-step progress bar
                 HStack(spacing: 0) {
                     ForEach(1...3, id: \.self) { idx in
                         VStack(spacing: 4) {
@@ -40,7 +40,7 @@ struct OnboardLoginDoneSignupView: View {
                                     .foregroundColor(idx == 3 ? .white : .purple)
                                     .fontWeight(.bold)
                             }
-                            Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
+                            Text(idx == 1 ? "Sign Up" : idx == 2 ? "Select Artists & Songs" : "Done")
                                 .font(.caption)
                                 .foregroundColor(idx == 3 ? .purple : .white.opacity(0.7))
                         }
@@ -56,8 +56,8 @@ struct OnboardLoginDoneSignupView: View {
                 .padding(.vertical, 16)
                 .padding(.horizontal, 24)
 
-                // 이미지
-                Image("signupdone") // 실제 에셋명으로 교체
+                // Image
+                Image("signupdone")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 315, height: 478)
@@ -67,11 +67,11 @@ struct OnboardLoginDoneSignupView: View {
 
                 Spacer()
             }
-            // 시작하기 버튼
+            // Start button
             Button(action: onNext) {
                 HStack {
                     Spacer()
-                    Text("시작하기")
+                    Text("Get Started")
                         .font(.headline)
                         .foregroundColor(.white)
                     Image(systemName: "arrow.right")

@@ -4,29 +4,29 @@ import SwiftData
 
 struct GeneratorFeature: Reducer {
     struct State: Equatable {
-        var generatedMusicFileName: String? // 예시: 생성된 파일 이름 저장
-        var generationMetadata: (title: String, genre: String?, duration: Int?)? // 예시
+        var generatedMusicFileName: String? // Example: stores the generated file name
+        var generationMetadata: (title: String, genre: String?, duration: Int?)? // Example
         var isRegistering: Bool = false
         var registrationError: String? = nil
     }
 
     enum Action: Equatable {
         case generateButtonTapped
-        case generationCompleted(fileName: String, metadata: (String, String?, Int?)) // 생성 완료 및 정보 전달
-        case registerGeneratedSong // 등록 시작 액션
-        case registrationResponse(TaskResult<Song>) // 등록 결과 처리 액션 (TaskResult 사용)
+        case generationCompleted(fileName: String, metadata: (String, String?, Int?)) // Generation completed and metadata delivered
+        case registerGeneratedSong // Registration start action
+        case registrationResponse(TaskResult<Song>) // Registration result action (uses TaskResult)
         // ...
     }
 
-    @Dependency(\.someAIService) var aiService // AI 생성 서비스 의존성 (가상)
-    @Dependency(\.modelContext) var modelContext // 토큰 가져오기 등 필요시
+    @Dependency(\.someAIService) var aiService // AI generation service dependency (placeholder)
+    @Dependency(\.modelContext) var modelContext // Used when fetching tokens, etc.
 
     func reduce(into state: inout State, action: Action) -> Effect<Action> {
         switch action {
         case .generateButtonTapped:
-            // TODO: AI 생성 시작 로직
+            // TODO: AI generation start logic
             return .run { send in
-                 // AI 생성 비동기 호출...
+                 // Async AI generation call...
                  // let result = try await aiService.generate(...)
                  // await send(.generationCompleted(fileName: result.fileName, metadata: result.metadata))
             }
@@ -34,7 +34,7 @@ struct GeneratorFeature: Reducer {
         case let .generationCompleted(fileName, metadata):
             state.generatedMusicFileName = fileName
             state.generationMetadata = metadata
-            // 생성이 완료되었으므로 등록 시작
+            // Generation is complete, start registration
             return .send(.registerGeneratedSong)
 
         case .registerGeneratedSong:
@@ -48,7 +48,7 @@ struct GeneratorFeature: Reducer {
 
             return .run { send in
                  do {
-                     let token = try await HomeFeature.fetchToken(context: modelContext) // 토큰 가져오기
+                     let token = try await HomeFeature.fetchToken(context: modelContext) // Fetch token
                      let registeredSong = try await HomeFeature.registerNewAISong(
                          with: token,
                          title: metadata.title,
@@ -65,14 +65,14 @@ struct GeneratorFeature: Reducer {
         case let .registrationResponse(.success(song)):
             state.isRegistering = false
             print("Successfully registered new AI song: \(song.title)")
-            // TODO: 등록 성공 후 처리 (예: 특정 플레이리스트에 추가 API 호출, UI 업데이트 등)
+            // TODO: Handle successful registration (for example, playlist API call or UI update)
             return .none
 
         case let .registrationResponse(.failure(error)):
             state.isRegistering = false
             state.registrationError = error.localizedDescription
             print("Failed to register AI song: \(error)")
-            // TODO: 사용자에게 에러 표시
+            // TODO: Show error to the user
             return .none
 
         // ...

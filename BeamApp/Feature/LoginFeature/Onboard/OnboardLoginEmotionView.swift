@@ -26,14 +26,14 @@ struct OnboardEmotionView: View {
                     .clipped()
                 Spacer(minLength: 12)
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("감성의 스펙트럼을 넓히다")
+                    Text("Expand Your Emotional Spectrum")
                         .font(.title)
                         .bold()
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 24)
-                    Text("익숙한 곡도, 새로운 감동으로.\nAI가 전하는 '취향의 재해석'을 지금 경험해보세요.")
+                    Text("Experience familiar songs with a new feeling.\nDiscover how AI reimagines your taste.")
                         .font(.body)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.leading)
@@ -46,7 +46,7 @@ struct OnboardEmotionView: View {
             ZStack {
                 HStack {
                     Spacer()
-                    Text("다음 →")
+                    Text("Next →")
                         .font(.headline)
                         .foregroundColor(.purple)
                     Spacer()

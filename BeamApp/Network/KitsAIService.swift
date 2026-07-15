@@ -39,21 +39,21 @@ enum KitsAIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "Kits AI API 키가 설정되지 않았습니다. APIKeys.kitsAI 값을 입력해 주세요."
+            return "Kits AI API key is not configured. Set APIKeys.kitsAI."
         case .invalidVoiceModelId:
-            return "Kits AI voiceModelId가 올바르지 않습니다."
+            return "Kits AI voiceModelId is invalid."
         case .invalidURL:
-            return "Kits AI URL이 올바르지 않습니다."
+            return "Kits AI URL is invalid."
         case .invalidResponse:
-            return "Kits AI 응답이 올바르지 않습니다."
+            return "Kits AI response is invalid."
         case .serverError(let message):
-            return "Kits AI 서버 오류: \(message)"
+            return "Kits AI server error: \(message)"
         case .timedOut:
-            return "Kits AI 변환이 시간 초과되었습니다."
+            return "Kits AI conversion timed out."
         case .jobFailed(let message):
-            return "Kits AI 변환 실패: \(message)"
+            return "Kits AI conversion failed: \(message)"
         case .noOutputURL:
-            return "Kits AI 결과 파일 URL을 찾지 못했습니다."
+            return "Could not find the Kits AI result file URL."
         }
     }
 }

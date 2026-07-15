@@ -23,7 +23,7 @@ struct AddToPlaylistSheet: View {
         NavigationView {
             VStack {
                 HStack {
-                    TextField("노래/가수 검색하기", text: $searchText)
+                    TextField("Search songs or artists", text: $searchText)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.vertical, 8)
                         .padding(.horizontal, 8)
@@ -94,17 +94,17 @@ struct AddToPlaylistSheet: View {
                     }
                     .listStyle(.plain)
                 } else if !searchText.isEmpty {
-                    Text("검색 결과가 없습니다.")
+                    Text("No search results.")
                         .foregroundColor(.gray)
                         .padding()
                 } else {
-                    Text("노래를 검색해 추가하세요.")
+                    Text("Search for a song to add.")
                         .foregroundColor(.gray)
                         .padding()
                 }
                 Spacer()
             }
-            .navigationTitle("노래 추가")
+            .navigationTitle("Add Song")
             .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear {
@@ -141,12 +141,12 @@ struct AddToPlaylistSheet: View {
 
     func addSongToPlaylist(result: MusicSearchResult) {
         guard let playlistID = playlist.id?.uuidString else {
-            errorMessage = "플레이리스트 정보가 올바르지 않습니다."
+            errorMessage = "Playlist information is invalid."
             return
         }
         let urlString = Endpoints.Playlist.userPlaylistSongs(playlistID: playlistID)
         guard let token = TokenStorage.shared.fetchToken() else {
-            errorMessage = "토큰이 없습니다. 로그인 필요"
+            errorMessage = "No token found. Login required."
             return
         }
         let body: [String: String] = [
@@ -190,7 +190,7 @@ func addSongToPlaylistAPI(urlString: String, body: [String: String], token: Stri
         }
         if !(200...299).contains(httpResponse.statusCode) {
             let errorBody = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
-            print("서버 에러 응답: \(errorBody)")
+            print("Server error response: \(errorBody)")
             completion(.failure(NSError(domain: "Server error", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorBody])))
             return
         }

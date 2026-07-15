@@ -91,15 +91,15 @@ extension AuthService: DependencyKey {
                     do {
                         try await tokenStorage.saveToken(tokenResponse.accessToken)
                         #if DEBUG
-                        print("✅ 토큰이 성공적으로 저장됨: \(tokenResponse.accessToken.prefix(10))...")
+                        print("✅ Token saved successfully: \(tokenResponse.accessToken.prefix(10))...")
                         if let savedToken = await tokenStorage.fetchToken() {
-                            print("🔍 저장된 토큰 확인: \(savedToken.prefix(10))...")
+                            print("🔍 Saved token found: \(savedToken.prefix(10))...")
                         } else {
-                            print("❌ 토큰 저장 후 검색 실패")
+                            print("❌ Failed to fetch token after saving")
                         }
                         #endif
                     } catch {
-                        print("❌ 토큰 저장 실패: \(error)")
+                        print("❌ Failed to save token: \(error)")
                         throw error
                     }
 

@@ -43,10 +43,10 @@ extension VoiceConversionClient {
                 throw URLError(.badServerResponse)
             }
             
-            // 새로운 서버 응답 형식 파싱
+            // Parse the new server response format
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let voicesArray = json["voices"] as? [[String: Any]] {
-                    // 새로운 형식: voices 배열로 반환
+                    // New format: returned as a voices array
                     return voicesArray.compactMap { voiceDict in
                         guard let voiceId = voiceDict["voiceId"] as? String,
                               let name = voiceDict["name"] as? String,
@@ -58,15 +58,15 @@ extension VoiceConversionClient {
                         let previewUrl = voiceDict["preview_url"] as? String
                         let language = voiceDict["language"] as? [String]
                         
-                        // voiceType 결정
-                        let voiceType: String
-                        if category.contains("K-Pop") || category.contains("Western Pop") {
-                            voiceType = "singer"
-                        } else if category == "Default" {
-                            voiceType = "default"
-                        } else {
-                            voiceType = "custom"
-                        }
+                        let voiceType = voiceDict["voiceType"] as? String ?? {
+                            if category.contains("K-Pop") || category.contains("Western Pop") {
+                                return "singer"
+                            } else if category == "Default" {
+                                return "default"
+                            } else {
+                                return "custom"
+                            }
+                        }()
                         
                         return VoiceInfo(
                             id: voiceId,
@@ -79,7 +79,7 @@ extension VoiceConversionClient {
                         )
                     }
                 } else if let availableVoicesArray = json["available_voices"] as? [String] {
-                    // 기존 SeedVC API 형식 (하위 호환성)
+                    // Existing SeedVC API format (backward compatibility)
                     return availableVoicesArray.map { voiceId in
                         VoiceInfo(
                             id: voiceId,
@@ -183,10 +183,10 @@ extension VoiceConversionClient {
         
         request.httpBody = body
         
-        // 긴 타임아웃을 위한 URLSession 설정
+        // URLSession configuration for long timeouts
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 1800 // 30분
-        config.timeoutIntervalForResource = 3600 // 60분
+        config.timeoutIntervalForRequest = 1800 // 30 minutes
+        config.timeoutIntervalForResource = 3600 // 60 minutes
         let session = URLSession(configuration: config)
         
         let (data, response) = try await session.data(for: request)
@@ -218,10 +218,7 @@ extension VoiceConversionClient {
     
     static let mock = Self(
         getAvailableVoices: {
-            return [
-                VoiceInfo(id: "dionn_v1_singing", name: "Dionn V1 Singing", category: "Custom Licensed", description: "Beam SVC singing model", previewUrl: nil, language: ["en"], voiceType: "singer"),
-                VoiceInfo(id: "freya_idol", name: "Freya Idol", category: "Open Source", description: "Beam SVC default voice model", previewUrl: nil, language: ["id"], voiceType: "default")
-            ]
+            return VoiceInfo.beamSVCFallbackVoices
         },
         convertVoice: { audioData, voiceId, outputFormat, voiceType in
             // Return mock audio data

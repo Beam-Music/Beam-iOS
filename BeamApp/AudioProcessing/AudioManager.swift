@@ -16,21 +16,21 @@ enum PlayerError: Error, LocalizedError {
     
     var errorDescription: String? {
         switch self {
-        case .musicAuthorizationFailed: return "Apple Music 접근 권한이 필요합니다."
-        case .noMusicSubscription: return "Apple Music 구독이 필요합니다."
-        case .invalidTrackTitle: return "유효하지 않은 곡 제목입니다."
-        case .trackNotFound(let title): return "'\(title)' 곡을 찾을 수 없습니다."
-        case .invalidURL(let url): return "잘못된 URL입니다: \(url)"
-        case .networkError(let error): return "네트워크 오류: \(error.localizedDescription)"
-        case .decodingError(let error): return "데이터 처리 오류: \(error.localizedDescription)"
-        case .unknownError(let error): return "알 수 없는 오류: \(error.localizedDescription)"
-        case .playbackError(let message): return "재생 오류: \(message)"
+        case .musicAuthorizationFailed: return "Apple Music access permission is required."
+        case .noMusicSubscription: return "An Apple Music subscription is required."
+        case .invalidTrackTitle: return "Invalid song title."
+        case .trackNotFound(let title): return "Could not find song: '\(title)'."
+        case .invalidURL(let url): return "Invalid URL: \(url)"
+        case .networkError(let error): return "Network error: \(error.localizedDescription)"
+        case .decodingError(let error): return "Data processing error: \(error.localizedDescription)"
+        case .unknownError(let error): return "Unknown error: \(error.localizedDescription)"
+        case .playbackError(let message): return "Playback error: \(message)"
         }
     }
 }
 
 @MainActor
-final class AudioManager: ObservableObject, AudioManagerProtocol {
+final class AudioManager: ObservableObject, @preconcurrency AudioManagerProtocol {
     static let shared = AudioManager()
 
     private var avPlayer: AVPlayer?
@@ -39,6 +39,10 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     private var avPlayerItemObserver: NSObjectProtocol?
     private var timeObserver: Any?
     private var durationObserver: NSKeyValueObservation?
+    private var currentNowPlayingTitle: String?
+    private var currentNowPlayingArtist: String?
+    private var currentNowPlayingArtwork: UIImage?
+    private var lastNowPlayingUpdateSecond: Int = -1
     
     private var isPlayingAIMusic: Bool = false
     var isAIPlaying: Bool {
@@ -67,6 +71,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     private init() {
         setupAudioSession()
         setupNotifications()
+        setupRemoteCommands()
     }
     
     private func setupAudioSession() {
@@ -158,10 +163,12 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     }
     
     func play() async {
-        if !isPlayingMusic {
-            avPlayer?.play()
-            isPlayingMusic = true
+        guard !isPlayingMusic, let player = avPlayer else {
+            return
         }
+        player.play()
+        isPlayingMusic = true
+        updateNowPlayingPlaybackState()
     }
     
     func tryResume() async -> Bool {
@@ -169,6 +176,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             if let player = avPlayer, player.rate == 0 {
                 player.play()
                 isPlayingMusic = true
+                updateNowPlayingPlaybackState()
                 return true
             }
         }
@@ -179,6 +187,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         if isPlayingMusic {
             avPlayer?.pause()
             isPlayingMusic = false
+            updateNowPlayingPlaybackState()
         }
     }
     
@@ -190,6 +199,7 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         isPlayingAIMusic = false
         pendingSeekPosition = nil
         currentTrackMetadata = (nil, nil, nil)
+        clearNowPlayingInfo()
     }
     
     func reset() async {
@@ -205,23 +215,31 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     
     func playAIMusic(from urlString: String, title: String, artist: String, artworkURL: URL? = nil) async throws {
         let savedPendingSeek = pendingSeekPosition
-        try await stop()
+        await stop()
         pendingSeekPosition = savedPendingSeek
         
+        let resolvedURLString: String
+        if urlString.hasPrefix("/v1/") {
+            let separator = urlString.contains("?") ? "&" : "?"
+            resolvedURLString = "https://api.audius.co\(urlString)\(separator)app_name=beamapp"
+        } else {
+            resolvedURLString = urlString
+        }
+
         let url: URL
-        if urlString.hasPrefix("file://") {
+        if resolvedURLString.hasPrefix("file://") {
             // 이미 완전한 URL인 경우
-            guard let fullURL = URL(string: urlString) else {
-                throw PlayerError.invalidURL(urlString)
+            guard let fullURL = URL(string: resolvedURLString) else {
+                throw PlayerError.invalidURL(resolvedURLString)
             }
             url = fullURL
-        } else if urlString.hasPrefix("/") {
+        } else if resolvedURLString.hasPrefix("/") {
             // 파일 경로인 경우
-            url = URL(fileURLWithPath: urlString)
+            url = URL(fileURLWithPath: resolvedURLString)
         } else {
             // 일반 URL인 경우
-            guard let fullURL = URL(string: urlString) else {
-                throw PlayerError.invalidURL(urlString)
+            guard let fullURL = URL(string: resolvedURLString) else {
+                throw PlayerError.invalidURL(resolvedURLString)
             }
             url = fullURL
         }
@@ -303,8 +321,11 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
                 guard let self = self else { return }
                 switch item.status {
                 case .readyToPlay:
-                    self.duration = item.duration.seconds
-                    Task { await self.updateTrackMetadata(title: title, artist: artist, artworkURL: artworkURL) }
+                    let duration = item.duration.seconds
+                    Task { @MainActor in
+                        self.duration = duration
+                        await self.updateTrackMetadata(title: title, artist: artist, artworkURL: artworkURL)
+                    }
                 case .failed:
                     print("❌ AVPlayerItem failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
                 case .unknown:
@@ -317,7 +338,10 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             durationObserver = playerItem.observe(\.duration) { [weak self] item, _ in
                 guard let self = self else { return }
                 if item.duration.isValid {
-                    self.duration = item.duration.seconds
+                    let duration = item.duration.seconds
+                    Task { @MainActor in
+                        self.duration = duration
+                    }
                 }
             }
             
@@ -327,7 +351,15 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
             let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
             timeObserver = avPlayer?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
                 guard let self = self else { return }
-                self.currentTime = time.seconds
+                let currentTime = time.seconds
+                Task { @MainActor in
+                    self.currentTime = currentTime
+                    let currentSecond = Int(currentTime.rounded(.down))
+                    if currentSecond != self.lastNowPlayingUpdateSecond {
+                        self.lastNowPlayingUpdateSecond = currentSecond
+                        self.updateNowPlayingPlaybackState()
+                    }
+                }
             }
             
             NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
@@ -338,12 +370,12 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
                 object: playerItem
             )
             
-            // AVPlayerItem이 준비될 때까지 더 오래 기다림
+            // Avoid making the app feel stuck when a remote stream is slow or never becomes playable.
             var attempts = 0
-            while playerItem.status != .readyToPlay && attempts < 30 {
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5초씩 대기
+            while playerItem.status == .unknown && attempts < 8 {
+                try await Task.sleep(nanoseconds: 250_000_000)
                 attempts += 1
-                print("🎵 AudioManager: Waiting for player item to be ready... attempt \(attempts)/30, status: \(playerItem.status.rawValue)")
+                print("🎵 AudioManager: Waiting for player item to be ready... attempt \(attempts)/8, status: \(playerItem.status.rawValue)")
             }
             
             guard playerItem.status == .readyToPlay else {
@@ -352,19 +384,20 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
                     print("   Error: \(error.localizedDescription)")
                 }
                 
-                // 파일이 존재하는지 다시 확인
+                // Check whether local file sources still exist.
                 if FileManager.default.fileExists(atPath: url.path) {
                     print("   File exists but player item is not ready")
                 } else {
                     print("   File does not exist at path: \(url.path)")
                 }
                 
-                throw PlayerError.playbackError("AI music playback failed to start - item not ready after \(attempts) attempts")
+                throw PlayerError.playbackError("Audio playback failed to start - item status: \(playerItem.status.rawValue)")
             }
             
             avPlayer?.play()
             isPlayingMusic = true
             isPlayingAIMusic = true
+            updateNowPlayingInfo(title: title, artist: artist, artwork: currentNowPlayingArtwork)
             
             await updateTrackMetadata(title: title, artist: artist, artworkURL: artworkURL)
             
@@ -373,10 +406,8 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
                 await seek(to: seekPos)
             }
             
-            try await Task.sleep(nanoseconds: 1_000_000_000)
-            
-            guard await isPlaying() else {
-                throw PlayerError.playbackError("AI music playback failed to start")
+            guard avPlayer?.currentItem?.status == .readyToPlay else {
+                throw PlayerError.playbackError("Audio playback failed to start")
             }
         } catch {
             print("AudioManager Error: Failed to play AI music: \(error)")
@@ -403,15 +434,17 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     
     private func cleanupAIPlayback() {
         avPlayer?.pause()
-        avPlayer = nil
-        avPlayerItem = nil
         removeAVPlayerObservers()
         removePeriodicTimeObserver()
         durationObserver?.invalidate()
         durationObserver = nil
+        avPlayer?.replaceCurrentItem(with: nil)
+        avPlayer = nil
+        avPlayerItem = nil
         isPlayingAIMusic = false
         currentTime = 0
         duration = 0
+        clearNowPlayingInfo()
     }
     
     private func removeAVPlayerObservers() {
@@ -447,10 +480,12 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         }
 
         self.currentTime = targetTime
+        updateNowPlayingPlaybackState()
 
         if wasPlaying, player.rate == 0 {
             player.play()
             isPlayingMusic = true
+            updateNowPlayingPlaybackState()
         }
     }
     
@@ -462,23 +497,113 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
     @MainActor
     private func updateTrackMetadata(title: String, artist: String, artworkURL: URL?) async {
         self.currentTrackMetadata = (title: title, artist: artist, albumArt: nil)
+        updateNowPlayingInfo(title: title, artist: artist, artwork: nil)
 
         Task.detached {
-            var image: UIImage? = nil
+            let image: UIImage?
             if let artworkURL = artworkURL {
                 do {
                     let (data, _) = try await URLSession.shared.data(from: artworkURL)
                     image = UIImage(data: data)
                 } catch {
                     print("AudioManager Error: Failed loading artwork: \(error)")
+                    image = nil
                 }
+            } else {
+                image = nil
             }
             await MainActor.run {
                 if self.currentTrackMetadata.title == title {
                     self.currentTrackMetadata.albumArt = image
+                    self.updateNowPlayingInfo(title: title, artist: artist, artwork: image)
                 }
             }
         }
+    }
+
+    private func setupRemoteCommands() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+
+        commandCenter.playCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            Task { @MainActor in
+                await self.play()
+            }
+            return .success
+        }
+
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            Task { @MainActor in
+                await self.pause()
+            }
+            return .success
+        }
+
+        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            Task { @MainActor in
+                if self.isPlayingMusic {
+                    await self.pause()
+                } else {
+                    await self.play()
+                }
+            }
+            return .success
+        }
+
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let self,
+                  let positionEvent = event as? MPChangePlaybackPositionCommandEvent
+            else { return .commandFailed }
+            Task { @MainActor in
+                await self.seek(to: positionEvent.positionTime)
+            }
+            return .success
+        }
+    }
+
+    private func updateNowPlayingInfo(title: String, artist: String, artwork: UIImage?) {
+        currentNowPlayingTitle = title
+        currentNowPlayingArtist = artist
+        currentNowPlayingArtwork = artwork
+        updateNowPlayingPlaybackState()
+    }
+
+    private func updateNowPlayingPlaybackState() {
+        guard let title = currentNowPlayingTitle else { return }
+
+        var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        nowPlayingInfo[MPMediaItemPropertyTitle] = title
+        nowPlayingInfo[MPMediaItemPropertyArtist] = currentNowPlayingArtist ?? "Unknown Artist"
+
+        if let artwork = currentNowPlayingArtwork {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in
+                artwork
+            }
+        } else {
+            nowPlayingInfo.removeValue(forKey: MPMediaItemPropertyArtwork)
+        }
+
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlayingMusic ? 1.0 : 0.0
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    private func clearNowPlayingInfo() {
+        currentNowPlayingTitle = nil
+        currentNowPlayingArtist = nil
+        currentNowPlayingArtwork = nil
+        lastNowPlayingUpdateSecond = -1
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     func cleanup() {
@@ -486,12 +611,15 @@ final class AudioManager: ObservableObject, AudioManagerProtocol {
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
         removeAVPlayerObservers()
         removePeriodicTimeObserver()
+        durationObserver?.invalidate()
+        durationObserver = nil
 
         if avPlayer != nil {
             avPlayer?.pause()
             avPlayer?.replaceCurrentItem(with: nil)
             avPlayer = nil
         }
+        clearNowPlayingInfo()
     }
 
     @objc private func playerItemDidReachEnd() {

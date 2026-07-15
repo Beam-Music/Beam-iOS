@@ -115,13 +115,13 @@ enum JamendoError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "잘못된 URL입니다."
+            return "Invalid URL."
         case .serverError:
-            return "서버 오류가 발생했습니다."
+            return "A server error occurred."
         case .downloadFailed:
-            return "오디오 다운로드에 실패했습니다."
+            return "Failed to download audio."
         case .noResults:
-            return "검색 결과가 없습니다."
+            return "No search results."
         }
     }
 }
@@ -179,6 +179,10 @@ final class AudiusService {
         return try await fetch(AudiusResponse<AudiusTrack>.self, from: components).data
     }
 
+    func streamURL(for trackID: String) -> String {
+        "\(baseURL)/tracks/\(trackID)/stream?app_name=\(appName)"
+    }
+
     private func fetch<T: Decodable>(_ type: T.Type, from components: URLComponents) async throws -> T {
         guard let url = components.url else {
             throw AudiusError.invalidURL
@@ -219,7 +223,7 @@ struct AudiusTrack: Decodable, Identifiable {
             artist: user.name,
             artworkURL: artwork?.url480 ?? user.profilePicture?.url480 ?? user.profilePicture?.url150,
             isExplicit: false,
-            playbackURL: stream?.url,
+            playbackURL: AudiusService.shared.streamURL(for: id),
             genre: genre
         )
     }
@@ -263,11 +267,11 @@ enum AudiusError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "잘못된 Audius URL입니다."
+            return "Invalid Audius URL."
         case .serverError:
-            return "Audius 서버 오류가 발생했습니다."
+            return "An Audius server error occurred."
         case .decodingError(let error):
-            return "Audius 응답 해석 실패: \(error.localizedDescription)"
+            return "Failed to parse Audius response: \(error.localizedDescription)"
         }
     }
 }

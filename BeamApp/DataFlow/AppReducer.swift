@@ -152,21 +152,21 @@ struct AppReducer: Reducer {
                 return .none
                 
             case .checkTokenValidity:
-                // 토큰 유효성 주기적 확인
+                // 토큰 유효성 주기적 OK
                 return .run { send in
-                    // 5분마다 토큰 유효성 확인
+                    // 5분마다 토큰 유효성 OK
                     try await Task.sleep(for: .seconds(300))
                     
                     if !(await tokenStorage.hasValidToken()) {
                         await send(.tokenExpired)
                     } else {
-                        // 계속 확인
+                        // 계속 OK
                         await send(.checkTokenValidity)
                     }
                 }
                 
             case .tokenExpired:
-                print("⏰ 토큰이 만료됨 - 자동 로그아웃")
+                print("⏰ Token has expired - auto-logout")
                 state.isLoggedIn = false
                 state.userProfile = nil
                 return .send(.setLoggedIn(false))

@@ -16,14 +16,14 @@ struct SignupView: View {
     var body: some View {
             WithViewStore(self.store, observe: { $0 }) { viewStore in
             VStack(spacing: 20) {
-                Text("회원가입")
+                Text("Sign Up")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(colorScheme == .dark ? .white : .black)
                     .padding(.bottom, 20)
 
-                // --- 회원가입 입력 필드 ---
-                TextField("사용자 이름", text: viewStore.binding(
+                // --- Sign Up 입력 필드 ---
+                TextField("Username", text: viewStore.binding(
                         get: \.username,
                         send: SignupFeature.Action.usernameChanged
                     ))
@@ -34,7 +34,7 @@ struct SignupView: View {
                 .disabled(viewStore.isVerified)
                     .padding(.horizontal, 30)
                     
-                TextField("이메일", text: viewStore.binding(
+                TextField("Email", text: viewStore.binding(
                         get: \.email,
                         send: SignupFeature.Action.emailChanged
                     ))
@@ -46,7 +46,7 @@ struct SignupView: View {
                 .disabled(viewStore.isVerified)
                     .padding(.horizontal, 30)
                     
-                SecureField("비밀번호", text: viewStore.binding(
+                SecureField("Password", text: viewStore.binding(
                         get: \.password,
                         send: SignupFeature.Action.passwordChanged
                     ))
@@ -55,9 +55,9 @@ struct SignupView: View {
                 .disabled(viewStore.isVerified)
                     .padding(.horizontal, 30)
                     
-                // 회원가입 요청 버튼
+                // Sign Up 요청 버튼
                 Button(action: { viewStore.send(.signupButtonTapped) }) {
-                    Text("가입 요청 및 인증 메일 받기")
+                    Text("Request Sign-Up Email")
                         .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.purple)
@@ -80,11 +80,11 @@ struct SignupView: View {
                         .padding(.vertical)
                     .padding(.horizontal, 30)
 
-                    Text("이메일로 전송된 인증 코드를 입력하세요.")
+                    Text("Enter the verification code sent to your email.")
                         .font(.headline)
                         .foregroundColor(colorScheme == .dark ? .white : .black)
 
-                    TextField("인증 코드", text: viewStore.binding(
+                    TextField("Verification Code", text: viewStore.binding(
                             get: \.verificationCode,
                             send: SignupFeature.Action.verificationCodeChanged
                         ))
@@ -94,7 +94,7 @@ struct SignupView: View {
                         .padding(.horizontal, 30)
                         
                     Button(action: { viewStore.send(.verifyButtonTapped) }) {
-                        Text("이메일 인증")
+                        Text("Verify Email")
                             .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.blue)
@@ -107,7 +107,7 @@ struct SignupView: View {
 
                 // --- 상태 표시 ---
                 if viewStore.isLoading {
-                    ProgressView("처리 중...")
+                    ProgressView("Processing...")
                         .tint(.purple)
                 }
 
@@ -119,7 +119,7 @@ struct SignupView: View {
             }
 
                 if viewStore.isLoggedIn {
-                    Text("회원가입 및 인증 완료!")
+                    Text("Sign-up and verification complete!")
                         .foregroundColor(.green)
                         .padding(.top)
                 }

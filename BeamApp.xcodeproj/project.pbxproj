@@ -949,7 +949,7 @@
 				DEVELOPMENT_TEAM = P72UR4K32D;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BeamApp/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Beam uses Apple Music access to play full tracks with your Apple Music subscription.";
@@ -991,7 +991,7 @@
 				DEVELOPMENT_TEAM = P72UR4K32D;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BeamApp/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Beam uses Apple Music access to play full tracks with your Apple Music subscription.";

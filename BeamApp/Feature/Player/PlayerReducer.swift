@@ -156,7 +156,7 @@ struct PlayerReducer {
                                     await send(.playbackError("Missing file URL for AI track"))
                                 }
                             } else {
-                                if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                if let audioURL = resolvedPlaybackURL(for: track) {
                                     try await audioManager.playAIMusic(
                                         from: audioURL,
                                         title: track.title,
@@ -201,7 +201,7 @@ struct PlayerReducer {
                                     await send(.playbackError("Missing file URL for AI track"))
                                 }
                             } else {
-                                if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                if let audioURL = resolvedPlaybackURL(for: track) {
                                     try await audioManager.playAIMusic(
                                         from: audioURL,
                                         title: track.title,
@@ -247,7 +247,7 @@ struct PlayerReducer {
                                         await send(.playbackError("Missing file URL for AI track"))
                                     }
                                 } else {
-                                    if let audioURL = track.fileUrl ?? track.playbackUrl {
+                                    if let audioURL = resolvedPlaybackURL(for: track) {
                                         try await audioManager.playAIMusic(
                                             from: audioURL,
                                             title: track.title,
@@ -285,7 +285,7 @@ struct PlayerReducer {
                                 await send(.playbackError("Missing file URL for AI track"))
                             }
                         } else {
-                            if let audioURL = track.fileUrl ?? track.playbackUrl {
+                            if let audioURL = resolvedPlaybackURL(for: track) {
                                 try await audioManager.playAIMusic(
                                     from: audioURL,
                                     title: track.title,
@@ -332,7 +332,7 @@ struct PlayerReducer {
                                 await send(.playbackError("Missing file URL for AI track"))
                             }
                         } else {
-                            if let audioURL = track.fileUrl ?? track.playbackUrl {
+                            if let audioURL = resolvedPlaybackURL(for: track) {
                                 try await audioManager.playAIMusic(
                                     from: audioURL,
                                     title: track.title,
@@ -541,6 +541,36 @@ struct PlayerReducer {
 
             }
         }
+    }
+
+    private func resolvedPlaybackURL(for track: PlayableTrackDTO) -> String? {
+        guard !track.isAIGenerated else {
+            return normalizedPlaybackURL(track.fileUrl ?? track.playbackUrl)
+        }
+
+        if let trackID = track.playbackStoreID,
+           isAudiusPlaybackURL(track.playbackUrl) {
+            return AudiusService.shared.streamURL(for: trackID)
+        }
+
+        return normalizedPlaybackURL(track.fileUrl ?? track.playbackUrl)
+    }
+
+    private func isAudiusPlaybackURL(_ urlString: String?) -> Bool {
+        guard let urlString else { return false }
+        return urlString.contains("audius.co")
+            || urlString.contains("audiusindex.org")
+            || urlString.hasPrefix("/v1/tracks/")
+            || urlString.contains("/tracks/cidstream/")
+    }
+
+    private func normalizedPlaybackURL(_ urlString: String?) -> String? {
+        guard let urlString, !urlString.isEmpty else { return nil }
+        if urlString.hasPrefix("/v1/") {
+            let separator = urlString.contains("?") ? "&" : "?"
+            return "https://api.audius.co\(urlString)\(separator)app_name=beamapp"
+        }
+        return urlString
     }
 }
 

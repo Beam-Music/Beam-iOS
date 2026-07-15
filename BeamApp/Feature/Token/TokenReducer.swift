@@ -27,7 +27,7 @@ struct TokenReducer: Reducer {
                 try tokenStorage.saveToken(token)
                 state.token = token
             } catch {
-                print("토큰 저장 실패: \(error)")
+                print("Failed to save token: \(error)")
             }
             return .none
 
@@ -40,10 +40,9 @@ struct TokenReducer: Reducer {
 //                try tokenStorage.deleteToken()
                 state.token = nil
             } catch {
-                print("토큰 삭제 실패: \(error)")
+                print("Failed to delete token: \(error)")
             }
             return .none
         }
     }
 }
-

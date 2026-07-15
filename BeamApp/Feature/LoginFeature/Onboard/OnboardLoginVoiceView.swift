@@ -18,14 +18,14 @@ struct OnboardVoiceView: View {
                     .clipped()
                 Spacer(minLength: 12)
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("당신의 감성, 목소리로 입히다")
+                    Text("Dress Your Feelings in a Voice")
                         .font(.title)
                         .bold()
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 24)
-                    Text("좋아하는 노래를, 사랑하는 목소리로.\nAI가 당신의 취향을 닮은 새로운 음악을 만들어 드려요.")
+                    Text("Hear your favorite songs in the voices you love.\nAI creates new music shaped by your taste.")
                         .font(.body)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.leading)
@@ -38,7 +38,7 @@ struct OnboardVoiceView: View {
             ZStack {
                 HStack {
                     Spacer()
-                    Text("다음 →")
+                    Text("Next →")
                         .font(.headline)
                         .foregroundColor(.purple)
                     Spacer()

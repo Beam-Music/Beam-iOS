@@ -569,7 +569,8 @@ enum ConvertedVoiceTrackStore {
 
     static func load() -> [ConvertedVoiceTrackRecord] {
         guard let data = try? Data(contentsOf: manifestURL) else { return [] }
-        return (try? JSONDecoder().decode([ConvertedVoiceTrackRecord].self, from: data)) ?? []
+        let records = (try? JSONDecoder().decode([ConvertedVoiceTrackRecord].self, from: data)) ?? []
+        return deduplicated(records)
     }
 
     @discardableResult
@@ -592,7 +593,10 @@ enum ConvertedVoiceTrackStore {
             createdAt: Date()
         )
 
-        var records = load().filter { $0.filePath != filePath }
+        let newKey = deduplicationKey(for: record)
+        var records = load().filter {
+            $0.filePath != filePath && deduplicationKey(for: $0) != newKey
+        }
         records.insert(record, at: 0)
 
         let data = try JSONEncoder().encode(records)
@@ -600,12 +604,36 @@ enum ConvertedVoiceTrackStore {
         return record
     }
 
+    private static func deduplicated(_ records: [ConvertedVoiceTrackRecord]) -> [ConvertedVoiceTrackRecord] {
+        var seenKeys = Set<String>()
+        var unique: [ConvertedVoiceTrackRecord] = []
+
+        for record in records.sorted(by: { $0.createdAt > $1.createdAt }) {
+            let key = deduplicationKey(for: record)
+            guard !seenKeys.contains(key) else { continue }
+            seenKeys.insert(key)
+            unique.append(record)
+        }
+
+        return unique
+    }
+
+    private static func deduplicationKey(for record: ConvertedVoiceTrackRecord) -> String {
+        let voiceKey = record.voiceId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            ?? normalized(record.voiceName)
+        return "\(normalized(record.title))::\(normalized(record.artistName ?? ""))::\(voiceKey)"
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
     static func delete(id: UUID) {
         let records = load()
         if let record = records.first(where: { $0.id == id }) {
             try? FileManager.default.removeItem(atPath: record.filePath)
         }
-        var updated = records.filter { $0.id != id }
+        let updated = records.filter { $0.id != id }
         if let data = try? JSONEncoder().encode(updated) {
             try? data.write(to: manifestURL, options: .atomic)
         }
@@ -690,14 +718,20 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         throw lastError ?? VoiceConversionError.timeout
     }
 
-    func submitAsyncJob(audioData: Data, voiceId: String, voiceType: String?) async throws -> AsyncJobResponse {
+    func submitAsyncJob(
+        audioData: Data,
+        voiceId: String,
+        voiceType: String?,
+        trimStart: Double? = nil,
+        trimDuration: Double? = nil
+    ) async throws -> AsyncJobResponse {
         let data = try await performRequest(
             audioData: audioData,
             voiceId: voiceId,
             voiceType: voiceType,
             outputFormat: "mp3",
-            trimStart: nil,
-            trimDuration: nil,
+            trimStart: trimStart,
+            trimDuration: trimDuration,
             returnJob: true
         )
         return try JSONDecoder().decode(AsyncJobResponse.self, from: data)
@@ -1108,6 +1142,8 @@ extension VoiceInfo {
         VoiceInfo(id: "taylor_swift_singer", name: "Taylor Swift", category: "Celebrity", description: "Singer-style pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
         VoiceInfo(id: "the_weeknd", name: "The Weeknd", category: "Celebrity", description: "The Weeknd-style male pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
         VoiceInfo(id: "ariana_grande", name: "Ariana Grande", category: "Celebrity", description: "Ariana Grande-style female pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "dua_lipa", name: "Dua Lipa", category: "Celebrity", description: "Dua Lipa-style female pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
+        VoiceInfo(id: "chris_martin", name: "Chris Martin", category: "Celebrity", description: "Chris Martin / Coldplay-style male rock-pop vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
         VoiceInfo(id: "lil_wayne", name: "Lil Wayne", category: "Celebrity", description: "Lil Wayne-style male rap vocal", previewUrl: nil, language: ["en"], voiceType: "singer"),
         VoiceInfo(id: "drake", name: "Drake", category: "Celebrity", description: "Drake-style male rap vocal", previewUrl: nil, language: ["en"], voiceType: "singer")
     ]

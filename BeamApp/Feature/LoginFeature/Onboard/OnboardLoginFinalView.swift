@@ -20,7 +20,7 @@ struct OnboardFinalView: View {
             VStack {
                 Spacer().frame(height: 80)
 
-                Text("오늘 하루,\n네 마음 한구석을 살짝\n채워줄 무언가가 있다면\n좋을 텐데.")
+                Text("If only there were something\nto gently fill a corner\nof your heart today.")
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
@@ -31,7 +31,7 @@ struct OnboardFinalView: View {
 
                 HStack {
                     Spacer()
-                    Button("다음 →", action: onFinish)
+                    Button("Next →", action: onFinish)
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding(.trailing, 32)

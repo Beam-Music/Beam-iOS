@@ -10,8 +10,8 @@ struct OnboardKeywordView: View {
     @State private var selectedArtists: Set<String> = []
     @State private var selectedGenres: Set<String> = []
     @State private var animatedArtistIDs: Set<String> = []
-    let artists = ["정진태", "Coldplay", "Bruno Mars", "Lenny", "Taylor Swift", "The 1975", "SZA", "ADOY"]
-    let genres = ["발라드", "댄스", "힙합", "록"]
+    let artists = ["Jin Tae Jung", "Coldplay", "Bruno Mars", "Lenny", "Taylor Swift", "The 1975", "SZA", "ADOY"]
+    let genres = ["Ballad", "Dance", "Hip Hop", "Rock"]
 
     let chipHorizontalPadding: CGFloat = 16
     let chipVerticalPadding: CGFloat = 8
@@ -22,7 +22,7 @@ struct OnboardKeywordView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 16) {
-                Text("특별한 당신의 취향,\n소곤소곤 들려주세요.")
+                Text("Your unique taste,\ntell us quietly.")
                     .font(.title2)
                     .bold()
                     .foregroundColor(.white)
@@ -31,7 +31,7 @@ struct OnboardKeywordView: View {
             .padding(.top, 60)
 
             VStack(alignment: .leading, spacing: 16) {
-                Text("가수로 찾기")
+                Text("Find by Artist")
                     .font(.headline)
                     .foregroundColor(.white.opacity(0.8))
                 ChipGridView(
@@ -48,7 +48,7 @@ struct OnboardKeywordView: View {
             .padding(.horizontal, 24)
 
             VStack(alignment: .leading, spacing: 16) {
-                Text("장르로 찾기")
+                Text("Find by Genre")
                     .font(.headline)
                     .foregroundColor(.white.opacity(0.8))
                 ChipGridView(
@@ -66,7 +66,7 @@ struct OnboardKeywordView: View {
 
             Spacer()
 
-            Button("다음 →", action: onNext)
+            Button("Next →", action: onNext)
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()

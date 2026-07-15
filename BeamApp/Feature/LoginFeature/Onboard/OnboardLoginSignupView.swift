@@ -67,7 +67,7 @@ struct OnboardSignupView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            Text("BEAM의 광야 속으로\n가입하기")
+                            Text("Join BEAM\nand start exploring")
                                 .font(.title2.bold())
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.white)
@@ -80,7 +80,7 @@ struct OnboardSignupView: View {
                                             .fill(idx == 1 ? Color.blue.opacity(0.2) : Color.white.opacity(0.4))
                                             .frame(width: 28, height: 28)
                                             .overlay(Text("\(idx)").foregroundColor(idx == 1 ? .blue : .gray).fontWeight(.bold))
-                                        Text(idx == 1 ? "회원가입" : idx == 2 ? "아티스트 & 곡 선택" : "완료")
+                                        Text(idx == 1 ? "Sign Up" : idx == 2 ? "Select Artists & Songs" : "Done")
                                             .font(.caption)
                                             .foregroundColor(idx == 1 ? .blue : .white.opacity(0.7))
                                     }
@@ -133,13 +133,13 @@ struct OnboardSignupView: View {
                             ))
 
                             VStack(spacing: 18) {
-                                CustomTextField("이름", text: viewStore.binding(
+                                CustomTextField("Name", text: viewStore.binding(
                                     get: \.username,
                                     send: SignupFeature.Action.usernameChanged
                                 ))
                                 .id(Field.name)
                                 .focused($focusedField, equals: .name)
-                                CustomTextField("이메일 주소", text: viewStore.binding(
+                                CustomTextField("Email Address", text: viewStore.binding(
                                     get: \.email,
                                     send: SignupFeature.Action.emailChanged
                                 ), keyboardType: .emailAddress)
@@ -147,10 +147,10 @@ struct OnboardSignupView: View {
                                 .focused($focusedField, equals: .email)
                                 HStack(spacing: 8) {
                                     Spacer(minLength: 0)
-                                    Button("인증하기") {
-                                        if viewStore.errorMessage == "이미 가입된 이메일입니다. 새로운 인증 코드가 발송되었으니 이메일을 확인해주세요."
-                                            || viewStore.errorMessage == "이미 가입된 이메일입니다. 로그인 화면으로 이동해주세요."
-                                            || viewStore.errorMessage == "이미 인증된 이메일입니다." {
+                                    Button("Verify") {
+                                        if viewStore.errorMessage == "This email is already registered. A new verification code has been sent, so please check your email."
+                                            || viewStore.errorMessage == "This email is already registered. Please go to the login screen."
+                                            || viewStore.errorMessage == "This email is already verified." {
                                             return
                                         }
                                         viewStore.send(.sendVerificationCodeButtonTapped)
@@ -163,20 +163,20 @@ struct OnboardSignupView: View {
                                     .disabled(viewStore.isVerified || viewStore.email.isEmpty || viewStore.isLoading)
                                 }
                                 if let errorMessage = viewStore.errorMessage,
-                                   errorMessage.contains("이미 가입된 이메일") {
+                                   errorMessage.contains("already registered") {
                                     Text(errorMessage)
                                         .foregroundColor(.red)
                                         .font(.caption)
                                         .padding(.top, 4)
                                 }
                                 if let errorMessage = viewStore.errorMessage,
-                                   errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." {
-                                    Text("유효하지 않은 이메일입니다. 이메일을 다시 확인해주세요.")
+                                   errorMessage == "There is a temporary issue with the email service.\nPlease try again later." {
+                                    Text("Invalid email. Please check your email again.")
                                         .foregroundColor(.red)
                                         .font(.caption)
                                         .padding(.top, 4)
                                 }
-                                CustomSecureField("비밀번호", text: viewStore.binding(
+                                CustomSecureField("Password", text: viewStore.binding(
                                     get: \.password,
                                     send: SignupFeature.Action.passwordChanged
                                 ))
@@ -189,30 +189,30 @@ struct OnboardSignupView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack(spacing: 12) {
-                                        Text("프라이버시 동의")
+                                        Text("Privacy Consent")
                                             .foregroundColor(.white)
                                             .font(.subheadline)
-                                        CheckBox(isChecked: privacyAgreement == .agree, label: "동의") {
+                                        CheckBox(isChecked: privacyAgreement == .agree, label: "Agree") {
                                             privacyAgreement = .agree
                                         }
-                                        CheckBox(isChecked: privacyAgreement == .disagree, label: "비동의") {
+                                        CheckBox(isChecked: privacyAgreement == .disagree, label: "Disagree") {
                                             privacyAgreement = .disagree
                                         }
-                                        Button("자세히") { showPrivacySheet = true }
+                                        Button("Details") { showPrivacySheet = true }
                                             .font(.caption)
                                             .foregroundColor(.purple)
                                     }
                                     HStack(spacing: 12) {
-                                        Text("이용약관 동의")
+                                        Text("Terms Agreement")
                                             .foregroundColor(.white)
                                             .font(.subheadline)
-                                        CheckBox(isChecked: termsAgreement == .agree, label: "동의") {
+                                        CheckBox(isChecked: termsAgreement == .agree, label: "Agree") {
                                             termsAgreement = .agree
                                         }
-                                        CheckBox(isChecked: termsAgreement == .disagree, label: "비동의") {
+                                        CheckBox(isChecked: termsAgreement == .disagree, label: "Disagree") {
                                             termsAgreement = .disagree
                                         }
-                                        Button("자세히") { showTermsSheet = true }
+                                        Button("Details") { showTermsSheet = true }
                                             .font(.caption)
                                             .foregroundColor(.purple)
                                     }
@@ -233,7 +233,7 @@ struct OnboardSignupView: View {
                             }) {
                                 HStack {
                                     Spacer()
-                                    Text("완료")
+                                    Text("Done")
                                         .font(.headline)
                                         .foregroundColor(.white)
                                     Image(systemName: "arrow.right")
@@ -251,9 +251,9 @@ struct OnboardSignupView: View {
                             Spacer()
 
                             HStack {
-                                Text("계정이 이미 있으신가요?")
+                                Text("Already have an account?")
                                     .foregroundColor(.white.opacity(0.7))
-                                Button("로그인하기") {
+                                Button("Log In") {
                                     showLogin = true
                                 }
                                 .foregroundColor(.white)
@@ -542,7 +542,7 @@ struct VerificationCodeModal: View {
                         .padding()
                 }
             }
-            Text("이메일 인증 코드")
+            Text("Email Verification Code")
                 .font(.title2.bold())
                 .padding(.top, 8)
             Image(systemName: "envelope.open")
@@ -550,7 +550,7 @@ struct VerificationCodeModal: View {
                 .scaledToFit()
                 .frame(height: 120)
                 .padding(.vertical, 12)
-            Text("인증 코드를 입력해 주세요.")
+            Text("Enter the verification code.")
                 .foregroundColor(.gray)
                 .padding(.bottom, 16)
             HStack(spacing: 12) {
@@ -591,7 +591,7 @@ struct VerificationCodeModal: View {
             .padding(.bottom, 24)
             .onAppear { focusedIndex = 0 }
             if attempted, let errorMessage = errorMessage, !errorMessage.isEmpty {
-                let displayMessage = errorMessage == "이메일 서비스에 일시적인 문제가 있습니다.\n잠시 후 다시 시도해주세요." ? "인증 번호가 일치하지 않습니다." : errorMessage
+                let displayMessage = errorMessage == "There is a temporary issue with the email service.\nPlease try again later." ? "The verification code does not match." : errorMessage
                 Text(displayMessage)
                     .foregroundColor(.red)
                     .font(.caption)
@@ -602,7 +602,7 @@ struct VerificationCodeModal: View {
                     attempted = true
                     onVerify()
                 }) {
-                    Text("확인")
+                    Text("OK")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -614,7 +614,7 @@ struct VerificationCodeModal: View {
                 .disabled(code.joined().count != 6 || isLoading)
 
                 Button(action: onResend) {
-                    Text(isLoading ? "재전송 중..." : "인증 코드 재전송")
+                    Text(isLoading ? "Resending..." : "Resend Verification Code")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(.purple)
                 }
@@ -635,34 +635,34 @@ struct VerificationCodeModal: View {
 }
 
 private let privacyText = """
-📄  프라이버시 약관
+Privacy Policy
 
-1. 개인정보의 수집 및 이용 목적
-Beam Music(이하 '본 앱')은 사용자의 개인정보를 수집하거나 외부로 전송하지 않습니다. 본 앱은 오직 서비스 제공 및 기능 개선, 피드백 수집을 목적으로만 사용자의 익명 데이터를 수집할 수 있습니다.
+1. Purpose of Collecting and Using Personal Information
+Beam Music (the app) does not collect or externally transmit users' personal information. The app may collect anonymous usage data only for service operation, feature improvement, and feedback.
 
-2. 수집하는 정보의 종류
-본 앱은 사용자의 이름, 이메일, 전화번호 등 회원가입 시 입력한 정보와, 앱 사용 과정에서 생성되는 익명 사용 데이터(예: 사용 패턴, 오류 로그 등)를 수집할 수 있습니다. 단, 광고, 유료 콘텐츠, 인앱 결제 등 수익 창출을 위한 정보는 수집하지 않습니다.
+2. Types of Information Collected
+The app may collect information entered during sign-up, such as name, email, and phone number, as well as anonymous usage data generated while using the app, such as usage patterns and error logs. It does not collect information for advertising, paid content, in-app purchases, or other monetization.
 
-3. 개인정보의 보관 및 보호
-수집된 개인정보 및 익명 데이터는 안전하게 저장되며, 외부로 전송되거나 제3자에게 제공되지 않습니다. 본 앱은 개인정보 보호를 위해 합리적인 보안 조치를 취하고 있습니다.
+3. Retention and Protection of Personal Information
+Collected personal information and anonymous data are stored securely and are not externally transmitted or provided to third parties. The app uses reasonable security measures to protect personal information.
 
-4. 개인정보의 이용 및 파기
-수집된 개인정보는 서비스 제공 및 기능 개선을 위해서만 사용되며, 이용 목적이 달성된 후에는 즉시 파기됩니다. 사용자는 언제든지 개인정보 삭제를 요청할 수 있습니다.
+4. Use and Disposal of Personal Information
+Collected personal information is used only to provide the service and improve features, and is deleted after the purpose of use has been fulfilled. Users may request deletion of their personal information at any time.
 
-5. 약관 변경
-프라이버시 약관의 내용이 변경될 경우, 앱 내 공지 또는 업데이트를 통해 사전 안내드립니다.
+5. Policy Changes
+If this privacy policy changes, users will be notified in advance through in-app notices or updates.
 """
 
 private let termsText = """
-📄  이용약관 
-서비스 개요
-본 애플리케이션(이하 'Beam Music')은 개인 또는 소규모 팀이 개발 중인 앱으로, 현재는 테스트 및 피드백 수집을 목적으로 제공됩니다.
-수익 창출
-본 앱은 현재 광고, 유료 콘텐츠, 인앱 결제 등 수익을 목적으로 하지 않으며, 어떠한 비용도 이용자에게 청구되지 않습니다.
-개인정보 처리
-본 앱은 사용자의 개인정보를 수집하거나 외부로 전송하지 않습니다. 단, 기능 개선을 위한 익명 사용 데이터(예: 사용 패턴)는 수집될 수 있습니다.
-면책 조항
-본 앱은 개발 중으로, 일부 기능의 오류나 사용 제한이 발생할 수 있습니다. 이에 따른 책임은 개발자가 지지 않으며, 사용자 동의 하에 사용됩니다.
-약관 변경
-서비스 내용이나 정책 변경 시, 앱 내 공지 또는 업데이트를 통해 사전 안내드립니다.
+Terms of Service
+Service Overview
+This application, Beam Music, is being developed by an individual or small team and is currently provided for testing and feedback collection.
+Monetization
+The app currently does not use advertising, paid content, in-app purchases, or other monetization, and no fees are charged to users.
+Personal Information Handling
+The app does not collect or externally transmit users' personal information. Anonymous usage data, such as usage patterns, may be collected to improve features.
+Disclaimer
+The app is under development, so some features may contain errors or usage limitations. The developer is not liable for issues arising from this, and use is subject to user consent.
+Policy Changes
+If service details or policies change, users will be notified in advance through in-app notices or updates.
 """
