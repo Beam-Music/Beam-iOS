@@ -5,7 +5,11 @@ Beam Music iOS is an AI voice-conversion music player prototype. Users can disco
 > The iOS app is not publicly distributed because of artist voice rights, music licensing, App Store review, and related legal contact-risk concerns. The working demo can be reviewed through the deployed web demo.
 
 - Web demo: https://beam-music.kimjiha1112.chatgpt.site
-- iOS demo video: [docs/assets/beam-ios-demo.mov](docs/assets/beam-ios-demo.mov)
+- iOS demo video: [full video](docs/assets/beam-ios-demo.mov)
+
+## Demo Preview
+
+[![Beam Music iOS demo preview](docs/assets/beam-ios-demo-preview.gif)](docs/assets/beam-ios-demo.mov)
 
 ## Implementation Summary
 
@@ -128,7 +132,7 @@ Short preview conversion receives audio bytes synchronously and plays them direc
 Public review links:
 
 - Web demo: https://beam-music.kimjiha1112.chatgpt.site
-- iOS demo video: [docs/assets/beam-ios-demo.mov](docs/assets/beam-ios-demo.mov)
+- iOS demo video: [full video](docs/assets/beam-ios-demo.mov)
 
 ## Development Environment
 
