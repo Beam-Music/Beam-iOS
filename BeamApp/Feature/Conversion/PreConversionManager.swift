@@ -226,7 +226,8 @@ final class PreConversionManager: ObservableObject {
             guard let url = URL(string: Endpoints.VoiceConversion.list) else {
                 throw VoiceConversionError.serverError("Invalid voice list URL")
             }
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let request = URLRequest(url: url, timeoutInterval: 8)
+            let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 throw VoiceConversionError.serverError("Failed to load the voice list.")

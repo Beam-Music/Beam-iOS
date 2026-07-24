@@ -5,7 +5,7 @@
 	<key>BEAM_API_BASE_URL</key>
 	<string>http://MacBook-Pro-7.local:8080</string>
 	<key>BEAM_SVC_BASE_URL</key>
-	<string>https://x05pvmi5vifvou-8888.proxy.runpod.net</string>
+	<string>https://kim-jiha95--beam-svc-t4-demo-gateway.modal.run</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

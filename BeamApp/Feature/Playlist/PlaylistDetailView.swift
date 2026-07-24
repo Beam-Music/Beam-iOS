@@ -266,7 +266,7 @@ struct PlaylistDetailView: View {
         .sheet(isPresented: $showVoiceSelectionSheet) {
             VoiceSelectionSheet(
                 voices: preConversionManager.availableVoices,
-                onVoiceSelected: { voice in
+                onVoiceSelected: { voice, _ in
                     preConversionManager.setPreferredVoice(voice)
                     showVoiceSelectionSheet = false
                     guard let song = selectedSongForConversion else { return }

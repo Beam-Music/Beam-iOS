@@ -8,6 +8,472 @@
 import SwiftUI
 import AVFoundation
 
+// MARK: - Sequential multi-vocal conversion (Beam SVC MVP)
+
+/// A source range and its target voice. The current server MVP accepts only
+/// non-overlapping ranges on `vocal_candidate_1`.
+struct MultiVocalAssignment: Codable, Identifiable, Equatable {
+    struct Segment: Codable, Identifiable, Equatable {
+        let id: UUID
+        var start: Double
+        var end: Double
+
+        enum CodingKeys: String, CodingKey {
+            case start, end
+        }
+
+        init(start: Double, end: Double) {
+            self.id = UUID()
+            self.start = start
+            self.end = end
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = UUID()
+            start = try container.decode(Double.self, forKey: .start)
+            end = try container.decode(Double.self, forKey: .end)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(start, forKey: .start)
+            try container.encode(end, forKey: .end)
+        }
+    }
+
+    let id: UUID
+    var sourceTrackId: String
+    var voiceId: String
+    var segments: [Segment]
+    var mixGain: Double
+    var pitchShift: Int
+
+    enum CodingKeys: String, CodingKey {
+        case assignmentId, sourceTrackId, voiceId, segments, mixGain, pitchShift
+    }
+
+    init(
+        id: UUID = UUID(),
+        sourceTrackId: String = "vocal_candidate_1",
+        voiceId: String,
+        segments: [Segment],
+        mixGain: Double = 1.0,
+        pitchShift: Int = 0
+    ) {
+        self.id = id
+        self.sourceTrackId = sourceTrackId
+        self.voiceId = voiceId
+        self.segments = segments
+        self.mixGain = mixGain
+        self.pitchShift = pitchShift
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id.uuidString, forKey: .assignmentId)
+        try container.encode(sourceTrackId, forKey: .sourceTrackId)
+        try container.encode(voiceId, forKey: .voiceId)
+        try container.encode(segments, forKey: .segments)
+        try container.encode(mixGain, forKey: .mixGain)
+        try container.encode(pitchShift, forKey: .pitchShift)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = UUID(uuidString: try container.decode(String.self, forKey: .assignmentId)) ?? UUID()
+        sourceTrackId = try container.decode(String.self, forKey: .sourceTrackId)
+        voiceId = try container.decode(String.self, forKey: .voiceId)
+        segments = try container.decode([Segment].self, forKey: .segments)
+        mixGain = try container.decodeIfPresent(Double.self, forKey: .mixGain) ?? 1.0
+        pitchShift = try container.decodeIfPresent(Int.self, forKey: .pitchShift) ?? 0
+    }
+}
+
+struct MultiVocalConversionSheet: View {
+    let sourceAudio: Data
+    let voices: [VoiceInfo]
+    let onRendered: (Data, [MultiVocalAssignment]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var analysis: VocalAnalysisResponse?
+    @State private var assignments: [MultiVocalAssignment] = []
+    @State private var mutedLaneIDs: Set<String> = []
+    @State private var preserveUnassignedVocals = false
+    @State private var isLoading = true
+    @State private var isRendering = false
+    @State private var renderStatus = "Rendering duet mix…"
+    @State private var errorMessage: String?
+
+    private let client = MultiVoiceConversionClient()
+
+    private var isMedleyVoxMode: Bool {
+        analysis?.analysisVersion == "medleyvox-two-singer-poc-v1"
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView("Analyzing vocal track…")
+                } else if let analysis {
+                    Form {
+                        Section(isMedleyVoxMode ? "Separated singer lanes" : "Sequential duet MVP") {
+                            Text(isMedleyVoxMode
+                                ? "Singer lanes are AI separation results, not actual artist names. Vocal leakage or lane swaps can occur."
+                                : "Edit the initial full-song range, then add non-overlapping ranges and assign a target voice to each. Simultaneous vocals are not supported yet."
+                            )
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            LabeledContent("Song duration", value: timeText(analysis.durationSeconds))
+                            Toggle("Keep unassigned original vocals", isOn: $preserveUnassignedVocals)
+                            Text("This only affects time ranges that are not converted. Turn it off to remove unassigned original vocals from the mix.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if isMedleyVoxMode {
+                            Section("Singer lanes") {
+                                ForEach($assignments) { $assignment in
+                                    singerLaneEditor($assignment)
+                                }
+                            }
+                        } else {
+                            Section("Vocal ranges") {
+                                ForEach($assignments) { $assignment in
+                                    assignmentEditor($assignment)
+                                }
+                                .onDelete { assignments.remove(atOffsets: $0) }
+
+                                Button {
+                                    addRange(duration: analysis.durationSeconds)
+                                } label: {
+                                    Label("Add vocal range", systemImage: "plus")
+                                }
+                                .disabled(voices.isEmpty)
+                            }
+                        }
+                    }
+                } else {
+                    ContentUnavailableView("Analysis unavailable", systemImage: "waveform.badge.exclamationmark")
+                }
+            }
+            .navigationTitle("Duet voices")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isRendering ? "Rendering…" : "Render") {
+                        render()
+                    }
+                    .disabled(isLoading || isRendering || assignments.isEmpty)
+                }
+            }
+            .task { await loadAnalysis() }
+            .alert("Duet conversion", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+            .overlay {
+                if isRendering {
+                    ProgressView(renderStatus)
+                        .padding(24)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
+    }
+
+    private func loadAnalysis() async {
+        do {
+            let result = try await client.analyze(audioData: sourceAudio)
+            analysis = result
+            if assignments.isEmpty, let primaryVoice = voices.first {
+                if result.analysisVersion == "medleyvox-two-singer-poc-v1" {
+                    let candidateIDs = Set(result.candidates.map(\.trackId))
+                    guard candidateIDs.isSuperset(of: Set(["singer_1", "singer_2"])) else {
+                        throw VoiceConversionError.serverError("Multi-singer separation is not available for this song.")
+                    }
+                    let secondaryVoice = voices.first(where: { $0.id != primaryVoice.id }) ?? primaryVoice
+                    assignments = [
+                        MultiVocalAssignment(
+                            sourceTrackId: "singer_1",
+                            voiceId: primaryVoice.id,
+                            segments: [.init(start: 0, end: result.durationSeconds)]
+                        ),
+                        MultiVocalAssignment(
+                            sourceTrackId: "singer_2",
+                            voiceId: secondaryVoice.id,
+                            segments: [.init(start: 0, end: result.durationSeconds)]
+                        )
+                    ]
+                } else {
+                    assignments = [MultiVocalAssignment(
+                        sourceTrackId: result.candidates.first?.trackId ?? "vocal_candidate_1",
+                        voiceId: primaryVoice.id,
+                        // Start with a full-song assignment so an accidental render
+                        // cannot drop every unassigned vocal after the first 15 seconds.
+                        // For a duet, shorten this range and then add the next one.
+                        segments: [.init(start: 0, end: result.durationSeconds)]
+                    )]
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func addRange(duration: Double) {
+        guard let voice = voices.first else { return }
+        let lastEnd = assignments.flatMap(\.segments).map(\.end).max() ?? 0
+        guard lastEnd < duration else {
+            errorMessage = "All available time is already covered by vocal ranges."
+            return
+        }
+        assignments.append(MultiVocalAssignment(
+            sourceTrackId: analysis?.candidates.first?.trackId ?? "vocal_candidate_1",
+            voiceId: voice.id,
+            segments: [.init(start: lastEnd, end: min(duration, lastEnd + 15))]
+        ))
+    }
+
+    private func render() {
+        guard let duration = analysis?.durationSeconds else { return }
+        let invalidRange = assignments.flatMap(\.segments).contains { $0.start < 0 || $0.end <= $0.start || $0.end > duration }
+        guard !invalidRange else {
+            errorMessage = "Ranges must be inside the song duration and have an end after their start."
+            return
+        }
+        if isMedleyVoxMode,
+           Set(assignments.map(\.sourceTrackId)) != Set(["singer_1", "singer_2"]) || assignments.contains(where: { $0.voiceId.isEmpty }) {
+            errorMessage = "Choose a target voice for both singer lanes before rendering."
+            return
+        }
+        let renderedAssignments = assignments.filter { !mutedLaneIDs.contains($0.sourceTrackId) }
+        guard !renderedAssignments.isEmpty else {
+            errorMessage = "At least one singer lane must be audible."
+            return
+        }
+        isRendering = true
+        renderStatus = isMedleyVoxMode ? "Separating singer lanes…" : "Converting vocal ranges…"
+        Task {
+            do {
+                if isMedleyVoxMode {
+                    try await Task.sleep(nanoseconds: 750_000_000)
+                    guard !Task.isCancelled else { return }
+                    renderStatus = "Converting singer lane 1 and lane 2…"
+                }
+                let audio = try await client.render(
+                    audioData: sourceAudio,
+                    assignments: renderedAssignments,
+                    preserveUnassignedVocals: preserveUnassignedVocals
+                )
+                onRendered(audio, renderedAssignments)
+                dismiss()
+            } catch {
+                errorMessage = friendlyErrorMessage(for: error)
+            }
+            isRendering = false
+        }
+    }
+
+    @ViewBuilder
+    private func assignmentEditor(_ assignment: Binding<MultiVocalAssignment>) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Target voice", selection: assignment.voiceId) {
+                ForEach(voices) { voice in
+                    Text(voice.name).tag(voice.id)
+                }
+            }
+            rangeEditor(assignment)
+        }
+    }
+
+    @ViewBuilder
+    private func singerLaneEditor(_ assignment: Binding<MultiVocalAssignment>) -> some View {
+        let laneID = assignment.wrappedValue.sourceTrackId
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(laneID == "singer_1" ? "Singer lane 1" : "Singer lane 2", systemImage: "waveform")
+                    .font(.headline)
+                Spacer()
+                Toggle("Mute", isOn: Binding(
+                    get: { mutedLaneIDs.contains(laneID) },
+                    set: { muted in
+                        if muted { mutedLaneIDs.insert(laneID) }
+                        else { mutedLaneIDs.remove(laneID) }
+                    }
+                ))
+                .labelsHidden()
+                .accessibilityLabel("Mute \(laneID)")
+            }
+            Picker("Target voice", selection: assignment.voiceId) {
+                ForEach(voices) { voice in
+                    Text(voice.name).tag(voice.id)
+                }
+            }
+            rangeEditor(assignment)
+            Button("Solo this lane") {
+                mutedLaneIDs = Set(assignments.map(\.sourceTrackId).filter { $0 != laneID })
+            }
+            .font(.footnote.weight(.semibold))
+        }
+        .opacity(mutedLaneIDs.contains(laneID) ? 0.55 : 1)
+    }
+
+    @ViewBuilder
+    private func rangeEditor(_ assignment: Binding<MultiVocalAssignment>) -> some View {
+        HStack {
+            TextField("Start", value: assignment.segments[0].start, format: .number.precision(.fractionLength(1)))
+                .keyboardType(.decimalPad)
+            Text("to")
+                .foregroundStyle(.secondary)
+            TextField("End", value: assignment.segments[0].end, format: .number.precision(.fractionLength(1)))
+                .keyboardType(.decimalPad)
+            Text("sec")
+                .foregroundStyle(.secondary)
+        }
+        Stepper("Pitch shift: \(assignment.wrappedValue.pitchShift >= 0 ? "+" : "")\(assignment.wrappedValue.pitchShift)", value: assignment.pitchShift, in: -12...12)
+    }
+
+    private func friendlyErrorMessage(for error: Error) -> String {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("medleyvox") || message.contains("multi-singer") || message.contains("multi_singer") || message.contains("separation is not available") {
+            return "Multi-singer separation is not available for this song yet. Try a sequential duet or another song."
+        }
+        if message.contains("stem") || message.contains("separation") {
+            return "Singer-lane separation failed. Please try again with a clearer vocal track."
+        }
+        return error.localizedDescription
+    }
+
+    private func timeText(_ seconds: Double) -> String {
+        String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+}
+
+struct VocalAnalysisResponse: Decodable {
+    struct Candidate: Decodable, Identifiable {
+        let trackId: String
+        let label: String
+        let requiresManualSegmentation: Bool
+        let supportsOverlaps: Bool
+
+        var id: String { trackId }
+    }
+
+    let analysisVersion: String
+    let durationSeconds: Double
+    let candidates: [Candidate]
+}
+
+struct MultiVoiceConversionClient {
+    func analyze(audioData: Data) async throws -> VocalAnalysisResponse {
+        let (data, response) = try await sendMultipart(
+            to: Endpoints.VoiceConversion.vocalAnalysis,
+            audioData: audioData,
+            fields: [:],
+            timeout: 90
+        )
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(VocalAnalysisResponse.self, from: data)
+    }
+
+    func render(
+        audioData: Data,
+        assignments: [MultiVocalAssignment],
+        preserveUnassignedVocals: Bool
+    ) async throws -> Data {
+        try validate(assignments: assignments)
+        let payload = try JSONEncoder().encode(assignments)
+        let (data, response) = try await sendMultipart(
+            to: Endpoints.VoiceConversion.multiVoiceConvert,
+            audioData: audioData,
+            fields: [
+                "vocalAssignments": String(decoding: payload, as: UTF8.self),
+                "output_format": "mp3",
+                "mix_with_instrumental": "true",
+                "preserve_unassigned_vocals": preserveUnassignedVocals ? "true" : "false"
+            ],
+            timeout: 1_800
+        )
+        try validate(response: response, data: data)
+        guard data.count > 1_000 else { throw VoiceConversionError.invalidAudioData }
+        return data
+    }
+
+    private func validate(assignments: [MultiVocalAssignment]) throws {
+        let rangesBySourceTrack = Dictionary(grouping: assignments.flatMap { assignment in
+            assignment.segments.map { (sourceTrackId: assignment.sourceTrackId, start: $0.start, end: $0.end) }
+        }, by: { $0.sourceTrackId })
+        guard !rangesBySourceTrack.isEmpty else {
+            throw VoiceConversionError.serverError("Add at least one vocal range.")
+        }
+        for (sourceTrackId, unsortedRanges) in rangesBySourceTrack {
+            let ranges = unsortedRanges.sorted { $0.start < $1.start }
+            for range in ranges {
+                guard range.start >= 0, range.end > range.start else {
+                    throw VoiceConversionError.serverError("Every vocal range must have a valid start and end time.")
+                }
+            }
+            for (previous, next) in zip(ranges, ranges.dropFirst()) where next.start < previous.end {
+                throw VoiceConversionError.serverError("Vocal ranges in \(sourceTrackId) cannot overlap.")
+            }
+        }
+    }
+
+    private func sendMultipart(
+        to endpoint: String,
+        audioData: Data,
+        fields: [String: String],
+        timeout: TimeInterval
+    ) async throws -> (Data, URLResponse) {
+        guard let url = URL(string: endpoint) else { throw URLError(.badURL) }
+        let boundary = "BeamMultiVocal-\(UUID().uuidString)"
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        for (name, value) in fields {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append(value.data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"source_audio\"; filename=\"song.mp3\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/mpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout + 60
+        return try await URLSession(configuration: configuration).data(for: request)
+    }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let detail = json?["detail"] as? [String: Any]
+            let message = json?["message"] as? String
+                ?? json?["error"] as? String
+                ?? json?["detail"] as? String
+                ?? detail?["message"] as? String
+                ?? detail?["error"] as? String
+            throw VoiceConversionError.serverError(message ?? "Multi-vocal conversion failed.")
+        }
+    }
+}
+
 // MARK: - Voice Conversion Provider Abstraction (Phase 0)
 // docs/SVC_MIGRATION.md 참조. lalal.ai에서 자체 Beam SVC 백엔드로 점진 전환하기 위한 추상화.
 
@@ -669,6 +1135,15 @@ extension ConvertedVoiceTrackRecord {
 /// 자체 백엔드 (`/ai-convert/voice-conversion`) 기반 구현.
 /// docs/SVC_MIGRATION.md Phase 0을 위해 BeamApp/Network/VoiceConversionClient.swift의 multipart 로직을 이식함.
 final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
+    struct ConversionTuning: Equatable {
+        var pitchShift: Int?
+        var protect: Double?
+        var indexRatio: Double?
+
+        var isEmpty: Bool {
+            pitchShift == nil && protect == nil && indexRatio == nil
+        }
+    }
 
     struct AsyncJobResponse: Decodable {
         let jobId: String
@@ -723,7 +1198,8 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         voiceId: String,
         voiceType: String?,
         trimStart: Double? = nil,
-        trimDuration: Double? = nil
+        trimDuration: Double? = nil,
+        tuning: ConversionTuning? = nil
     ) async throws -> AsyncJobResponse {
         let data = try await performRequest(
             audioData: audioData,
@@ -732,6 +1208,7 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
             outputFormat: "mp3",
             trimStart: trimStart,
             trimDuration: trimDuration,
+            tuning: tuning,
             returnJob: true
         )
         return try JSONDecoder().decode(AsyncJobResponse.self, from: data)
@@ -768,6 +1245,7 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         outputFormat: String,
         trimStart: Double?,
         trimDuration: Double?,
+        tuning: ConversionTuning? = nil,
         returnJob: Bool
     ) async throws -> Data {
         guard let url = URL(string: Endpoints.VoiceConversion.convert) else {
@@ -831,6 +1309,27 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
             body.append("\r\n".data(using: .utf8)!)
         }
 
+        if let pitchShift = tuning?.pitchShift {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"pitch_shift\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(pitchShift)".data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
+        if let protect = tuning?.protect {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"protect\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(protect)".data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
+        if let indexRatio = tuning?.indexRatio {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"index_ratio\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(indexRatio)".data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
         if returnJob {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"return_job\"\r\n\r\n".data(using: .utf8)!)
@@ -853,11 +1352,13 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
         }
 
         if !(200...299).contains(httpResponse.statusCode) {
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                let message = (json["message"] as? String) ?? (json["error"] as? String) ?? "Beam SVC HTTP \(httpResponse.statusCode)"
-                throw VoiceConversionError.serverError(message)
-            }
-            throw VoiceConversionError.serverError("Beam SVC HTTP \(httpResponse.statusCode)")
+            let message = Self.serverErrorMessage(
+                from: data,
+                statusCode: httpResponse.statusCode,
+                url: url
+            )
+            print("❌ Beam SVC request failed [\(httpResponse.statusCode)] url=\(url.absoluteString) message=\(message)")
+            throw VoiceConversionError.serverError(message)
         }
 
         if returnJob {
@@ -877,6 +1378,37 @@ final class BeamSVCVoiceConversionProvider: VoiceConversionProvider {
             throw VoiceConversionError.invalidAudioData
         }
         return data
+    }
+
+    private static func serverErrorMessage(from data: Data, statusCode: Int, url: URL) -> String {
+        let fallback = "Beam SVC HTTP \(statusCode) at \(url.absoluteString)"
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                return "\(fallback): \(text)"
+            }
+            return fallback
+        }
+
+        if let message = json["message"] as? String {
+            return message
+        }
+        if let error = json["error"] as? String {
+            return error
+        }
+        if let detail = json["detail"] as? [String: Any] {
+            if let message = detail["message"] as? String {
+                return message
+            }
+            if let error = detail["error"] as? String {
+                return error
+            }
+        }
+        if let detail = json["detail"] as? String {
+            return detail
+        }
+
+        return fallback
     }
 }
 

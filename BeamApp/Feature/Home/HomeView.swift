@@ -435,6 +435,7 @@ struct HomeView: View {
     @State private var selectedHomeConversionResult: MusicSearchResult? = nil
     @State private var showHomeVoiceSheet = false
     @State private var availableHomeVoices: [VoiceInfo] = []
+    @State private var isLoadingHomeVoices = false
     @State private var isLoadingTrackLibrarySongs: Bool = true
     @State private var isLoadingAppleMusicTrending: Bool = true
     @State private var isLoadingHitSongs: Bool = true
@@ -695,10 +696,10 @@ struct HomeView: View {
                     viewStore.send(.playMusic(result))
                     isMiniPlayerVisible = true
                 },
-                onConvert: { result, voice in
+                onConvert: { result, voice, tuning in
                     showSearchScreen = false
                     Task {
-                        await convertSearchResult(result, voice: voice)
+                        await convertSearchResult(result, voice: voice, tuning: tuning)
                     }
                 }
             )
@@ -772,11 +773,12 @@ struct HomeView: View {
         .sheet(isPresented: $showHomeVoiceSheet) {
             VoiceSelectionSheet(
                 voices: availableHomeVoices,
-                onVoiceSelected: { voice in
+                isLoading: isLoadingHomeVoices,
+                onVoiceSelected: { voice, tuning in
                     showHomeVoiceSheet = false
                     if let result = selectedHomeConversionResult {
                         Task {
-                            await convertSearchResult(result, voice: voice)
+                            await convertSearchResult(result, voice: voice, tuning: tuning)
                         }
                     }
                 },
@@ -795,15 +797,16 @@ struct HomeView: View {
                 try? await Task.sleep(nanoseconds: delayBeforePresenting)
             }
             let voices = preConversionManager.availableVoices
-            if voices.isEmpty {
-                await preConversionManager.loadAvailableVoices()
-            }
-            availableHomeVoices = preConversionManager.availableVoices
+            availableHomeVoices = voices.isEmpty ? VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" } : voices
             showHomeVoiceSheet = true
+            isLoadingHomeVoices = true
+            await preConversionManager.loadAvailableVoices()
+            availableHomeVoices = preConversionManager.availableVoices.isEmpty ? availableHomeVoices : preConversionManager.availableVoices
+            isLoadingHomeVoices = false
         }
     }
 
-    private func convertSearchResult(_ result: MusicSearchResult, voice: VoiceInfo) async {
+    private func convertSearchResult(_ result: MusicSearchResult, voice: VoiceInfo, tuning: BeamSVCVoiceConversionProvider.ConversionTuning? = nil) async {
         guard let playbackURLString = result.playbackURL, let playbackURL = URL(string: playbackURLString) else {
             return
         }
@@ -832,7 +835,8 @@ struct HomeView: View {
                 voiceId: voice.id,
                 voiceType: resolvedVoiceType,
                 trimStart: nil,
-                trimDuration: nil
+                trimDuration: nil,
+                tuning: tuning
             )
 
             await MainActor.run {
@@ -1268,12 +1272,13 @@ struct SearchScreenView: View {
     let onDeleteRecent: (String) -> Void
     let onClearRecent: () -> Void
     let onPlay: (MusicSearchResult) -> Void
-    let onConvert: (MusicSearchResult, VoiceInfo) -> Void
+    let onConvert: (MusicSearchResult, VoiceInfo, BeamSVCVoiceConversionProvider.ConversionTuning?) -> Void
     @FocusState private var isFocused: Bool
     @State private var showVoiceSheet = false
     @State private var selectedResult: MusicSearchResult?
     @StateObject private var preConversionManager = PreConversionManager.shared
     @State private var availableVoices: [VoiceInfo] = []
+    @State private var isLoadingVoices = false
 
     var body: some View {
         NavigationView {
@@ -1322,11 +1327,18 @@ struct SearchScreenView: View {
                                     selectedResult = result
                                     Task {
                                         let voices = preConversionManager.availableVoices
-                                        if voices.isEmpty {
-                                            await preConversionManager.loadAvailableVoices()
+                                        await MainActor.run {
+                                            availableVoices = voices.isEmpty ? VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" } : voices
+                                            showVoiceSheet = true
+                                            isLoadingVoices = true
                                         }
-                                        availableVoices = preConversionManager.availableVoices
-                                        showVoiceSheet = true
+                                        await preConversionManager.loadAvailableVoices()
+                                        await MainActor.run {
+                                            if !preConversionManager.availableVoices.isEmpty {
+                                                availableVoices = preConversionManager.availableVoices
+                                            }
+                                            isLoadingVoices = false
+                                        }
                                     }
                                 })
                                 .padding(.horizontal, AppTheme.Spacing.lg)
@@ -1422,10 +1434,11 @@ struct SearchScreenView: View {
             .sheet(isPresented: $showVoiceSheet) {
                 VoiceSelectionSheet(
                     voices: availableVoices,
-                    onVoiceSelected: { voice in
+                    isLoading: isLoadingVoices,
+                    onVoiceSelected: { voice, tuning in
                         showVoiceSheet = false
                         if let result = selectedResult {
-                            onConvert(result, voice)
+                            onConvert(result, voice, tuning)
                         }
                     },
                     onCancel: { showVoiceSheet = false }

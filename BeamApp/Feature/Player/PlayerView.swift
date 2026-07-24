@@ -195,7 +195,10 @@ struct PlayerView: View {
     @StateObject private var preConversionManager = PreConversionManager.shared
     @State private var isVoiceConverting = false
     @State private var showVoiceSelectionSheet = false
+    @State private var showMultiVocalSheet = false
+    @State private var multiVocalSourceAudio: Data?
     @State private var availableVoices: [VoiceInfo] = []
+    @State private var isLoadingAvailableVoices = false
     @State private var selectedVoice: VoiceInfo?
     @State private var voiceSelectionMode: VoiceSelectionMode = .preview
     @State private var showVoiceConversionError = false
@@ -388,10 +391,19 @@ struct PlayerView: View {
                         HStack(spacing: 18) {
                             Button(action: {
                                 voiceSelectionMode = .preview
+                                if availableVoices.isEmpty {
+                                    availableVoices = preConversionManager.availableVoices.isEmpty
+                                        ? VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" }
+                                        : preConversionManager.availableVoices
+                                }
+                                showVoiceSelectionSheet = true
                                 Task {
+                                    await MainActor.run {
+                                        isLoadingAvailableVoices = true
+                                    }
                                     await loadAvailableVoices()
                                     await MainActor.run {
-                                        showVoiceSelectionSheet = true
+                                        isLoadingAvailableVoices = false
                                     }
                                 }
                             }) {
@@ -408,28 +420,39 @@ struct PlayerView: View {
                             .buttonStyle(.plain)
 
                             Button(action: {
-                                voiceSelectionMode = .preconvert
+                                guard let track = viewStore.currentTrack else {
+                                    showVoiceConversionError = true
+                                    voiceConversionErrorMessage = "No song is currently playing."
+                                    return
+                                }
                                 Task {
-                                    await preConversionManager.loadAvailableVoices()
-                                    await MainActor.run {
+                                    do {
                                         if availableVoices.isEmpty {
-                                            availableVoices = preConversionManager.availableVoices
+                                            await loadAvailableVoices()
                                         }
-                                        showVoiceSelectionSheet = true
+                                        multiVocalSourceAudio = try await resolveAudioData(
+                                            reducerTrack: track,
+                                            title: track.title
+                                        )
+                                        showMultiVocalSheet = true
+                                    } catch {
+                                        showVoiceConversionError = true
+                                        voiceConversionErrorMessage = "Could not prepare this song for duet conversion: \(error.localizedDescription)"
                                     }
                                 }
                             }) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "bolt.horizontal")
-                                    Text("Prepare")
+                                    Image(systemName: "person.2.wave.2")
+                                    Text("Duet")
                                 }
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .padding(.vertical, 10)
                                 .padding(.horizontal, AppTheme.Spacing.lg)
-                                .background(AppTheme.preconvertButtonFill, in: Capsule())
+                                .beamCard(cornerRadius: 24, fillOpacity: 0.08)
                             }
                             .buttonStyle(.plain)
+
                         }
                         if let currentTrack = viewStore.currentTrack {
                             preConversionStatusPanel(for: currentTrack)
@@ -553,7 +576,8 @@ struct PlayerView: View {
             .sheet(isPresented: $showVoiceSelectionSheet) {
                 VoiceSelectionSheet(
                     voices: preConversionManager.availableVoices.count >= availableVoices.count ? preConversionManager.availableVoices : availableVoices,
-                    onVoiceSelected: { voice in
+                    isLoading: isLoadingAvailableVoices,
+                    onVoiceSelected: { voice, tuning in
                         selectedVoice = voice
                         preConversionManager.setPreferredVoice(voice)
                         showVoiceSelectionSheet = false
@@ -561,7 +585,7 @@ struct PlayerView: View {
                         case .preview:
                             let trackTitle = viewStore.currentTrack?.title ?? "Unknown"
                             TTFATelemetry.shared.recordVoiceTap(trackTitle: trackTitle, voiceId: voice.id)
-                            performVoiceConversion(with: voice)
+                            performVoiceConversion(with: voice, tuning: tuning)
                         case .preconvert:
                             guard let track = viewStore.currentTrack else {
                                 showVoiceConversionError = true
@@ -585,6 +609,51 @@ struct PlayerView: View {
                     currentTrack: viewStore.currentTrack,
                     preConversionManager: preConversionManager
                 )
+            }
+            .sheet(isPresented: $showMultiVocalSheet, onDismiss: {
+                multiVocalSourceAudio = nil
+            }) {
+                if let sourceAudio = multiVocalSourceAudio {
+                    MultiVocalConversionSheet(
+                        sourceAudio: sourceAudio,
+                        voices: availableVoices.isEmpty
+                            ? VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" }
+                            : availableVoices,
+                        onRendered: { audioData, assignments in
+                            guard let track = viewStore.currentTrack else { return }
+                            let voiceNames = assignments.compactMap { assignment in
+                                (availableVoices + VoiceInfo.beamSVCFallbackVoices)
+                                    .first(where: { $0.id == assignment.voiceId })?
+                                    .name
+                            }
+                            let mixName = Array(NSOrderedSet(array: voiceNames))
+                                .compactMap { $0 as? String }
+                                .joined(separator: " + ")
+                            Task {
+                                do {
+                                    let fileURL = try await saveConvertedAudio(
+                                        audioData: audioData,
+                                        title: track.title,
+                                        artistName: track.artistName,
+                                        voiceId: "multi-voice",
+                                        voiceName: mixName.isEmpty ? "Duet Mix" : mixName,
+                                        artworkURL: track.artworkURL
+                                    )
+                                    startConvertedPlayback(
+                                        fileURL: fileURL,
+                                        title: track.title,
+                                        artistName: track.artistName,
+                                        voiceName: mixName.isEmpty ? "Duet Mix" : mixName,
+                                        artworkURL: track.artworkURL
+                                    )
+                                } catch {
+                                    showVoiceConversionError = true
+                                    voiceConversionErrorMessage = "Could not save the duet mix: \(error.localizedDescription)"
+                                }
+                            }
+                        }
+                    )
+                }
             }
             .sheet(isPresented: $isAddToPlaylistSheetPresented) {
                 AddToPlaylistSheet(
@@ -1067,7 +1136,8 @@ struct PlayerView: View {
             guard let url = URL(string: Endpoints.VoiceConversion.list) else {
                 throw VoiceConversionError.serverError("Invalid Beam SVC voices URL")
             }
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let request = URLRequest(url: url, timeoutInterval: 8)
+            let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 throw VoiceConversionError.serverError("Beam SVC voices HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
@@ -1079,9 +1149,10 @@ struct PlayerView: View {
             availableVoices = payload.voices.filter { $0.voiceType == "singer" }
             print("✅ Loaded \(availableVoices.count) Beam SVC singer voices")
         } catch {
-            availableVoices = VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" }
-            showVoiceConversionError = true
-            voiceConversionErrorMessage = "Failed to load the Beam SVC voice list: \(error.localizedDescription)"
+            if availableVoices.isEmpty {
+                availableVoices = VoiceInfo.beamSVCFallbackVoices.filter { $0.voiceType == "singer" }
+            }
+            print("⚠️ Failed to refresh Beam SVC voice list: \(error.localizedDescription)")
         }
     }
     
@@ -1094,7 +1165,7 @@ struct PlayerView: View {
         voiceConversionStatusSubtitle = "Conversion cancelled"
     }
 
-    private func performVoiceConversion(with voice: VoiceInfo) {
+    private func performVoiceConversion(with voice: VoiceInfo, tuning: BeamSVCVoiceConversionProvider.ConversionTuning? = nil) {
         let reducerTrack = ViewStore(store, observe: { $0.currentTrack }).state
         let audioMeta = audioManager.currentTrackMetadata
         let resolvedTitle = reducerTrack?.title ?? audioMeta.title
@@ -1149,7 +1220,8 @@ struct PlayerView: View {
                     voiceId: voice.id,
                     voiceType: resolvedVoiceType,
                     trimStart: nil,
-                    trimDuration: nil
+                    trimDuration: nil,
+                    tuning: tuning
                 )
 
                 await MainActor.run {
@@ -1389,12 +1461,17 @@ struct PlayerView: View {
 
 struct VoiceSelectionSheet: View {
     let voices: [VoiceInfo]
-    let onVoiceSelected: (VoiceInfo) -> Void
+    var isLoading = false
+    let onVoiceSelected: (VoiceInfo, BeamSVCVoiceConversionProvider.ConversionTuning?) -> Void
     let onCancel: () -> Void
     var currentTrack: PlayableTrackDTO?
     var preConversionManager: PreConversionManager?
     
     @State private var searchText = ""
+    @State private var useAdvancedTuning = false
+    @State private var pitchShift = 0.0
+    @State private var protect = 0.25
+    @State private var indexRatio = 0.75
     
     var filteredVoices: [VoiceInfo] {
         if searchText.isEmpty {
@@ -1426,11 +1503,23 @@ struct VoiceSelectionSheet: View {
             return ("✗ Failed", .red)
         }
     }
+
+    private var selectedTuning: BeamSVCVoiceConversionProvider.ConversionTuning? {
+        guard useAdvancedTuning else { return nil }
+        return BeamSVCVoiceConversionProvider.ConversionTuning(
+            pitchShift: Int(pitchShift.rounded()),
+            protect: protect,
+            indexRatio: indexRatio
+        )
+    }
     
     var body: some View {
         ZStack {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
+                .onTapGesture {
+                    onCancel()
+                }
             
             VStack(spacing: 24) {
                 HStack {
@@ -1461,6 +1550,69 @@ struct VoiceSelectionSheet: View {
                 .cornerRadius(16)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
+
+                if isLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Refreshing voices...")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white.opacity(0.75))
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 4)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(isOn: $useAdvancedTuning) {
+                        Text("Advanced voice tuning")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: .purple))
+
+                    if useAdvancedTuning {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("Pitch")
+                                Spacer()
+                                Text("\(Int(pitchShift.rounded()))")
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.78))
+                            Slider(value: $pitchShift, in: -12...12, step: 1)
+                                .tint(.purple)
+
+                            HStack {
+                                Text("Voice strength")
+                                Spacer()
+                                Text("\(Int((1.0 - protect) * 100))%")
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.78))
+                            Slider(value: $protect, in: 0.05...0.5, step: 0.01)
+                                .tint(.orange)
+
+                            HStack {
+                                Text("Index strength")
+                                Spacer()
+                                Text("\(Int(indexRatio * 100))%")
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.78))
+                            Slider(value: $indexRatio, in: 0...1, step: 0.05)
+                                .tint(.blue)
+                        }
+                    }
+                }
+                .padding(14)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(16)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 8)
                 
                 ScrollView {
                     if groupedVoices.isEmpty {
@@ -1489,7 +1641,7 @@ struct VoiceSelectionSheet: View {
 
                                     ForEach(groupedVoices[category] ?? [], id: \.id) { voice in
                                         VoiceRowView(voice: voice, badge: statusBadge(for: voice)) {
-                                            onVoiceSelected(voice)
+                                            onVoiceSelected(voice, selectedTuning)
                                         }
                                     }
                                 }
@@ -1511,9 +1663,6 @@ struct VoiceSelectionSheet: View {
             )
             .padding(.horizontal, 24)
             .padding(.vertical, 60)
-        }
-        .onTapGesture {
-            onCancel()
         }
     }
 }
